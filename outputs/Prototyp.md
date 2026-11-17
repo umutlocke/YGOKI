@@ -59,6 +59,12 @@ Der Beispielvergleich startet mit einer an die TCG-Banliste angepassten Kopie vo
 
 Doppelklicke in `outputs` auf `KI-Training.cmd`, um einen neuen lokalen Lauf zu starten. Der Lauf simuliert mindestens 1.000 Trainingsduelle je Deck für WinterRaven und D-LINK V3.1. Die Freigabe verlangt mindestens 1.000 gültige Trainingsduelle pro Deck und bessere Ergebnisse in einem separaten Prüfsatz. Der Lauf trainiert außerdem Judge und Headjudge mit gelabelten Grundfällen. Bericht, Einzelergebnisse und die beiden Entscheidungsbäume landen unter `work\training`. Im Deckvergleich verwendet die unveränderte Liste von D-LINK V3.1 im Format Vorschau ohne Banliste die freigegebene Strategie. Der Bericht zeigt die Strategie je Deck.
 
+## Lokales Turnier
+
+`outputs\Turnier.cmd` startet ein K.-o.-Turnier mit 64 KI-Teilnehmern im Vorschauformat. Die Teilnehmer spielen mit lokalen Deckvorlagen und vorhandenen Strategien. Der Ergebnisordner unter `work\tournaments` enthält die gültigen Decklisten, Seeds, Karten- und Engine-Prüfsummen, Replays und das Turnierergebnis.
+
+Mit `Turnier.cmd --reproduce "<Turnierordner>"` spielst du ein gespeichertes Turnier erneut durch. Der Prüflauf vergleicht Ergebnisse und Replay-Ereignisse. Das Review zieht zehn gleichmäßig über den Turnierverlauf verteilte Duelle heran. Die Schwelle von neun bestandenen Kettenprüfungen gilt für diese Stichprobe.
+
 ## Sicherung und Wiederherstellung
 
 Schließe die App und laufende Trainings. Starte anschließend in `outputs` die Datei `Sicherung.cmd`. Sie erstellt ein geprüftes, datiertes ZIP in `Dokumente\Codex\YGOKI-Sicherungen`. Das ZIP enthält die installierte App, Laufzeit, Decks, Vorschaukarten, Replays und Trainingsdaten. Über die Eingabeaufforderung kannst du mit `Sicherung.cmd "E:\YGOKI-Sicherungen"` ein anderes Ziel wählen.
