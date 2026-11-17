@@ -61,9 +61,11 @@ Doppelklicke in `outputs` auf `KI-Training.cmd`, um einen neuen lokalen Lauf zu 
 
 ## Lokales Turnier
 
-`outputs\Turnier.cmd` startet ein K.-o.-Turnier mit 64 KI-Teilnehmern im Vorschauformat. Die Teilnehmer spielen mit lokalen Deckvorlagen und vorhandenen Strategien. Der Ergebnisordner unter `work\tournaments` enthält die gültigen Decklisten, Seeds, Karten- und Engine-Prüfsummen, Replays und das Turnierergebnis.
+`outputs\Turnier.cmd` startet ein K.-o.-Turnier mit 64 KI-Teilnehmern im Vorschauformat. Jeder Spieler bewertet zehn ihm zugewiesene Replays anderer Teilnehmer. Ein Replay besteht, wenn die Prüfung mindestens eine abgeschlossene Kette und keine offenen Kettenabweichungen findet. Der Prüfmaßstab gilt für alle Spieler. Die Freigabe verlangt mindestens 9/10 von jedem der 64 Reviewer im selben Versuch.
 
-Mit `Turnier.cmd --reproduce "<Turnierordner>"` spielst du ein gespeichertes Turnier erneut durch. Der Prüflauf vergleicht Ergebnisse und Replay-Ereignisse. Das Review zieht zehn gleichmäßig über den Turnierverlauf verteilte Duelle heran. Die Schwelle von neun bestandenen Kettenprüfungen gilt für diese Stichprobe.
+Bei fehlender Freigabe prüft der Challenger im nächsten Turnier andere Strategien für Teilnehmer aus beanstandeten Duellen. Ergebnisse, Replay-Dateien und alle 64 Bewertungen stehen pro Versuch unter `work\tournaments`. Der Standardlauf läuft bis zur Freigabe und lässt sich mit Strg+C abbrechen. Mit `--max-attempts 3` kannst du einen Prüflauf begrenzen.
+
+Mit `Turnier.cmd --reproduce "<Versuchsordner>"` spielst du einen gespeicherten Versuch erneut durch. Der Prüflauf vergleicht Ergebnisse, Replay-Ereignisse und die Bewertungen.
 
 ## Sicherung und Wiederherstellung
 
