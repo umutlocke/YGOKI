@@ -1,6 +1,8 @@
 """Player policies shared by training and local deck comparison."""
 
 from hashlib import sha256
+import json
+from pathlib import Path
 
 from ygo_agent.arena.messages import IdleAction, SelectChain, SelectIdleCmd
 from ygo_agent.arena.policies import SimplePolicy
@@ -51,12 +53,29 @@ class Candidate(SimplePolicy):
             return message.respond(action, index)
         return super().__call__(message, view)
 
+PLAYBOOKS = Path(__file__).resolve().parent / "playbooks"
+PLAYBOOK_PREFIX = "Gelerntes Playbook:"
+
+
 def policy_for(strategy, seed):
+    if strategy.startswith(PLAYBOOK_PREFIX):
+        from playbook import Playbook, PlaybookPolicy
+        data = json.loads((PLAYBOOKS / f"{strategy[len(PLAYBOOK_PREFIX):]}.json").read_text(encoding="utf-8"))
+        return PlaybookPolicy(Playbook.from_json(data["playbook"]), seed)
     descriptor = STRATEGIES[strategy]
     return Candidate(descriptor, seed) if descriptor else SimplePolicy(seed)
 
 
+def learned_playbook(inspection):
+    """The released playbook from ki_lernen.py for exactly this deck list, if there is one."""
+    key = sha256(inspection.normalized.encode("utf-8")).hexdigest()
+    return f"{PLAYBOOK_PREFIX}{key}" if (PLAYBOOKS / f"{key}.json").is_file() else None
+
+
 def released_strategy(inspection, profile, engine_sha256):
+    learned = learned_playbook(inspection)
+    if learned:
+        return learned
     if (profile.label == "MR5 · Vorschau · ohne Banliste"
             and engine_sha256 == "210d2b4d521e19548a4cc8ea9f239029c9d81b90a9002430a7e0418171424903"
             and sha256(inspection.normalized.encode("utf-8")).hexdigest()

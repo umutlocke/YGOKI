@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from deck_check import SOURCES, WORK, audit
 from duel_formats import LIST_FILES, POOLS, select_format
 from judge_review import RULEBOOK, review_replay
-from player_policy import policy_for, released_strategy
+from player_policy import PLAYBOOK_PREFIX, policy_for, released_strategy
 from preview_cards import registered, with_previews
 from windows_duel import canonical_choice, check_result, database_fingerprints, script_ids, verify
 from ygo_agent.arena.duel import DuelConfig
@@ -171,7 +171,8 @@ def markdown(record):
               "Die Zahlen gelten für die gewählten Decks und die jeweiligen Strategien.", ""]
     if strategies := record.get("strategies"):
         lines += ["## Spielerstrategien", ""]
-        lines.extend(f"- {name} · {strategy}" for name, strategy in zip(names, strategies, strict=True))
+        lines.extend(f"- {name} · {'Gelerntes Playbook' if strategy.startswith(PLAYBOOK_PREFIX) else strategy}"
+                     for name, strategy in zip(names, strategies, strict=True))
         lines += [""]
     if review := record.get("judge"):
         lines += ["## Judge-Auswertung", "",
@@ -207,6 +208,12 @@ def compare(engine, profile, imports, args, previews):
     decks = [entry.deck for entry in imports]
     engine_hash = sha256(Path(engine.core.loaded_from).read_bytes()).hexdigest()
     strategies = [released_strategy(entry, profile, engine_hash) for entry in imports]
+    # Original and variant must play with the same brain, otherwise the comparison measures the bot, not the
+    # card change. A learned playbook carries over to the variant (new cards start at neutral priority).
+    # A learned playbook wins over a fixed released strategy; new cards start at neutral priority.
+    shared = (next((s for s in strategies[:2] if s.startswith(PLAYBOOK_PREFIX)), None)
+              or next((s for s in strategies[:2] if s != "Referenz"), "Referenz"))
+    strategies[:2] = [shared, shared]
     for index, entry in enumerate(imports):
         (destination / f"Deck-{index + 1}.ydk").write_bytes(entry.normalized.encode("utf-8"))
 

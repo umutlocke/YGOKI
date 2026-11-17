@@ -34,7 +34,7 @@ def model_ready():
 def ask(role, instructions, evidence, schema, seed):
     answer = request("/api/chat", {
         "model": MODEL, "stream": False, "think": False, "format": schema, "keep_alive": "10m",
-        "options": {"temperature": 0, "seed": seed, "num_ctx": 4096, "num_predict": 550},
+        "options": {"temperature": 0, "seed": seed, "num_ctx": 8192, "num_predict": 900},
         "messages": [{"role": "system", "content": f"Du bist {role} in YGOKI. {instructions} "
                       "Nutze nur die übergebenen Belege. Schreibe auf Deutsch und knapp."},
                      {"role": "user", "content": json.dumps(evidence, ensure_ascii=False)}],

@@ -173,15 +173,35 @@ def check_panel(engine, deck, strategy, rng, blocks, location):
     wins = sum(game["winner"] == 0 for game in valid)
     losses = sum(game["winner"] == 1 for game in valid)
     draws = len(valid) - wins - losses
-    return {"games": games, "wins": wins, "losses": losses, "draws": draws,
-            "invalid": len(games) - len(valid), "judge_cases": judge_cases}
+    panel = {"games": games, "wins": wins, "losses": losses, "draws": draws,
+             "invalid": len(games) - len(valid), "judge_cases": judge_cases}
+    add_replay_evidence(panel, location)
+    return panel
+
+
+def add_replay_evidence(panel, folder):
+    examples = []
+    chains = 0
+    for game in panel["games"]:
+        if "winner" not in game:
+            continue
+        name = game["file"]
+        review = review_replay((folder / name).read_bytes())
+        chains += review["chains"]
+        for item in review["examples"]:
+            if len(examples) < 4:
+                examples.append({"file": name, **item})
+    panel["chain_evidence"] = {"completed": chains, "examples": examples}
 
 
 def judge_panel(panel, seed):
     evidence = {"rules": RULES, "chain_findings": panel["judge_cases"][:4],
+                "chain_evidence": panel.get("chain_evidence"),
                 "valid": len(panel["games"]) - panel["invalid"], "invalid": panel["invalid"]}
     schema = object_schema(verdict={"type": "string", "enum": ["keine_auffaelligkeit", "offen"]}, reason=TEXT)
-    judge = ask("Judge", "Beurteile die Hinweise zur Kettenauflösung. "
+    judge = ask("Judge", "Beurteile die Kettenauflösung. Die Engine zählt abgeschlossene Ketten "
+                "und liefert bei mehrgliedrigen Ketten Beispiele mit Aktivierungs- und Auflösungsreihenfolge. "
+                "Bei geprüften Ketten ohne Auffälligkeiten ist keine_auffaelligkeit möglich. "
                 "Bei offenen Befunden oder fehlenden Belegen lautet das Urteil offen.", evidence, schema, seed)
     head = ask("Headjudge", "Prüfe, ob das Judge-Urteil belegt ist. "
                "Bei möglichen Abweichungen ohne vollständige Belege lautet das Urteil offen.",
@@ -335,19 +355,49 @@ def assess(args, engine, deck, model, record, location):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--deck", required=True, type=Path)
+    parser.add_argument("--deck", type=Path)
     parser.add_argument("--players", type=int, choices=(32, 64), default=64)
     parser.add_argument("--pilot", action="store_true")
     parser.add_argument("--resume", type=Path, help="Gespeicherten Lauf nach dem Training fortsetzen.")
+    parser.add_argument("--regrade", type=Path, help="Gespeicherte Replays mit zusätzlichen Kettenbelegen bewerten.")
     parser.add_argument("--seed", type=int, default=17421)
     parser.add_argument("--out", type=Path, default=WORK / "qwen-training")
     args = parser.parse_args()
+    if not args.deck and not args.regrade:
+        parser.error("--deck ist beim Training erforderlich.")
     try:
-        run(args)
+        if args.regrade:
+            regrade(args.regrade)
+        else:
+            run(args)
     except (OSError, ValueError, RuntimeError, KeyError) as error:
         print(f"Fehler: {error}", file=sys.stderr)
         return 1
     return 0
+
+
+def regrade(location):
+    model = model_ready()
+    original = json.loads((location / "Ergebnis.json").read_text(encoding="utf-8"))
+    if model != original["model"]:
+        raise ValueError("Die Nachprüfung braucht den ursprünglichen Modellstand.")
+    # Start with the strategy that won the most games across both saved panels.
+    candidate = max((attempt for attempt in original["attempts"] if len(attempt["panels"]) == 2),
+                    key=lambda attempt: sum(panel["wins"] for panel in attempt["panels"]))
+    result = {"strategy": candidate["challenger"]["strategy"], "model": model, "panels": [], "accepted": False}
+    path = location / "Nachpruefung.json"
+    for index, panel in enumerate(candidate["panels"], 1):
+        add_replay_evidence(panel, location / panel["replay_dir"])
+        seed = original["seed"] + 9000 + index * 100
+        judges = judge_panel(panel, seed)
+        votes, overall = reviewers(panel, judges, seed + 10)
+        result["panels"].append({"round": index, "wins": panel["wins"], "losses": panel["losses"],
+                                 "previous": panel["overall"], "overall": overall, "judges": judges,
+                                 "evidence": panel["chain_evidence"], "reviewers": votes})
+        save(path, result)
+        print(f"Nachprüfung {index}: {overall:.1f}/10, Judge {'klar' if judges['clear'] else 'offen'}.", flush=True)
+    # This reuses the original test games. A subsequent independent run must confirm any promotion.
+    print(f"Nachprüfung gespeichert: {path}", flush=True)
 
 
 if __name__ == "__main__":

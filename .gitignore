@@ -12,6 +12,7 @@
 !/work/native/App.cs
 !/work/native/CardImages.cs
 !/work/native/SpectatorView.cs
+!/work/native/TrainingView.cs
 !/work/native/MainWindow.xaml
 !/work/native/build.ps1
 
@@ -19,3 +20,4 @@
 !/outputs/*.cmd
 !/outputs/*.ps1
 !/outputs/Prototyp.md
+!/outputs/KI-Training-Anleitung.md

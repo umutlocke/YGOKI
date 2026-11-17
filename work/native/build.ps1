@@ -19,7 +19,7 @@ $arguments = @('/nologo', '/target:winexe', '/platform:x64', '/optimize+', '/lan
     "/reference:$(Join-Path $wpf 'WindowsBase.dll')",
     "/resource:$(Join-Path $PSScriptRoot 'MainWindow.xaml'),MainWindow.xaml",
     (Join-Path $PSScriptRoot 'App.cs'), (Join-Path $PSScriptRoot 'CardImages.cs'),
-    (Join-Path $PSScriptRoot 'SpectatorView.cs'))
+    (Join-Path $PSScriptRoot 'SpectatorView.cs'), (Join-Path $PSScriptRoot 'TrainingView.cs'))
 & $compiler @arguments
 if ($LASTEXITCODE -ne 0) { throw 'Die Windows-App konnte nicht gebaut werden.' }
 Write-Output $Output

@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from deck_editor import Editor, WORK, filename_stem
 from spectator_jobs import SpectatorJob
+import training_jobs
 
 
 def dispatch(editor, action, data):
@@ -28,6 +29,20 @@ def dispatch(editor, action, data):
         if action == "watch_stop":
             editor.spectator.cancel()
         return editor.spectator.snapshot()
+    if action == "qwen_status":
+        return training_jobs.qwen_status()
+    if action == "qwen_start":
+        return training_jobs.qwen_start()
+    if action == "train_start":
+        return training_jobs.start(editor.deck_path(data["deck"]["source"], data["deck"]["name"]), data)
+    if action == "train_runs":
+        return training_jobs.runs()
+    if action == "train_status":
+        return training_jobs.status(data["folder"])
+    if action == "train_stop":
+        return training_jobs.stop(data["folder"])
+    if action == "train_resume":
+        return training_jobs.resume(data["folder"])
     if action == "decks":
         return editor.library()
     if action == "open":

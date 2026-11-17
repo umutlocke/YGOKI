@@ -1,0 +1,711 @@
+"""YGOKI deck training: a population of playbooks learns one deck in mirror-match tournaments.
+
+Ablauf
+1. 32 oder 64 Spieler-KIs bekommen je ein eigenes Playbook für dasselbe Deck.
+2. Jede Generation ist eine Turnierrunde: Paare spielen zwei Spiegelduelle (jeder beginnt einmal).
+3. Die besseren Playbooks (Elo) bleiben, die schwächeren werden durch Varianten ersetzt (Mutation,
+   Kreuzung und, wenn Qwen läuft, durch Vorschläge des Qwen-Coachs).
+4. In Prüfrunden spielt der aktuelle Champion auf zurückgehaltenen Seeds gegen den eingefrorenen
+   Referenz-Bot und gegen das neutrale Start-Playbook. Daraus entsteht die gemessene Note (bewertung.py).
+   Judge und Headjudge prüfen jedes Prüfduell auf Engine-Fehler und spielen Stichproben-Replays nach.
+   Drei Qwen-Zuschauer bewerten Ablauf und Fortschritt und kommentieren.
+5. Das Training endet, sobald mindestens 1.000 gültige Trainingsduelle gespielt sind und zwei Prüfrunden
+   in Folge mindestens 9/10 erreichen (Judges ohne Befund, Zuschauer im Median mindestens 7/10).
+   Es endet auch bei Stillstand, nach der maximalen Generationenzahl oder auf Wunsch (Stopp-Datei).
+6. Danach entsteht die Deckanalyse als JSON, CSV, Markdown und druckbarer HTML-Bericht.
+"""
+
+from __future__ import annotations
+
+import argparse
+from collections import Counter, defaultdict
+from concurrent.futures import ProcessPoolExecutor
+from csv import DictWriter
+from datetime import datetime
+from hashlib import sha256
+import json
+import os
+from pathlib import Path
+import random
+import statistics
+import sys
+import time
+import traceback
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from deck_check import WORK  # noqa: E402  (also puts ygo-agent on sys.path)
+from bewertung import rating, wilson_lower  # noqa: E402
+from playbook import Playbook, PlaybookPolicy, adjust, crossover, mutate  # noqa: E402
+
+RUNS = WORK / "ki-lernen"
+PLAYBOOKS = WORK / "playbooks"
+DECISION_LIMIT = 20_000
+
+# --------------------------------------------------------------------------------------------------------
+# Worker processes: each loads the engine and deck once and then plays duels on request.
+# --------------------------------------------------------------------------------------------------------
+_ENGINE = None
+_DECK = None
+
+
+def _init_worker(deck_path):
+    global _ENGINE, _DECK
+    os.environ.setdefault("XDG_CACHE_HOME", str(WORK / "cache"))
+    from qwen_training import load_deck
+    _ENGINE, inspected = load_deck(Path(deck_path))
+    _DECK = inspected.deck
+
+
+def _policy(spec, seed):
+    from ygo_agent.arena.policies import SimplePolicy
+    if spec == "REF":
+        return SimplePolicy(seed)
+    return PlaybookPolicy(Playbook.from_json(spec), seed)
+
+
+def play_duel(task):
+    """task = (spec_a, spec_b, seed, first, keep_replay). spec is a playbook dict or "REF"."""
+    from windows_duel import check_result
+    from ygo_agent.arena.duel import DuelConfig
+    from ygo_agent.arena.runner import run_match
+    from ygo_agent.arena.seats import PolicySeat
+    spec_a, spec_b, seed, first, keep = task
+    policies = (_policy(spec_a, seed * 2 + 1), _policy(spec_b, seed * 2 + 2))
+    try:
+        seats = (PolicySeat("A", policies[0]), PolicySeat("B", policies[1]))
+        game, = run_match(_ENGINE, DuelConfig(rules="mr5", max_retries=0), (_DECK, _DECK), seats,
+                          seed=seed, first=first).games
+        check_result(game.result, _ENGINE.cards)
+        if game.result.responses >= DECISION_LIMIT:
+            raise ValueError("Entscheidungslimit erreicht (Endlosschleife).")
+    except Exception as error:  # an invalid duel is a Judge finding, not a crash of the trainer
+        return {"valid": False, "error": f"{type(error).__name__}: {error}"[:400], "seed": seed, "first": first}
+    stats = [policy.stats() if isinstance(policy, PlaybookPolicy) else None for policy in policies]
+    return {"valid": True, "winner": game.winner_seat, "turns": game.result.turns, "seed": seed,
+            "first": first, "stats": stats, "replay": game.replay if keep else None}
+
+
+class SerialPool:
+    """Same interface as ProcessPoolExecutor for --workers 1 (no extra processes)."""
+
+    def __init__(self, workers, initializer, initargs):
+        initializer(*initargs)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def map(self, function, items, chunksize=1):
+        return map(function, items)
+
+
+# --------------------------------------------------------------------------------------------------------
+# Helpers
+# --------------------------------------------------------------------------------------------------------
+def save(path: Path, data):
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8")
+    temporary.replace(path)
+
+
+def headjudge_replay(engine, path):
+    """Replay a saved duel and compare every game-relevant engine packet.
+
+    Client hints (HINT, CARD_HINT, SHOW_HINT, PLAYER_HINT) are display text. A few Project Ignis scripts build
+    them from Lua tables whose order differs between processes, so they are compared separately and only
+    counted. Every other packet (moves, chains, damage, results) must match exactly. Returns the number of
+    hint-only differences."""
+    from windows_duel import check_result
+    from ygo_agent.arena.replay import read_replay
+    from ygo_agent.arena.runner import replay_duel
+    from ygo_agent.core.constants import Msg
+    hints = {Msg.HINT, Msg.CARD_HINT, Msg.SHOW_HINT, Msg.PLAYER_HINT}
+    saved = read_replay(str(path))
+    duel = replay_duel(engine, saved)
+    try:
+        if duel.result is None:
+            raise ValueError("Das Replay endet ohne Duellergebnis.")
+        check_result(duel.result, engine.cards)
+        actual, expected = duel.replay.packets, saved.packets
+        game = [p for p in actual if p and p[0] not in hints]
+        game_saved = [p for p in expected if p and p[0] not in hints]
+        if game != game_saved:
+            index = next((i for i, (a, b) in enumerate(zip(game, game_saved)) if a != b), min(len(game), len(game_saved)))
+            raise ValueError(f"Spielrelevante Abweichung ab Ereignis {index} (Typ {game[index][0] if index < len(game) else '-'}).")
+        return sum(a != b for a, b in zip(actual, expected)) if len(actual) == len(expected) else 1
+    finally:
+        duel.close()
+
+
+def points(result, side):
+    if result["winner"] is None:
+        return 0.5
+    return 1.0 if result["winner"] == side else 0.0
+
+
+class Qwen:
+    """Optional local Qwen roles. Every call is logged; a failed call is recorded instead of crashing."""
+
+    def __init__(self, enabled, log):
+        self.enabled = enabled
+        self.model = None
+        self.log = log
+        if enabled:
+            from qwen_local import model_ready
+            self.model = model_ready()
+
+    def ask(self, role, instructions, evidence, schema, seed):
+        if not self.enabled:
+            return None
+        from qwen_local import ask
+        try:
+            answer = ask(role, instructions, evidence, schema, seed)
+            self.log.append({"role": role, "answer": answer})
+            return answer
+        except ValueError as error:
+            self.log.append({"role": role, "error": str(error)})
+            return None
+
+
+def obj(**properties):
+    return {"type": "object", "properties": properties, "required": list(properties),
+            "additionalProperties": False}
+
+
+TEXT = {"type": "string"}
+GRADE = {"type": "number", "minimum": 0, "maximum": 10}
+
+
+# --------------------------------------------------------------------------------------------------------
+# Trainer
+# --------------------------------------------------------------------------------------------------------
+class Trainer:
+    def __init__(self, args):
+        self.args = args
+        from qwen_training import load_deck
+        self.engine, inspected = load_deck(args.deck)
+        self.deck = inspected.deck
+        self.deck_hash = inspected.original_sha256
+        self.playbook_key = sha256(inspected.normalized.encode("utf-8")).hexdigest()
+        self.codes = sorted(set(self.deck.main + self.deck.extra))
+        self.names = {code: self.engine.cards.name(code) for code in self.codes}
+        self.rng = random.Random(args.seed)
+        if args.resume:
+            self.folder = args.resume
+            self.record = json.loads((self.folder / "Ergebnis.json").read_text(encoding="utf-8"))
+            if self.record.get("deck_key") != self.playbook_key:
+                raise ValueError("Der gespeicherte Lauf gehört zu einer anderen Deckliste.")
+            self.population = [Playbook.from_json(item) for item in self.record["population"]]
+            self.elo = self.record["elo"]
+            self.rng.seed(f"{args.seed}:resume:{self.record['generation']}")
+            self.record["state"] = "läuft"
+            self.deck.name = self.record["deck"]
+        else:
+            stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            self.folder = (args.run_dir or args.out / f"{self.deck.name}-{stamp}").resolve()
+            self.folder.mkdir(parents=True, exist_ok=True)
+            (self.folder / "Deck.ydk").write_text(inspected.normalized, encoding="utf-8")
+            self.population = [Playbook.neutral(self.codes)] + [
+                Playbook.initial(self.codes, self.rng) for _ in range(args.players - 1)]
+            self.elo = [1000.0] * args.players
+            self.record = {"deck": self.deck.name, "deck_sha256": self.deck_hash, "deck_key": self.playbook_key,
+                           "seed": args.seed,
+                           "players": args.players, "min_duels": args.min_duels, "target": args.target,
+                           "started": datetime.now().isoformat(timespec="seconds"), "generation": 0,
+                           "valid": 0, "invalid": 0, "history": [], "exams": [], "judge_findings": [],
+                           "qwen": [], "state": "läuft"}
+        self.start_book = Playbook.neutral(self.codes).to_json()
+        self.qwen = Qwen(not args.ohne_qwen, self.record.setdefault("qwen", []))
+        self.record["model"] = self.qwen.model
+        self.card_wins = defaultdict(lambda: [0, 0])   # code -> [used in won games, used in lost games]
+        self.status("Training startet")
+
+    # -- status for the app ---------------------------------------------------------------------------
+    def status(self, message, state=None):
+        if state:
+            self.record["state"] = state
+        exams = self.record["exams"]
+        save(self.folder / "status.json", {
+            "deck": self.deck.name, "folder": str(self.folder), "state": self.record["state"],
+            "message": message, "generation": self.record["generation"], "valid": self.record["valid"],
+            "invalid": self.record["invalid"], "min_duels": self.args.min_duels, "target": self.args.target,
+            "players": self.args.players, "qwen": bool(self.qwen.model), "pid": os.getpid(),
+            "ratings": [exam["rating"] for exam in exams], "best": max((e["rating"] for e in exams), default=None),
+            "updated": datetime.now().isoformat(timespec="seconds")})
+        print(f"[{datetime.now():%H:%M:%S}] {message}", flush=True)
+
+    def checkpoint(self):
+        self.record["population"] = [book.to_json() for book in self.population]
+        self.record["elo"] = self.elo
+        save(self.folder / "Ergebnis.json", self.record)
+
+    def stop_requested(self):
+        return (self.folder / "STOP").exists()
+
+    # -- one tournament round -----------------------------------------------------------------------
+    def generation(self, pool):
+        pairs = []
+        for _ in range(self.args.rounds):
+            order = list(range(len(self.population)))
+            self.rng.shuffle(order)
+            pairs += list(zip(order[0::2], order[1::2]))
+        tasks, meta = [], []
+        for a, b in pairs:
+            seed = self.rng.getrandbits(62)
+            for first in (0, 1):
+                tasks.append((self.population[a].to_json(), self.population[b].to_json(), seed, first, False))
+                meta.append((a, b))
+        scores = Counter()
+        games = Counter()
+        for (a, b), result in zip(meta, pool.map(play_duel, tasks, chunksize=2)):
+            if not result["valid"]:
+                self.record["invalid"] += 1
+                if len(self.record["judge_findings"]) < 30:
+                    self.record["judge_findings"].append({"phase": "Training", **result})
+                continue
+            self.record["valid"] += 1
+            pa = points(result, 0)
+            expected = 1 / (1 + 10 ** ((self.elo[b] - self.elo[a]) / 400))
+            self.elo[a] += 16 * (pa - expected)
+            self.elo[b] -= 16 * (pa - expected)
+            scores[a] += pa
+            scores[b] += 1 - pa
+            games[a] += 1
+            games[b] += 1
+            for side, stats in enumerate(result["stats"]):
+                if stats:
+                    won = points(result, side) == 1.0
+                    for code in stats["used"]:
+                        self.card_wins[code][0 if won else 1] += 1
+        if self.record["invalid"] > max(20, self.record["valid"] // 10):
+            raise ValueError("Zu viele ungültige Duelle. Details stehen unter judge_findings in Ergebnis.json.")
+        return scores, games
+
+    def evolve(self, coach_changes):
+        ranked = sorted(range(len(self.population)), key=lambda i: -self.elo[i])
+        keep = max(2, len(ranked) // 4)
+        parents = ranked[:len(ranked) // 2]
+        new_population = [self.population[i] for i in ranked[:keep]]
+        new_elo = [self.elo[i] for i in ranked[:keep]]
+        qwen_children = len(ranked) // 8 if coach_changes else 0
+        while len(new_population) < len(self.population):
+            a = self.population[self.rng.choice(parents)]
+            if qwen_children:
+                child = mutate(adjust(self.population[ranked[0]], coach_changes), self.rng, 0.5, "Qwen-Vorschlag")
+                qwen_children -= 1
+            elif self.rng.random() < 0.35:
+                b = self.population[self.rng.choice(parents)]
+                child = mutate(crossover(a, b, self.rng), self.rng, 0.6, "Kreuzung")
+            else:
+                child = mutate(a, self.rng, 0.7)
+            new_population.append(child)
+            new_elo.append(statistics.mean(new_elo[:keep]) - 40)
+        self.population, self.elo = new_population, new_elo
+
+    def champion(self, pool=None):
+        """Highest Elo, or with a pool: a playoff of the four best on separate seeds decides."""
+        ranked = sorted(range(len(self.population)), key=lambda i: -self.elo[i])
+        if pool is None or self.args.playoff_blocks == 0:
+            return ranked[0], self.population[ranked[0]]
+        rng = random.Random(f"{self.args.seed}:playoff:{self.record['generation']}")
+        seeds = [rng.getrandbits(62) for _ in range(self.args.playoff_blocks)]
+        candidates = ranked[:4]
+        tasks = [(self.population[c].to_json(), opponent, seed, first, False)
+                 for c in candidates for opponent in ("REF", self.start_book) for seed in seeds for first in (0, 1)]
+        results = list(pool.map(play_duel, tasks, chunksize=2))
+        size = len(results) // len(candidates)
+        totals = [sum(points(r, 0) for r in results[i * size:(i + 1) * size] if r["valid"])
+                  for i in range(len(candidates))]
+        best = candidates[max(range(len(candidates)), key=lambda i: totals[i])]
+        self.record.setdefault("playoffs", []).append({"generation": self.record["generation"],
+                                                        "candidates": candidates, "points": totals, "games": size})
+        return best, self.population[best]
+
+    # -- Qwen coach --------------------------------------------------------------------------------------
+    def coach(self):
+        best = self.population[max(range(len(self.population)), key=lambda i: self.elo[i])]
+        cards = []
+        for code in self.codes:
+            won, lost = self.card_wins.get(code, (0, 0))
+            cards.append({"code": code, "karte": self.names[code], "prioritaet": round(best.weights[code], 2),
+                          "kettenquote_gegnerzug": round(best.chain_opp[code], 2),
+                          "eingesetzt_in_siegen": won, "eingesetzt_in_niederlagen": lost})
+        change = {"type": "object", "additionalProperties": False, "required": ["code", "priority", "chain"],
+                  "properties": {"code": {"type": "integer", "enum": self.codes},
+                                 "priority": {"type": "string", "enum": ["+", "-", "="]},
+                                 "chain": {"type": "string", "enum": ["+", "-", "="]}}}
+        answer = self.qwen.ask(
+            "Trainer-Coach", "Du verbesserst das Playbook eines Yu-Gi-Oh!-Decks. 'prioritaet' bestimmt, welche "
+            "Karte zuerst gespielt bzw. behalten wird, 'kettenquote_gegnerzug' wie oft eine Karte im Zug des Gegners "
+            "gekettet wird (Handtraps). Schlage höchstens 6 Änderungen vor, die sich aus den Einsatzzahlen in Siegen "
+            "und Niederlagen begründen lassen. Die Engine testet jede Änderung in neuen Duellen.",
+            {"deck": self.deck.name, "karten": cards},
+            obj(changes={"type": "array", "items": change, "maxItems": 6}, reason=TEXT),
+            self.args.seed + self.record["generation"])
+        if not answer:
+            return []
+        self.record.setdefault("coach", []).append({"generation": self.record["generation"], **answer})
+        return answer.get("changes", [])
+
+    # -- exam -----------------------------------------------------------------------------------------
+    def exam(self, pool):
+        index = len(self.record["exams"]) + 1
+        _, champ = self.champion(pool)
+        rng = random.Random(f"{self.args.seed}:pruefung:{index}")
+        tasks = []
+        for opponent in ("REF", self.start_book):
+            for block in range(self.args.exam_blocks):
+                seed = rng.getrandbits(62)
+                for first in (0, 1):
+                    tasks.append((champ.to_json(), opponent, seed, first, block < 2 and opponent == "REF"))
+        results = list(pool.map(play_duel, tasks, chunksize=2))
+        half = len(results) // 2
+        vs_ref, vs_start = results[:half], results[half:]
+        valid = [r for r in results if r["valid"]]
+        invalid = [r for r in results if not r["valid"]]
+
+        def score(items, second_only=False):
+            items = [r for r in items if r["valid"] and (not second_only or r["first"] == 1)]
+            return sum(points(r, 0) for r in items), len(items)
+
+        # Headjudge: replay sample duels and compare every engine packet.
+        folder = self.folder / f"Pruefung-{index:02d}"
+        folder.mkdir(exist_ok=True)
+        reproduced, mismatches, cosmetic = 0, [], 0
+        for number, result in enumerate(r for r in vs_ref if r["valid"] and r["replay"]):
+            path = folder / f"Replay-{number + 1}.yrpX"
+            path.write_bytes(result["replay"])
+            try:
+                hints_only = headjudge_replay(self.engine, path)
+                reproduced += 1
+                cosmetic += hints_only
+            except (ValueError, RuntimeError) as error:
+                mismatches.append({"replay": path.name, "error": str(error)})
+        integrity = not invalid and not mismatches and reproduced > 0
+        total, parts = rating(score(vs_ref), score(vs_start), score(vs_ref, True), integrity)
+        judge = {"exam_duels": len(results), "invalid": len(invalid),
+                 "findings": [r["error"] for r in invalid][:5], "headjudge_reproduced": reproduced,
+                 "headjudge_mismatches": mismatches, "hint_only_differences": cosmetic, "clear": integrity}
+        if invalid or mismatches:
+            explanation = self.qwen.ask(
+                "Judge", "Erkläre knapp, was die gemeldeten Engine-Befunde bedeuten und ob sie das Prüfergebnis "
+                "beeinflussen. Erfinde keine Regeln.", judge, obj(erklaerung=TEXT), self.args.seed + index)
+            judge["qwen"] = explanation
+        exam = {"round": index, "generation": self.record["generation"], "valid_training": self.record["valid"],
+                "rating": total, "parts": parts,
+                "vs_reference": dict(zip(("points", "games"), score(vs_ref))),
+                "vs_start": dict(zip(("points", "games"), score(vs_start))),
+                "second": dict(zip(("points", "games"), score(vs_ref, True))),
+                "judge": judge, "champion": champ.to_json()}
+        exam["reviewers"] = self.reviewers(exam)
+        self.record["exams"].append(exam)
+        self._last_exam_games = [r for r in valid]
+        return exam
+
+    def reviewers(self, exam):
+        if not self.qwen.enabled:
+            return []
+        curve = [{"generation": h["generation"], "bester_elo": h["best_elo"]} for h in self.record["history"][-12:]]
+        earlier = [{"runde": e["round"], "note": e["rating"]} for e in self.record["exams"]]
+        evidence = {"gemessene_note": exam["rating"], "teilnoten": exam["parts"],
+                    "gegen_referenz": exam["vs_reference"], "gegen_start": exam["vs_start"],
+                    "als_zweiter": exam["second"], "judge": {k: exam["judge"][k] for k in
+                                                              ("invalid", "headjudge_reproduced", "clear")},
+                    "trainingsduelle": self.record["valid"], "fortschrittskurve": curve,
+                    "fruehere_pruefungen": earlier}
+        roles = (("Zuschauer-Reviewer Trainingsablauf", "Bewerte, ob das Training sauber und nachvollziehbar läuft."),
+                 ("Zuschauer-Reviewer Fortschritt", "Bewerte, ob die KIs messbar besser geworden sind."),
+                 ("Zuschauer-Reviewer Stabilität", "Bewerte, ob die Verbesserung stabil und nicht zufällig wirkt."))
+        reviews = []
+        for number, (role, task) in enumerate(roles):
+            answer = self.qwen.ask(role, task + " Nutze nur die Messwerte. Gib eine Note von 0 bis 10 und "
+                                   "eine kurze Begründung.", evidence, obj(note=GRADE, kommentar=TEXT),
+                                   self.args.seed + 500 + 10 * exam["round"] + number)
+            if answer and isinstance(answer.get("note"), (int, float)):
+                reviews.append({"role": role, **answer})
+        return reviews
+
+    def released(self):
+        exams = self.record["exams"]
+        if self.record["valid"] < self.args.min_duels or len(exams) < 2:
+            return False
+        for exam in exams[-2:]:
+            if exam["rating"] < self.args.target or not exam["judge"]["clear"]:
+                return False
+            if self.qwen.enabled:
+                grades = [review["note"] for review in exam["reviewers"]]
+                if not grades or statistics.median(grades) < 7:
+                    return False
+        return True
+
+    # -- main loop ----------------------------------------------------------------------------------
+    def run(self):
+        reason = None
+        pool_type = ProcessPoolExecutor if self.args.workers > 1 else SerialPool
+        with pool_type(self.args.workers, initializer=_init_worker, initargs=(str(self.args.deck),)) as pool:
+            coach_changes = []
+            while True:
+                if self.stop_requested():
+                    reason = "auf Wunsch beendet"
+                    break
+                self.record["generation"] += 1
+                generation = self.record["generation"]
+                self.generation(pool)
+                best = max(self.elo)
+                self.record["history"].append({"generation": generation, "valid": self.record["valid"],
+                                               "best_elo": round(best, 1),
+                                               "mean_elo": round(statistics.mean(self.elo), 1)})
+                self.status(f"Generation {generation}: {self.record['valid']} gültige Duelle, bester Elo {best:.0f}")
+                if generation % self.args.exam_every == 0:
+                    self.status(f"Prüfrunde nach Generation {generation} läuft")
+                    exam = self.exam(pool)
+                    grades = [r["note"] for r in exam["reviewers"]]
+                    self.status(f"Prüfrunde {exam['round']}: {exam['rating']:.1f}/10 gemessen, Zuschauer "
+                                f"{statistics.median(grades) if grades else '-'}, Judges "
+                                f"{'ohne Befund' if exam['judge']['clear'] else 'mit Befund'}")
+                    if self.released():
+                        reason = "Ziel erreicht"
+                        break
+                    if self.stagnated():
+                        reason = "Stillstand"
+                        break
+                if generation >= self.args.max_generations:
+                    reason = "maximale Generationenzahl"
+                    break
+                if self.qwen.enabled and generation % self.args.coach_every == 0:
+                    coach_changes = self.coach()
+                self.evolve(coach_changes)
+                self.checkpoint()
+            if not self.record["exams"] or self.record["exams"][-1]["generation"] != self.record["generation"]:
+                self.status("Abschließende Prüfrunde läuft")
+                self.exam(pool)
+        self.record["released"] = self.released()
+        self.record["end_reason"] = reason
+        self.record["finished"] = datetime.now().isoformat(timespec="seconds")
+        self.checkpoint()
+        self.report()
+        state = "freigegeben" if self.record["released"] else "beendet"
+        self.status(f"Fertig ({reason}). Bericht: {self.folder / 'Bericht.html'}", state)
+
+    def stagnated(self):
+        ratings = [exam["rating"] for exam in self.record["exams"]]
+        if len(ratings) < self.args.patience + 1 or self.record["valid"] < self.args.min_duels:
+            return False
+        return max(ratings[-self.args.patience:]) <= max(ratings[:-self.args.patience]) + 0.05
+
+    # -- deck analysis ----------------------------------------------------------------------------------
+    def analysis(self):
+        games = [g for g in getattr(self, "_last_exam_games", []) if g["stats"][0]]
+        overall = sum(points(g, 0) for g in games) / len(games) if games else 0
+        rows = []
+        champion = Playbook.from_json(self.record["exams"][-1]["champion"])
+        copies = Counter(self.deck.main)
+        for code in self.codes:
+            in_opening = [g for g in games if code in g["stats"][0]["opening"]]
+            used = [g for g in games if code in g["stats"][0]["used"]]
+            dead = [g for g in in_opening if code not in g["stats"][0]["used"]]
+            win_open = sum(points(g, 0) for g in in_opening)
+            rows.append({
+                "code": code, "karte": self.names[code], "kopien": copies.get(code, 0),
+                "bereich": "Main" if code in copies else "Extra",
+                "prioritaet": round(champion.weights[code], 2),
+                "kettenquote_gegnerzug": round(champion.chain_opp[code], 2),
+                "spiele_mit_einsatz": len(used),
+                "einsaetze_gesamt": sum(g["stats"][0]["used"].get(code, 0) for g in games),
+                "in_starthand": len(in_opening),
+                "siegquote_in_starthand": round(win_open / len(in_opening), 3) if in_opening else None,
+                "differenz_zur_gesamtquote": round(win_open / len(in_opening) - overall, 3) if in_opening else None,
+                "tot_auf_der_hand": len(dead),
+                "gekettet_im_gegnerzug": sum(g["stats"][0]["chained_opp"].get(code, 0) for g in games)})
+        rows.sort(key=lambda row: (-row["spiele_mit_einsatz"], -row["prioritaet"]))
+        return overall, len(games), rows
+
+    def report(self):
+        overall, count, rows = self.analysis()
+        exams = self.record["exams"]
+        last = exams[-1]
+        with (self.folder / "Kartenanalyse.csv").open("w", encoding="utf-8-sig", newline="") as file:
+            writer = DictWriter(file, list(rows[0]), delimiter=";")
+            writer.writeheader()
+            writer.writerows(rows)
+        with (self.folder / "Fortschritt.csv").open("w", encoding="utf-8-sig", newline="") as file:
+            writer = DictWriter(file, ["generation", "valid", "best_elo", "mean_elo"], delimiter=";")
+            writer.writeheader()
+            writer.writerows(self.record["history"])
+        champion = last["champion"]
+        save(self.folder / "Playbook-Champion.json", champion)
+        if self.record.get("released"):
+            PLAYBOOKS.mkdir(parents=True, exist_ok=True)
+            save(PLAYBOOKS / f"{self.playbook_key}.json", {"deck": self.deck.name, "rating": last["rating"],
+                                                        "run": str(self.folder), "playbook": champion})
+        main_rows = [row for row in rows if row["in_starthand"] >= 5]
+        strong = sorted((r for r in main_rows if r["differenz_zur_gesamtquote"] is not None),
+                        key=lambda r: -r["differenz_zur_gesamtquote"])[:6]
+        weak = sorted((r for r in main_rows if r["differenz_zur_gesamtquote"] is not None),
+                      key=lambda r: r["differenz_zur_gesamtquote"])[:6]
+        dead = sorted((r for r in main_rows if r["tot_auf_der_hand"]),
+                      key=lambda r: -r["tot_auf_der_hand"] / max(r["in_starthand"], 1))[:6]
+        data = {"deck": self.deck.name, "freigegeben": self.record.get("released"), "ende": self.record["end_reason"],
+                "note": last["rating"], "teilnoten": last["parts"], "siegquote_pruefung": round(overall, 3),
+                "pruefspiele": count, "staerkste_starthandkarten": strong, "schwaechste_starthandkarten": weak,
+                "oft_tot_auf_der_hand": dead, "hoechste_prioritaet": sorted(rows, key=lambda r: -r["prioritaet"])[:8]}
+        analyst = self.qwen.ask(
+            "Deckanalyst", "Fasse zusammen, was an diesem Deck gut funktioniert, was weniger gut funktioniert und was "
+            "ausbaufähig ist. Die Starthand-Werte sind Zusammenhänge, keine bewiesene Ursache. Schlage konkrete "
+            "A/B-Tests für Kartentausch vor (sie lassen sich im Deckvergleich der App ausführen).",
+            data, obj(staerken=TEXT, schwaechen=TEXT, ausbaufaehig=TEXT, ab_tests=TEXT), self.args.seed + 901)
+        data["qwen_analyse"] = analyst
+        save(self.folder / "Deckanalyse.json", data)
+        self.record["analysis"] = data
+        self.checkpoint()
+        (self.folder / "Deckanalyse.md").write_text(markdown(self.record, data, rows), encoding="utf-8")
+        (self.folder / "Bericht.html").write_text(html_report(self.record, data, rows), encoding="utf-8")
+
+
+# --------------------------------------------------------------------------------------------------------
+# Reports
+# --------------------------------------------------------------------------------------------------------
+def _card_line(row):
+    quote = row["siegquote_in_starthand"]
+    return (f"- **{row['karte']}** · {row['in_starthand']}× in der Starthand"
+            + (f", Siegquote {quote:.0%}" if quote is not None else "")
+            + f", {row['tot_auf_der_hand']}× ungenutzt, Priorität {row['prioritaet']:+.2f}")
+
+
+def markdown(record, data, rows):
+    last = record["exams"][-1]
+    lines = [f"# Deckanalyse · {record['deck']}", "",
+             f"**Status:** {'freigegeben' if record.get('released') else 'nicht freigegeben'} "
+             f"({record['end_reason']}) · **Note:** {last['rating']:.1f}/10 · "
+             f"{record['valid']} gültige Trainingsduelle in {record['generation']} Generationen "
+             f"mit {record['players']} Spieler-KIs.", "",
+             "## Teilnoten (gemessen)", "",
+             *(f"- {name.capitalize()}: {value:.1f}/10" for name, value in last["parts"].items()), "",
+             f"Gegen den Referenz-Bot: {last['vs_reference']['points']:.1f} von {last['vs_reference']['games']} Punkten. "
+             f"Gegen das Start-Playbook: {last['vs_start']['points']:.1f} von {last['vs_start']['games']}.", "",
+             "## Judges", "",
+             f"{last['judge']['invalid']} ungültige Prüfduelle, {last['judge']['headjudge_reproduced']} Replays "
+             f"exakt nachgespielt, Befund: {'keiner' if last['judge']['clear'] else 'siehe Ergebnis.json'}.", "",
+             "## Zuschauer-Reviewer", ""]
+    lines += [f"- {r['role']}: {r['note']}/10 – {r['kommentar']}" for r in last["reviewers"]] or ["- Qwen war aus."]
+    lines += ["", "## Karten mit dem stärksten Zusammenhang zu Siegen (Starthand)", ""]
+    lines += [_card_line(row) for row in data["staerkste_starthandkarten"]]
+    lines += ["", "## Karten mit dem schwächsten Zusammenhang", ""]
+    lines += [_card_line(row) for row in data["schwaechste_starthandkarten"]]
+    lines += ["", "## Oft ungenutzt auf der Hand", ""]
+    lines += [_card_line(row) for row in data["oft_tot_auf_der_hand"]] or ["- keine"]
+    analyst = data.get("qwen_analyse")
+    if analyst:
+        for title, key in (("Was gut funktioniert", "staerken"), ("Was weniger gut funktioniert", "schwaechen"),
+                           ("Ausbaufähig", "ausbaufaehig"), ("Vorgeschlagene A/B-Tests", "ab_tests")):
+            lines += ["", f"## {title}", "", analyst[key]]
+    lines += ["", "---", "Starthand-Quoten zeigen Zusammenhänge aus den Prüfduellen, keine bewiesene Ursache. "
+              "Ob ein Kartentausch hilft, zeigt der Deckvergleich der App mit gepaarten Duellen.",
+              f"Alle Rohdaten: Kartenanalyse.csv, Fortschritt.csv, Ergebnis.json ({len(rows)} Karten)."]
+    return "\n".join(lines) + "\n"
+
+
+def _svg_line(values, width=640, height=200, top=10):
+    if not values:
+        return ""
+    low, high = min(values), max(values)
+    high = high if high > low else low + 1
+    step = width / max(len(values) - 1, 1)
+    points_ = " ".join(f"{i * step:.1f},{height - (v - low) / (high - low) * (height - 20) - 10:.1f}"
+                       for i, v in enumerate(values))
+    return (f'<svg viewBox="0 0 {width} {height}" class="chart"><polyline fill="none" stroke="#3b6fd8" '
+            f'stroke-width="2.5" points="{points_}"/><text x="4" y="14">{high:.0f}</text>'
+            f'<text x="4" y="{height - 2}">{low:.0f}</text></svg>')
+
+
+def _bars(rows, key, label):
+    items = [r for r in rows if r[key] is not None][:12]
+    if not items:
+        return ""
+    peak = max(abs(r[key]) for r in items) or 1
+    out = [f"<h3>{label}</h3><table class='bars'>"]
+    for row in items:
+        width = abs(row[key]) / peak * 100
+        colour = "#2f9e6e" if row[key] >= 0 else "#d0573f"
+        out.append(f"<tr><td>{row['karte']}</td><td><div style='width:{width:.0f}%;background:{colour}'>"
+                   f"&nbsp;</div></td><td>{row[key]:+.2f}</td></tr>")
+    return "".join(out) + "</table>"
+
+
+def html_report(record, data, rows):
+    from html import escape
+    last = record["exams"][-1]
+    md = markdown(record, data, rows)
+    body = []
+    for line in md.splitlines():
+        if line.startswith("# "):
+            body.append(f"<h1>{escape(line[2:])}</h1>")
+        elif line.startswith("## "):
+            body.append(f"<h2>{escape(line[3:])}</h2>")
+        elif line.startswith("- "):
+            body.append(f"<li>{escape(line[2:]).replace('**', '')}</li>")
+        elif line.strip() and line != "---":
+            body.append(f"<p>{escape(line).replace('**', '')}</p>")
+    ratings = [exam["rating"] for exam in record["exams"]]
+    chart = (f"<h2>Fortschritt</h2><p>Bester Elo je Generation</p>{_svg_line([h['best_elo'] for h in record['history']])}"
+             f"<p>Gemessene Note je Prüfrunde: {', '.join(f'{r:.1f}' for r in ratings)}</p>")
+    by_priority = sorted(rows, key=lambda r: -abs(r["prioritaet"]))
+    table = ["<h2>Alle Karten</h2><table class='data'><tr>" + "".join(f"<th>{escape(k)}</th>" for k in rows[0]) + "</tr>"]
+    for row in rows:
+        table.append("<tr>" + "".join(f"<td>{escape(str(v))}</td>" for v in row.values()) + "</tr>")
+    table.append("</table>")
+    style = ("body{font-family:Segoe UI,Arial,sans-serif;max-width:960px;margin:24px auto;color:#1c1c1c}"
+             "h1{font-size:26px}h2{margin-top:28px;border-bottom:1px solid #ddd}.chart{width:100%;height:200px;"
+             "background:#f6f8fc}.bars td{padding:2px 6px}.bars td:nth-child(2){width:60%}.bars div{height:14px}"
+             "table.data{border-collapse:collapse;font-size:12px}table.data td,table.data th{border:1px solid #ddd;"
+             "padding:3px 5px}@media print{.chart{height:160px}}")
+    return (f"<!DOCTYPE html><html lang='de'><head><meta charset='utf-8'><title>Deckanalyse {escape(record['deck'])}"
+            f"</title><style>{style}</style></head><body>{''.join(body)}{chart}"
+            f"{_bars(by_priority, 'prioritaet', 'Gelernte Priorität (höher = früher gespielt/behalten)')}"
+            f"{_bars(data['staerkste_starthandkarten'] + data['schwaechste_starthandkarten'], 'differenz_zur_gesamtquote', 'Starthand-Siegquote minus Gesamtquote')}"
+            f"{''.join(table)}<p><small>Drucken → „Als PDF speichern“ erzeugt ein PDF.</small></p></body></html>")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--deck", type=Path, required=True)
+    parser.add_argument("--players", type=int, choices=(32, 64), default=64)
+    parser.add_argument("--min-duels", type=int, default=1000)
+    parser.add_argument("--target", type=float, default=9.0)
+    parser.add_argument("--max-generations", type=int, default=120)
+    parser.add_argument("--exam-every", type=int, default=5)
+    parser.add_argument("--exam-blocks", type=int, default=40, help="Seeds pro Gegner, jeweils beide Startpositionen")
+    parser.add_argument("--rounds", type=int, default=3, help="Gegner pro Spieler und Generation (je 2 Duelle)")
+    parser.add_argument("--playoff-blocks", type=int, default=10, help="Seeds im Champion-Playoff (0 = aus)")
+    parser.add_argument("--coach-every", type=int, default=3)
+    parser.add_argument("--patience", type=int, default=6, help="Prüfrunden ohne Verbesserung bis Stillstand")
+    parser.add_argument("--workers", type=int, default=max(1, min(12, (os.cpu_count() or 2) - 2)))
+    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--ohne-qwen", action="store_true", help="Ohne lokale Qwen-Rollen trainieren")
+    parser.add_argument("--resume", type=Path)
+    parser.add_argument("--out", type=Path, default=RUNS)
+    parser.add_argument("--run-dir", type=Path, help="Ordner für diesen Lauf (setzt die App)")
+    args = parser.parse_args()
+    if args.seed is None:
+        args.seed = random.SystemRandom().getrandbits(31)
+    trainer = None
+    try:
+        trainer = Trainer(args)
+        trainer.run()
+    except Exception as error:
+        message = f"Fehler: {error}"
+        print(message, file=sys.stderr)
+        traceback.print_exc()
+        if trainer:
+            trainer.record["error"] = traceback.format_exc()
+            trainer.checkpoint()
+            trainer.status(message, "fehler")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

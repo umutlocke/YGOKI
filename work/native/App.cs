@@ -260,6 +260,7 @@ namespace YgoKi
             OnClick("ShowEditor", () => ShowPage("Editor"));
             OnClick("ShowComparison", () => ShowPage("Comparison"));
             OnClick("ShowWatch", () => ShowPage("Watch"));
+            OnClick("ShowTraining", () => ShowPage("Training"));
             OnClick("NewDeck", NewDeck);
             OnClickAsync("ImportDeck", ImportFile);
             OnClickAsync("ExportYdk", () => ExportDeck("ydk"));
@@ -306,6 +307,7 @@ namespace YgoKi
             OnClickAsync("ExportReport", () => ExportReport("bericht", "Markdown|*.md"));
             OnClickAsync("ExportGames", () => ExportReport("einzelspiele", "JSON Lines|*.jsonl"));
             SetupWatcher();
+            SetupTraining();
         }
 
         private async Task Initialize()
@@ -334,6 +336,7 @@ namespace YgoKi
             Combo("VariantDeck").ItemsSource = library;
             Find<ListBox>("Opponents").ItemsSource = library;
             WatchLibrary();
+            TrainingLibrary();
             if (original != null) Combo("OriginalDeck").SelectedItem = MatchDeck(original.Name, original.Source);
             if (variant != null) Combo("VariantDeck").SelectedItem = MatchDeck(variant.Name, variant.Source);
             foreach (var item in opponents)
@@ -741,11 +744,12 @@ namespace YgoKi
         private void ShowPage(string page)
         {
             if (page != "Watch") PauseWatch(true);
-            foreach (string tab in new[] { "Editor", "Comparison", "Watch" })
+            foreach (string tab in new[] { "Editor", "Comparison", "Watch", "Training" })
             {
                 Find<Grid>(tab + "Page").Visibility = tab == page ? Visibility.Visible : Visibility.Collapsed;
                 Button("Show" + tab).Style = (Style)window.FindResource(tab == page ? "PrimaryButton" : (object)typeof(Button));
             }
+            TrainingVisible(page == "Training");
         }
 
         private void PlannedGames()
@@ -856,7 +860,10 @@ namespace YgoKi
                 details.Add("Spielerstrategien");
                 var strategies = record.Array("strategies");
                 for (int index = 0; index < names.Length; index++)
-                    details.Add(names[index] + " · " + strategies[index]);
+                {
+                    string strategy = (string)strategies[index];
+                    details.Add(names[index] + " · " + (strategy.StartsWith("Gelerntes Playbook:") ? "Gelerntes Playbook" : strategy));
+                }
             }
             int excluded = Convert.ToInt32(result["blocks"]) - Convert.ToInt32(result["valid_blocks"]);
             if (excluded > 0) details.Add(excluded + " Blöcke wegen Duellfehlern ausgeschlossen.");
@@ -1033,7 +1040,14 @@ namespace YgoKi
             await WaitForJob();
             Expect(Text("ComparisonProgress").Text.Contains("abgebrochen"), "Vergleich ließ sich nicht abbrechen.");
             await TestWatcher(directory);
-            File.WriteAllText(Path.Combine(directory, "ok.txt"), "Deckeditor, Vergleich, Zuschauen, Pause, Einzelschritt und Abbruch erfolgreich.");
+            ShowPage("Training");
+            await RefreshQwen();
+            await LoadRuns();
+            Expect(Combo("TrainDeck").Items.Count > 0, "Im KI-Training fehlen die Decks.");
+            Expect(!String.IsNullOrEmpty(Text("QwenState").Text), "Der Qwen-Status wird nicht angezeigt.");
+            Screenshot(Path.Combine(directory, "training.png"));
+            ShowPage("Editor");
+            File.WriteAllText(Path.Combine(directory, "ok.txt"), "Deckeditor, Vergleich, Zuschauen, Pause, Einzelschritt, Abbruch und KI-Training erfolgreich.");
             dirty = false;
         }
     }
