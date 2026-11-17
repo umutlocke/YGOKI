@@ -19,7 +19,7 @@
       </Border>
     </DataTemplate>
     <DataTemplate x:Key="WatchTile">
-      <Border Margin="2" Padding="3" MinHeight="69" Background="#121826" BorderBrush="{StaticResource Line}"
+      <Border Margin="2" Padding="3" MinHeight="49" Background="#121826" BorderBrush="{StaticResource Line}"
               BorderThickness="1" CornerRadius="4" ToolTip="{Binding Name}">
         <Grid>
           <Grid.ColumnDefinitions><ColumnDefinition Width="31"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
@@ -31,6 +31,27 @@
         </Grid>
       </Border>
     </DataTemplate>
+    <DataTemplate x:Key="WatchHandCard">
+      <Border Width="120" Height="48" Margin="0,0,4,0" Padding="3" Background="#121826"
+              BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="4" ToolTip="{Binding Name}">
+        <DockPanel>
+          <Image Width="26" Height="38" Margin="0,0,4,0" Stretch="Uniform" Source="{Binding Art.Picture}"/>
+          <TextBlock Text="{Binding Name}" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center"/>
+        </DockPanel>
+      </Border>
+    </DataTemplate>
+    <Style x:Key="WatchPhaseChip" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+      <Setter Property="Background" Value="#20283A"/>
+      <Setter Property="Padding" Value="10,4"/>
+      <Setter Property="Margin" Value="0,0,5,0"/>
+    </Style>
+    <Style x:Key="WatchPhaseActive" TargetType="TextBlock" BasedOn="{StaticResource WatchPhaseChip}">
+      <Setter Property="Foreground" Value="#141C35"/>
+      <Setter Property="Background" Value="{StaticResource Accent}"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <ItemsPanelTemplate x:Key="HandSlots"><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
     <ItemsPanelTemplate x:Key="MonsterSlots"><UniformGrid Columns="7"/></ItemsPanelTemplate>
     <ItemsPanelTemplate x:Key="SpellSlots"><UniformGrid Columns="8"/></ItemsPanelTemplate>
     <Style TargetType="Button">
@@ -312,6 +333,14 @@
             <Button x:Name="WatchStop" Content="Beenden" IsEnabled="False"/>
             <TextBlock x:Name="WatchState" Margin="8,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource Accent}" TextWrapping="Wrap"/>
           </WrapPanel>
+          <WrapPanel Margin="0,8,0,0">
+            <TextBlock x:Name="WatchPhaseDraw" Text="Ziehphase" Style="{StaticResource WatchPhaseChip}"/>
+            <TextBlock x:Name="WatchPhaseStandby" Text="Standby" Style="{StaticResource WatchPhaseChip}"/>
+            <TextBlock x:Name="WatchPhaseMain1" Text="Main Phase 1" Style="{StaticResource WatchPhaseChip}"/>
+            <TextBlock x:Name="WatchPhaseBattle" Text="Kampfphase" Style="{StaticResource WatchPhaseChip}"/>
+            <TextBlock x:Name="WatchPhaseMain2" Text="Main Phase 2" Style="{StaticResource WatchPhaseChip}"/>
+            <TextBlock x:Name="WatchPhaseEnd" Text="End Phase" Style="{StaticResource WatchPhaseChip}"/>
+          </WrapPanel>
           <TextBlock x:Name="WatchError" Margin="0,7,0,0" Foreground="#FFCC90" TextWrapping="Wrap" Visibility="Collapsed" MaxHeight="100"/>
         </StackPanel>
       </Border>
@@ -320,8 +349,17 @@
         <Border Style="{StaticResource Panel}">
           <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel>
-              <TextBlock x:Name="WatchTopName" Text="Deck B" Style="{StaticResource SectionTitle}"/>
-              <TextBlock x:Name="WatchTopInfo" Foreground="{StaticResource Muted}" Margin="0,0,0,6"/>
+              <WrapPanel Margin="0,0,0,5">
+                <TextBlock x:Name="WatchTopName" Text="Deck B" FontSize="15" FontWeight="SemiBold"
+                           Margin="0,0,12,0" VerticalAlignment="Center"/>
+                <Button x:Name="WatchTopDeck" Content="Deck" IsEnabled="False"/>
+                <Button x:Name="WatchTopGrave" Content="Friedhof" IsEnabled="False"/>
+                <TextBlock x:Name="WatchTopInfo" Foreground="{StaticResource Muted}" VerticalAlignment="Center"/>
+              </WrapPanel>
+              <TextBlock x:Name="WatchTopHandLabel" Text="Hand" Style="{StaticResource LabelText}"/>
+              <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Margin="0,0,0,5">
+                <ItemsControl x:Name="WatchTopHand" ItemTemplate="{StaticResource WatchHandCard}" ItemsPanel="{StaticResource HandSlots}"/>
+              </ScrollViewer>
               <TextBlock Text="Zauber- und Fallenzonen" Style="{StaticResource LabelText}"/>
               <ItemsControl x:Name="WatchTopSpells" ItemTemplate="{StaticResource WatchTile}" ItemsPanel="{StaticResource SpellSlots}"/>
               <TextBlock Text="Monsterzonen" Style="{StaticResource LabelText}" Margin="0,5,0,3"/>
@@ -331,8 +369,17 @@
               <ItemsControl x:Name="WatchBottomMonsters" ItemTemplate="{StaticResource WatchTile}" ItemsPanel="{StaticResource MonsterSlots}"/>
               <TextBlock Text="Zauber- und Fallenzonen" Style="{StaticResource LabelText}" Margin="0,5,0,3"/>
               <ItemsControl x:Name="WatchBottomSpells" ItemTemplate="{StaticResource WatchTile}" ItemsPanel="{StaticResource SpellSlots}"/>
-              <TextBlock x:Name="WatchBottomName" Text="Deck A" Style="{StaticResource SectionTitle}" Margin="0,9,0,4"/>
-              <TextBlock x:Name="WatchBottomInfo" Foreground="{StaticResource Muted}"/>
+              <WrapPanel Margin="0,7,0,5">
+                <TextBlock x:Name="WatchBottomName" Text="Deck A" FontSize="15" FontWeight="SemiBold"
+                           Margin="0,0,12,0" VerticalAlignment="Center"/>
+                <Button x:Name="WatchBottomDeck" Content="Deck" IsEnabled="False"/>
+                <Button x:Name="WatchBottomGrave" Content="Friedhof" IsEnabled="False"/>
+                <TextBlock x:Name="WatchBottomInfo" Foreground="{StaticResource Muted}" VerticalAlignment="Center"/>
+              </WrapPanel>
+              <TextBlock x:Name="WatchBottomHandLabel" Text="Hand" Style="{StaticResource LabelText}"/>
+              <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <ItemsControl x:Name="WatchBottomHand" ItemTemplate="{StaticResource WatchHandCard}" ItemsPanel="{StaticResource HandSlots}"/>
+              </ScrollViewer>
             </StackPanel>
           </ScrollViewer>
         </Border>

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace YgoKi
@@ -20,10 +21,13 @@ namespace YgoKi
     {
         private readonly DispatcherTimer watchTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
         private readonly Dictionary<long, CardRow> watchArt = new Dictionary<long, CardRow>();
+        private readonly Dictionary<string, object[]> watchPiles = new Dictionary<string, object[]>();
         private bool watchRunning, watchPaused, watchPolling, watchWaiting;
         private int watchSerial, watchGeneration;
         private DateTime watchNextAfter;
         private static readonly int[] WatchDelays = { 900, 420, 210, 85 };
+        private static readonly string[] WatchPhases = { "Draw", "Standby", "Main1", "Battle", "Main2", "End" };
+        private static readonly int[] WatchPhaseMasks = { 1, 2, 4, 248, 256, 512 };
 
         private void SetupWatcher()
         {
@@ -36,8 +40,13 @@ namespace YgoKi
             OnClickAsync("WatchNext", AdvanceWatch);
             OnClickAsync("WatchStop", StopWatch);
             watchTimer.Tick += async delegate { await Guard(PollWatch); };
-            foreach (string name in new[] { "WatchTopMonsters", "WatchTopSpells", "WatchBottomMonsters", "WatchBottomSpells" })
-                Find<ItemsControl>(name).MouseLeftButtonDown += WatchPicture;
+            foreach (string side in new[] { "Top", "Bottom" })
+            {
+                foreach (string group in new[] { "Monsters", "Spells", "Hand" })
+                    Find<ItemsControl>("Watch" + side + group).MouseLeftButtonDown += WatchPicture;
+                OnClick("Watch" + side + "Deck", () => ShowWatchPile(side, "Deck", "Deck"));
+                OnClick("Watch" + side + "Grave", () => ShowWatchPile(side, "Grave", "Friedhof"));
+            }
             ResetBoard();
         }
 
@@ -58,10 +67,16 @@ namespace YgoKi
             Text("WatchTopName").Text = "Deck B";
             Text("WatchBottomName").Text = "Deck A";
             Text("WatchTopInfo").Text = Text("WatchBottomInfo").Text = "";
+            watchPiles.Clear();
+            MarkPhase(0);
             foreach (string side in new[] { "Top", "Bottom" })
             {
+                SetPile(side, "Deck", "Deck", null);
+                SetPile(side, "Grave", "Friedhof", null);
                 Find<ItemsControl>("Watch" + side + "Monsters").ItemsSource = new WatchSlot[7];
                 Find<ItemsControl>("Watch" + side + "Spells").ItemsSource = new WatchSlot[8];
+                Find<ItemsControl>("Watch" + side + "Hand").ItemsSource = null;
+                Text("Watch" + side + "HandLabel").Text = "Hand";
             }
             Find<ListBox>("WatchLog").Items.Clear();
         }
@@ -177,6 +192,7 @@ namespace YgoKi
         {
             var players = frame.Array("players").Select(Json.Object).ToArray();
             int active = Convert.ToInt32(frame["active"]);
+            MarkPhase(Convert.ToInt32(frame["phase_id"]));
             Text("WatchState").Text = "Zug " + frame["turn"] + " · " + frame.Text("phase")
                 + (active >= 0 && active < players.Length ? " · " + players[active].Text("name") : "");
             for (int side = 0; side < players.Length; side++)
@@ -184,8 +200,12 @@ namespace YgoKi
                 string panel = side == 0 ? "Bottom" : "Top";
                 var player = players[side];
                 Text("Watch" + panel + "Name").Text = player.Text("name") + " · " + player["lp"] + " LP";
-                Text("Watch" + panel + "Info").Text = "Hand " + player["hand"] + "  ·  Deck " + player["deck"] +
-                    "  ·  Friedhof " + player["grave"] + "  ·  " + player.Text("strategy");
+                Text("Watch" + panel + "Info").Text = player.Text("strategy");
+                var hand = player.Array("hand_cards");
+                Text("Watch" + panel + "HandLabel").Text = "Hand · " + hand.Length;
+                Find<ItemsControl>("Watch" + panel + "Hand").ItemsSource = hand.Select(value => WatchCard(value, false)).ToArray();
+                SetPile(panel, "Deck", "Deck", player.Array("deck_cards"));
+                SetPile(panel, "Grave", "Friedhof", player.Array("grave_cards"));
                 Find<ItemsControl>("Watch" + panel + "Monsters").ItemsSource = player.Array("monsters").Select(value => WatchCard(value, true)).ToArray();
                 Find<ItemsControl>("Watch" + panel + "Spells").ItemsSource = player.Array("spells").Select(value => WatchCard(value, false)).ToArray();
             }
@@ -196,6 +216,77 @@ namespace YgoKi
                 log.Items.Add(entry);
             }
             if (log.Items.Count > 0) log.ScrollIntoView(log.Items[log.Items.Count - 1]);
+        }
+
+        private void MarkPhase(int phase)
+        {
+            for (int index = 0; index < WatchPhases.Length; index++)
+            {
+                var chip = Text("WatchPhase" + WatchPhases[index]);
+                var style = (Style)window.FindResource((phase & WatchPhaseMasks[index]) != 0
+                    ? "WatchPhaseActive" : "WatchPhaseChip");
+                if (chip.Style != style) chip.Style = style;
+            }
+        }
+
+        private void SetPile(string side, string kind, string label, object[] cards)
+        {
+            string key = side + kind;
+            var button = Button("Watch" + key);
+            button.Content = cards == null ? label : label + " · " + cards.Length;
+            button.IsEnabled = cards != null;
+            if (cards != null) watchPiles[key] = cards;
+        }
+
+        private void ShowWatchPile(string side, string kind, string label)
+        {
+            object[] cards;
+            if (!watchPiles.TryGetValue(side + kind, out cards)) return;
+            PauseWatch(true);
+            CreateWatchPile(Text("Watch" + side + "Name").Text, label, cards).ShowDialog();
+        }
+
+        private Window CreateWatchPile(string player, string label, object[] cards)
+        {
+            var rows = cards.Select(Json.Object).Select(data => new CardRow(data)).ToArray();
+            var grid = new Grid { Margin = new Thickness(15) };
+            grid.ColumnDefinitions.Add(new ColumnDefinition());
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition());
+            var list = new ListBox { ItemsSource = rows, DisplayMemberPath = "Name" };
+            if (cards.Length == 0)
+                grid.Children.Add(new TextBlock { Text = "Dieser Stapel ist leer.", VerticalAlignment = VerticalAlignment.Center });
+            else
+                grid.Children.Add(list);
+            var picture = new Image { Stretch = Stretch.Uniform };
+            Grid.SetColumn(picture, 2);
+            grid.Children.Add(picture);
+            int generation = 0;
+            list.SelectionChanged += async delegate
+            {
+                int selection = ++generation;
+                var row = list.SelectedItem as CardRow;
+                picture.Source = null;
+                if (row == null) return;
+                await Guard(async delegate
+                {
+                    var bitmap = await images.Load(row.Code, 0);
+                    if (selection == generation) picture.Source = bitmap;
+                });
+            };
+            var dialog = new Window
+            {
+                Owner = window, Title = label + " · " + player, Content = grid,
+                Width = 675, Height = Math.Min(570, SystemParameters.WorkArea.Height),
+                Background = window.Background, Foreground = window.Foreground,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false
+            };
+            dialog.PreviewKeyDown += delegate(object sender, KeyEventArgs args)
+            {
+                if (args.Key == Key.Escape) { args.Handled = true; dialog.Close(); }
+            };
+            if (rows.Length > 0) list.SelectedIndex = 0;
+            return dialog;
         }
 
         private WatchSlot WatchCard(object value, bool monster)
@@ -261,6 +352,19 @@ namespace YgoKi
             }
             Expect(Find<ListBox>("WatchLog").Items.Count > 0 && Text("WatchBottomName").Text.Contains("LP"),
                 "Beim Zuschauen fehlen Duellverlauf oder Lebenspunkte.");
+            foreach (string side in new[] { "Top", "Bottom" })
+            {
+                var items = Find<ItemsControl>("Watch" + side + "Hand").Items.Cast<WatchSlot>().ToArray();
+                Expect(items.Length != 0 && items.All(item => item.Art != null), "Die Handkarten fehlen.");
+                Expect(watchPiles[side + "Deck"].Length != 0 && watchPiles.ContainsKey(side + "Grave"),
+                    "Deck oder Friedhof fehlt.");
+            }
+            Expect(WatchPhases.Count(name => Text("WatchPhase" + name).Style ==
+                (Style)window.FindResource("WatchPhaseActive")) == 1, "Die aktive Phase ist nicht markiert.");
+            var pile = CreateWatchPile("Deck A", "Deck", watchPiles["BottomDeck"]);
+            Expect(((ListBox)((Grid)pile.Content).Children[0]).Items.Count == watchPiles["BottomDeck"].Length,
+                "Die Karten des Stapels fehlen.");
+            pile.Close();
             Screenshot(System.IO.Path.Combine(directory, "zuschauen.png"));
             await StopWatch();
             Expect(!watchRunning && Text("WatchState").Text == "Duell beendet.", "Das Duell ließ sich nicht beenden.");

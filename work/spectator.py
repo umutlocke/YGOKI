@@ -1,5 +1,6 @@
-"""Run one paced AI duel and publish public board snapshots to the Windows app."""
+"""Run one paced AI duel and publish spectator snapshots to the Windows app."""
 
+from hashlib import sha256
 import json
 from pathlib import Path
 import sys
@@ -12,11 +13,11 @@ from player_policy import policy_for, released_strategy
 from preview_cards import REGISTRY, registered, with_previews
 from windows_duel import check_result, script_ids
 from ygo_agent.arena.duel import DuelConfig, DuelObserver, VIEW_SPECTATOR
+from ygo_agent.arena.query import parse_location
 from ygo_agent.arena.runner import run_match
 from ygo_agent.arena.seats import PolicySeat
 from ygo_agent.core import Engine
-from ygo_agent.core.constants import LOCATION_MZONE, LOCATION_SZONE, Msg
-from hashlib import sha256
+from ygo_agent.core.constants import LOCATION_DECK, LOCATION_GRAVE, LOCATION_HAND, LOCATION_MZONE, LOCATION_SZONE, Msg, QUERY_CODE
 
 
 PHASES = {1: "Ziehphase", 2: "Standby", 4: "Main Phase 1", 8: "Kampfphase",
@@ -70,6 +71,12 @@ class Spectator(DuelObserver):
             "attack": card.attack, "defense": card.defense,
         } for card in (slots + [None] * count)[:count]]
 
+    def pile(self, team, location):
+        raw = self.duel.core.query_location(team, location, QUERY_CODE)
+        cards = parse_location(raw) if raw else []
+        return [{"code": card.code, "name": self.duel.engine.cards.name(card.code)}
+                for card in cards if card and card.code]
+
     def frame(self):
         duel = self.duel
         players = []
@@ -77,10 +84,13 @@ class Spectator(DuelObserver):
             players.append({
                 "name": duel.names[side], "strategy": self.strategies[side], "lp": max(0, field.lp),
                 "hand": field.hand, "deck": field.deck, "grave": field.grave,
+                "hand_cards": self.pile(side, LOCATION_HAND),
+                "deck_cards": self.pile(side, LOCATION_DECK),
+                "grave_cards": self.pile(side, LOCATION_GRAVE),
                 "monsters": self.zone(side, LOCATION_MZONE, 7),
                 "spells": self.zone(side, LOCATION_SZONE, 8),
             })
-        frame = {"turn": duel.turn, "active": duel.turn_player,
+        frame = {"turn": duel.turn, "active": duel.turn_player, "phase_id": duel.phase,
                  "phase": PHASES.get(duel.phase, "Start"), "players": players,
                  "events": self.events}
         self.events = []

@@ -39,7 +39,7 @@ Wähle in der Windows-App **Deckeditor**. Der bisherige Browsereditor ist weiter
 
 ## Den KIs zuschauen
 
-Unter **Zuschauen** wählst du zwei Decks und das Format. Deck A beginnt. Während des Duells zeigt die App das Spielfeld, Lebenspunkte, Zugphase und öffentliche Kartenaktionen. Verdeckte Karten und die Handkarten bleiben geheim. Du kannst das Tempo ändern, pausieren, mit **Nächste Aktion** einen Einzelschritt auslösen oder das Duell beenden. Ein Doppelklick auf eine offene Karte zeigt das große Kartenbild.
+Unter **Zuschauen** wählst du zwei Decks und das Format. Deck A beginnt. Das Spielfeld zeigt Lebenspunkte, Handkarten beider KIs und eine Leiste mit der aktiven Phase. Über **Deck** und **Friedhof** öffnest du den aktuellen Inhalt des jeweiligen Stapels. Das Spiel hält beim Öffnen an. Mit **Fortsetzen** läuft es weiter. Du kannst das Tempo ändern, mit **Nächste Aktion** einen Einzelschritt auslösen oder das Duell beenden. Ein Doppelklick auf eine sichtbare Karte zeigt das große Kartenbild.
 
 ## Deckvarianten vergleichen
 
