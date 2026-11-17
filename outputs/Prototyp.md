@@ -67,6 +67,14 @@ Bei fehlender Freigabe prüft der Challenger im nächsten Turnier andere Strateg
 
 Mit `Turnier.cmd --reproduce "<Versuchsordner>"` spielst du einen gespeicherten Versuch erneut durch. Der Prüflauf vergleicht Ergebnisse, Replay-Ereignisse und die Bewertungen.
 
+## Lokales Training mit Qwen
+
+`Qwen-Lokal.ps1 -Installieren -ModellLaden` installiert die portable Laufzeit im App-Ordner und lädt Qwen3.5‑9B Q4_K_M. Die Anwendung erreicht den Dienst über `127.0.0.1:11457`. Für Modell- und Laufzeitdownload ist Internet erforderlich. Duelle, Modellaufrufe und Berichte laufen lokal.
+
+`Qwen-Training.cmd` startet einen kurzen Pilotlauf mit D-LINK V3.1. Über `Qwen-Training.cmd --deck "<Deckdatei>" --players 64` startest du einen vollständigen Durchlauf mit 32 oder 64 KI-Spielern und mindestens 1.000 gültigen Spiegelduellen. Beide Seiten verwenden die gleiche Deckliste. Der Bericht enthält Kandidat, unabhängig gesetzte Prüf-Seeds, Judge und Headjudge, Zuschauer-Reviews und die beobachtete Kartennutzung. Die Ergebnisse stehen unter `work\qwen-training` als JSON, CSV und Markdown.
+
+Der Qwen-Lauf testet jeden ausgewählten Challenger in zwei Prüfrunden. Er läuft bis zur Freigabe oder bis alle hinterlegten Kandidaten geprüft wurden. Die Freigabe verlangt in beiden Prüfrunden mindestens 9/10, mehr Siege als Niederlagen gegen die Referenz und ein klares Judge-Review. Der Pilot prüft einen Kandidaten. Die Wochensicherung erfasst die Ergebnisse. Die portable Ollama-Laufzeit und Modellgewichte lassen sich bei einer Wiederherstellung erneut installieren.
+
 ## Sicherung und Wiederherstellung
 
 Schließe die App und laufende Trainings. Starte anschließend in `outputs` die Datei `Sicherung.cmd`. Sie erstellt ein geprüftes, datiertes ZIP in `Dokumente\Codex\YGOKI-Sicherungen`. Das ZIP enthält die installierte App, Laufzeit, Decks, Vorschaukarten, Replays und Trainingsdaten. Über die Eingabeaufforderung kannst du mit `Sicherung.cmd "E:\YGOKI-Sicherungen"` ein anderes Ziel wählen.
