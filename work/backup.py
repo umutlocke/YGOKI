@@ -12,6 +12,8 @@ def files(folder):
     for path in sorted(folder.iterdir()):
         if path.is_symlink() or path.is_junction() or path.name in {".git", "__pycache__"}:
             continue
+        if folder.name == "card-images" and path.suffix == ".tmp":
+            continue
         if path.is_dir():
             yield from files(path)
         elif path.is_file():

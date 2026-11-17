@@ -33,6 +33,7 @@ Wähle in der Windows-App **Deckeditor**. Der bisherige Browsereditor ist weiter
 
 - Oben kannst du die importierten Vorlagen öffnen, ein neues Deck anlegen oder eine `.ydk` importieren. Eigene gespeicherte Decks stehen im selben Auswahlfeld.
 - Der Kartenkatalog sucht nach Namen und Passcode. Du kannst Karten hinzufügen, Mengen ändern und einzelne Exemplare zwischen Main, Extra und Side verschieben. Das gewählte Format prüft die Deckliste während der Bearbeitung.
+- Im Deck und im Katalog öffnet ein Doppelklick auf die Kartenzeile das große Kartenbild. **Hinzufügen** übernimmt eine Karte aus dem Katalog. Beim ersten Anzeigen lädt die Windows-App verfügbare Bilder per Passcode und speichert sie unter `work\card-images`. Gespeicherte Bilder funktionieren auch offline. [Bildquelle YGOPRODeck](https://ygoprodeck.com/api-guide/)
 - **Sperren** schützt die Karte als Vorgabe für spätere automatische Änderungsvorschläge. Du kannst das Deck weiterhin manuell bearbeiten. Bei `YDK exportieren` werden Sperren als Kommentar im Deck mitgegeben und beim Import in diesem Editor wiederhergestellt. `TXT exportieren` liefert Kartennamen und Mengen.
 - **Deck speichern** legt die Datei in `work\editor-decks` ab. Öffnest du eine Vorlage und speicherst sie, erhältst du eine eigene Arbeitskopie. Du kannst eine gespeicherte `.ydk` mit `-DeckA` oder `-DeckB` im Duellstarter verwenden.
 

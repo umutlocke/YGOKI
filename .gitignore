@@ -10,6 +10,7 @@
 !/work/native/
 /work/native/*
 !/work/native/App.cs
+!/work/native/CardImages.cs
 !/work/native/MainWindow.xaml
 !/work/native/build.ps1
 

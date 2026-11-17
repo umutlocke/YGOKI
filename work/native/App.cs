@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -10,7 +11,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -125,7 +128,7 @@ namespace YgoKi
         public override string ToString() { return Name + (Source == "saved" ? "  · gespeichert" : "  · Vorlage"); }
     }
 
-    sealed class CardRow
+    sealed class CardRow : INotifyPropertyChanged
     {
         public CardRow(Dictionary<string, object> data)
         {
@@ -146,6 +149,16 @@ namespace YgoKi
         public int Quantity { get; set; }
         public bool Locked { get; set; }
         public string LockLabel { get { return Locked ? "Gesperrt" : ""; } }
+        public BitmapImage Picture { get; private set; }
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        public void SetPicture(BitmapImage value)
+        {
+            if (value == null) return;
+            Picture = value;
+            var changed = PropertyChanged;
+            if (changed != null) changed(this, new PropertyChangedEventArgs("Picture"));
+        }
     }
 
     sealed class Desktop
@@ -156,6 +169,7 @@ namespace YgoKi
         private static readonly CultureInfo German = CultureInfo.GetCultureInfo("de-DE");
         private readonly Window window;
         private readonly Bridge bridge;
+        private readonly CardImages images;
         private readonly DispatcherTimer catalogTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
         private readonly DispatcherTimer checkTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
         private readonly DispatcherTimer jobTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(450) };
@@ -169,10 +183,11 @@ namespace YgoKi
         private int offset, total, deckVersion, searchVersion;
         private object lastResult;
 
-        public Desktop(Window window, Bridge bridge, string testData)
+        public Desktop(Window window, Bridge bridge, CardImages images, string testData, bool testImageDownload)
         {
             this.window = window;
             this.bridge = bridge;
+            this.images = images;
             Setup();
             window.Loaded += async delegate
             {
@@ -181,7 +196,7 @@ namespace YgoKi
                     await Initialize();
                     if (testData != null)
                     {
-                        await SelfTest(testData);
+                        await SelfTest(testData, testImageDownload);
                         Application.Current.Shutdown(0);
                     }
                 }
@@ -262,7 +277,8 @@ namespace YgoKi
             OnClick("AddCard", AddCard);
             OnClick("PrevCards", () => { offset = Math.Max(0, offset - 24); ScheduleSearch(false); });
             OnClick("NextCards", () => { if (offset + 24 < total) offset += 24; ScheduleSearch(false); });
-            Table("Catalogue").MouseDoubleClick += delegate { AddCard(); };
+            Table("Catalogue").MouseDoubleClick += OpenCardPicture;
+            Table("DeckCards").MouseDoubleClick += OpenCardPicture;
             Table("Catalogue").SelectionChanged += delegate { Button("AddCard").IsEnabled = Table("Catalogue").SelectedItem != null; };
             Table("DeckCards").SelectionChanged += delegate { UpdateCardControls(); };
             Combo("Library").SelectionChanged += async delegate
@@ -461,6 +477,7 @@ namespace YgoKi
             }).ToList();
             Table("DeckCards").ItemsSource = rows;
             Table("DeckCards").SelectedItem = rows.FirstOrDefault(item => item.Code == selection);
+            LoadThumbnails(Table("DeckCards"), rows);
             for (int i = 0; i < Zones.Length; i++)
             {
                 Button(ZoneButtons[i]).Content = ZoneLabels[i] + "  " + sections[Zones[i]].Count;
@@ -641,11 +658,81 @@ namespace YgoKi
             var rows = result.Array("items").Select(value => new CardRow(Json.Object(value))).ToList();
             Table("Catalogue").ItemsSource = rows;
             Table("Catalogue").SelectedIndex = rows.Count > 0 ? 0 : -1;
+            LoadThumbnails(Table("Catalogue"), rows);
             total = Convert.ToInt32(result["total"]);
             Text("CardCount").Text = total == 0 ? "Keine Karten gefunden" :
                 String.Format(German, "{0}–{1} von {2:N0}", offset + 1, offset + rows.Count, total);
             Button("PrevCards").IsEnabled = offset > 0;
             Button("NextCards").IsEnabled = offset + 24 < total;
+        }
+
+        private async void LoadThumbnails(ListView table, List<CardRow> rows)
+        {
+            await Guard(async delegate
+            {
+                foreach (var card in rows)
+                {
+                    if (!window.IsLoaded || table.ItemsSource != rows) break;
+                    if (card.Picture == null) card.SetPicture(await images.Load(card.Code, 84));
+                }
+            });
+        }
+
+        private void OpenCardPicture(object sender, MouseButtonEventArgs args)
+        {
+            if (args.ChangedButton != MouseButton.Left) return;
+            var list = (ListView)sender;
+            var source = args.OriginalSource as DependencyObject;
+            var item = source == null ? null : ItemsControl.ContainerFromElement(list, source) as ListViewItem;
+            var card = item == null ? null : item.Content as CardRow;
+            if (card == null) return;
+            args.Handled = true;
+            CreateCardPicture(card, images).ShowDialog();
+        }
+
+        private Window CreateCardPicture(CardRow card, CardImages loader)
+        {
+            var frame = new DockPanel();
+            var status = new TextBlock
+            {
+                Text = "Kartenbild wird geladen …", TextWrapping = TextWrapping.Wrap,
+                HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 12)
+            };
+            DockPanel.SetDock(status, Dock.Top);
+            frame.Children.Add(status);
+            var picture = new Image { Source = card.Picture, Stretch = Stretch.Uniform };
+            AutomationProperties.SetName(picture, card.Name);
+            frame.Children.Add(picture);
+            var dialog = new Window
+            {
+                Owner = window, Title = card.Name, Width = 470,
+                Content = new Border { Child = frame, Padding = new Thickness(18), Background = window.Background },
+                Height = Math.Min(660, SystemParameters.WorkArea.Height), MinWidth = 250, MinHeight = 300,
+                Background = window.Background, Foreground = window.Foreground,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false
+            };
+            dialog.PreviewKeyDown += delegate(object sender, KeyEventArgs args)
+            {
+                if (args.Key == Key.Escape) { args.Handled = true; dialog.Close(); }
+            };
+            dialog.Loaded += async delegate
+            {
+                try
+                {
+                    var full = await loader.Load(card.Code, 0);
+                    if (full != null)
+                    {
+                        picture.Source = full;
+                        status.Visibility = Visibility.Collapsed;
+                    }
+                    else status.Text = "Für diese Karte ist gerade kein Kartenbild verfügbar.";
+                }
+                catch (Exception)
+                {
+                    status.Text = "Das Kartenbild konnte nicht geladen werden.";
+                }
+            };
+            return dialog;
         }
 
         private void ShowPage(bool comparison)
@@ -811,7 +898,11 @@ namespace YgoKi
         private void Screenshot(string path)
         {
             window.UpdateLayout();
-            var root = (FrameworkElement)window.Content;
+            Screenshot((FrameworkElement)window.Content, path);
+        }
+
+        private static void Screenshot(FrameworkElement root, string path)
+        {
             var bitmap = new RenderTargetBitmap((int)Math.Ceiling(root.ActualWidth),
                 (int)Math.Ceiling(root.ActualHeight), 96, 96, PixelFormats.Pbgra32);
             bitmap.Render(root);
@@ -836,7 +927,7 @@ namespace YgoKi
             Expect(!jobBusy, "Vergleich hat das Zeitlimit der Prüfung erreicht.");
         }
 
-        private async Task SelfTest(string directory)
+        private async Task SelfTest(string directory, bool testImageDownload)
         {
             Expect(sections["main"].Count == 45, "HERO wurde nicht richtig geladen.");
             Expect(Text("CheckSummary").Text.Contains("Befunde"), "Die TCG-Prüfung wurde nicht angezeigt.");
@@ -845,6 +936,40 @@ namespace YgoKi
             catalogTimer.Stop();
             await SearchCards();
             Expect(Table("Catalogue").Items.Count == 1, "Kartensuche fehlgeschlagen.");
+            if (testImageDownload)
+            {
+                string path = Path.Combine(directory, "card-images");
+                var onlineImages = new CardImages(path, true);
+                var card = (CardRow)Table("Catalogue").Items[0];
+                card.SetPicture(await onlineImages.Load(card.Code, 84));
+                Expect(card.Picture != null && card.Picture.PixelWidth == 84, "Kartenminiatur nicht geladen.");
+                var deckCard = (CardRow)Table("DeckCards").Items[0];
+                deckCard.SetPicture(await onlineImages.Load(deckCard.Code, 84));
+                Expect(deckCard.Picture != null, "Kartenminiatur in der Deckliste fehlt.");
+                var preview = await onlineImages.Load(100460003, 0);
+                Expect(preview != null && preview.PixelWidth > 84, "Bild der Vorschaukarte fehlt.");
+                Screenshot(Path.Combine(directory, "katalog-mit-bild.png"));
+                var offlineImages = new CardImages(path, false);
+                Expect(await offlineImages.Load(1, 84) == null, "Fehlendes Bild wurde falsch behandelt.");
+                var dialog = CreateCardPicture(card, offlineImages);
+                dialog.WindowStartupLocation = WindowStartupLocation.Manual;
+                dialog.Left = -15000;
+                dialog.ShowActivated = false;
+                dialog.Show();
+                try
+                {
+                    var surface = (Border)dialog.Content;
+                    var frame = (DockPanel)surface.Child;
+                    var picture = (Image)frame.Children[1];
+                    for (int attempt = 0; attempt < 20 && ReferenceEquals(picture.Source, card.Picture); attempt++)
+                        await Task.Delay(100);
+                    var full = picture.Source as BitmapImage;
+                    Expect(full != null && full.PixelWidth > card.Picture.PixelWidth, "Das Zoomfenster zeigt nicht das große Bild.");
+                    Screenshot(surface, Path.Combine(directory, "kartenbild.png"));
+                }
+                finally { dialog.Close(); }
+                Expect(!sections["main"].Contains(card.Code), "Das Öffnen des Bildes hat das Deck verändert.");
+            }
             AddCard();
             ToggleLock();
             Expect(locks.Contains(46986414), "Kartensperre fehlgeschlagen.");
@@ -936,7 +1061,8 @@ namespace YgoKi
                 }
                 using (var bridge = new Bridge(root, test))
                 {
-                    new Desktop(window, bridge, test);
+                    var images = new CardImages(Path.Combine(root, "work", "card-images"), test == null);
+                    new Desktop(window, bridge, images, test, args.Contains("--test-image-download"));
                     return app.Run(window);
                 }
             }

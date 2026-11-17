@@ -8,6 +8,16 @@
     <SolidColorBrush x:Key="Line" Color="#344055"/>
     <SolidColorBrush x:Key="Muted" Color="#ABB6CC"/>
     <SolidColorBrush x:Key="Accent" Color="#B8C8FF"/>
+    <DataTemplate x:Key="CardThumbnail">
+      <Border Width="26" Height="38" HorizontalAlignment="Center" Background="#263148"
+              ToolTip="Doppelklick für Kartenbild">
+        <Grid>
+          <TextBlock Text="–" HorizontalAlignment="Center" VerticalAlignment="Center"
+                     Foreground="{StaticResource Muted}"/>
+          <Image Source="{Binding Picture}" Stretch="Uniform"/>
+        </Grid>
+      </Border>
+    </DataTemplate>
     <Style TargetType="Button">
       <Setter Property="Foreground" Value="#EFF2FA"/>
       <Setter Property="Background" Value="#263148"/>
@@ -154,6 +164,7 @@
               </StackPanel>
               <ListView Grid.Row="2" x:Name="DeckCards" AutomationProperties.Name="Karten im Deck">
                 <ListView.View><GridView>
+                  <GridViewColumn Header="Bild" Width="43" CellTemplate="{StaticResource CardThumbnail}"/>
                   <GridViewColumn Header="Karte" Width="250" DisplayMemberBinding="{Binding Name}"/>
                   <GridViewColumn Header="Typ" Width="111" DisplayMemberBinding="{Binding Type}"/>
                   <GridViewColumn Header="Menge" Width="61" DisplayMemberBinding="{Binding Quantity}"/>
@@ -201,9 +212,10 @@
             </StackPanel>
             <ListView Grid.Row="3" x:Name="Catalogue" AutomationProperties.Name="Gefundene Karten">
               <ListView.View><GridView>
-                <GridViewColumn Header="Karte" Width="229" DisplayMemberBinding="{Binding Name}"/>
-                <GridViewColumn Header="Typ" Width="91" DisplayMemberBinding="{Binding Type}"/>
-                <GridViewColumn Header="Status" Width="130" DisplayMemberBinding="{Binding Availability}"/>
+                <GridViewColumn Header="Bild" Width="43" CellTemplate="{StaticResource CardThumbnail}"/>
+                <GridViewColumn Header="Karte" Width="204" DisplayMemberBinding="{Binding Name}"/>
+                <GridViewColumn Header="Typ" Width="104" DisplayMemberBinding="{Binding Type}"/>
+                <GridViewColumn Header="Status" Width="118" DisplayMemberBinding="{Binding Availability}"/>
               </GridView></ListView.View>
             </ListView>
             <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,10,0,0">
