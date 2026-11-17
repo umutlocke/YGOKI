@@ -1,0 +1,19 @@
+# Keep installation data, personal decks, and generated results local.
+/*
+!/.gitignore
+!/README.md
+!/work/
+!/outputs/
+
+/work/*
+!/work/*.py
+!/work/native/
+/work/native/*
+!/work/native/App.cs
+!/work/native/MainWindow.xaml
+!/work/native/build.ps1
+
+/outputs/*
+!/outputs/*.cmd
+!/outputs/*.ps1
+!/outputs/Prototyp.md
