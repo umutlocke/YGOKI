@@ -8,10 +8,16 @@ if errorlevel 1 (
     exit /b 1
 )
 if "%~1"=="" (
-    "%WORK%\upstream\python-win32\python.exe" -B -X utf8 "%WORK%\qwen_training.py" --pilot --deck "%WORK%\decks\D-LINK V3.1.ydk"
+    call :pilot
 ) else (
     "%WORK%\upstream\python-win32\python.exe" -B -X utf8 "%WORK%\qwen_training.py" %*
 )
 set "RESULT=%ERRORLEVEL%"
 pause
 exit /b %RESULT%
+
+:pilot
+set "DECK=%WORK%\decks\WinterRaven_WhiteForest_new.ydk"
+if not exist "%DECK%" set "DECK=%WORK%\decks\D-LINK V3.1.ydk"
+"%WORK%\upstream\python-win32\python.exe" -B -X utf8 "%WORK%\qwen_training.py" --pilot --deck "%DECK%"
+exit /b %ERRORLEVEL%

@@ -216,6 +216,17 @@ def run(args):
     model = model_ready()
     engine, inspected = load_deck(args.deck)
     deck = inspected.deck
+    if args.resume:
+        location = args.resume
+        record = json.loads((location / "Ergebnis.json").read_text(encoding="utf-8"))
+        if ("training" not in record or record["deck_sha256"] != inspected.original_sha256 or
+                record["engine"] != sha256(Path(engine.core.loaded_from).read_bytes()).hexdigest() or
+                record["card_databases"] != database_fingerprints(engine) or record["model"] != model):
+            raise ValueError("Der Checkpoint passt nicht zum Deck-, Engine-, Karten- oder Modellstand.")
+        args.seed = record["seed"]
+        args.pilot = record["mode"] == "Pilot"
+        print(f"Setze Prüfrunden nach {record['training']['valid']} gültigen Duellen fort.", flush=True)
+        return assess(args, engine, deck, model, record, location)
     args.out.mkdir(parents=True, exist_ok=True)
     location = Path(mkdtemp(prefix="Qwen-", dir=args.out))
     (location / "Deck.ydk").write_text(inspected.normalized, encoding="utf-8")
@@ -243,10 +254,21 @@ def run(args):
     record["player_plan"] = planner
     record["training"] = training_games(engine, deck, roster, random.Random(args.seed), 12 if args.pilot else 1000)
     save(location / "Ergebnis.json", record)
-    remaining = [name for name in names if name != BASELINE]
-    record.update(attempts=[], released=False)
-    for attempt in range(1, 2 if args.pilot else len(remaining) + 1):
-        challenger = ask("Challenger", "Wähle eine noch ungeprüfte Strategie anhand der Trainingsbilanz.",
+    assess(args, engine, deck, model, record, location)
+
+
+def assess(args, engine, deck, model, record, location):
+    attempts = record.setdefault("attempts", [])
+    record.setdefault("released", False)
+    remaining = [name for name in STRATEGIES if name != BASELINE
+                 and all(item["challenger"]["strategy"] != name for item in attempts)]
+    limit = 1 if args.pilot else len(STRATEGIES) - 1
+    for attempt in range(1, limit + 1):
+        if attempt <= len(attempts):
+            current = attempts[attempt - 1]
+            challenger = current["challenger"]
+        else:
+            challenger = ask("Challenger", "Wähle eine noch ungeprüfte Strategie anhand der Trainingsbilanz.",
                          {"training": record["training"]["strategy_results"], "frozen_reference": BASELINE,
                           "available": remaining,
                           "previous": [{"strategy": earlier["challenger"]["strategy"],
@@ -254,14 +276,16 @@ def run(args):
                                        for earlier in record["attempts"]]},
                          object_schema(strategy={"type": "string", "enum": remaining}, reason=TEXT),
                          args.seed + attempt)
-        if challenger.get("strategy") not in remaining:
-            raise ValueError("Der Challenger hat eine nicht verfügbare Strategie gewählt.")
-        remaining.remove(challenger["strategy"])
-        record.update(challenger=challenger, panels=[])
-        record["attempts"].append({"challenger": challenger, "panels": record["panels"]})
-        for index in (1, 2):
+            if challenger.get("strategy") not in remaining:
+                raise ValueError("Der Challenger hat eine nicht verfügbare Strategie gewählt.")
+            remaining.remove(challenger["strategy"])
+            current = {"challenger": challenger, "panels": []}
+            attempts.append(current)
+        record.update(challenger=challenger, panels=current["panels"])
+        save(location / "Ergebnis.json", record)
+        for index in range(len(current["panels"]) + 1, 3):
             folder = location / f"Kandidat-{attempt:02d}" / f"Pruefung-{index}"
-            folder.mkdir(parents=True)
+            folder.mkdir(parents=True, exist_ok=True)
             exam_key = "screening" if index == 1 else f"final-independent:{attempt}"
             exam = random.Random(f"{args.seed}:{exam_key}")
             panel = check_panel(engine, deck, challenger["strategy"], exam, 2 if args.pilot else 20, folder)
@@ -314,6 +338,7 @@ def main():
     parser.add_argument("--deck", required=True, type=Path)
     parser.add_argument("--players", type=int, choices=(32, 64), default=64)
     parser.add_argument("--pilot", action="store_true")
+    parser.add_argument("--resume", type=Path, help="Gespeicherten Lauf nach dem Training fortsetzen.")
     parser.add_argument("--seed", type=int, default=17421)
     parser.add_argument("--out", type=Path, default=WORK / "qwen-training")
     args = parser.parse_args()
