@@ -17,19 +17,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from deck_check import SOURCES, WORK, audit
 from duel_formats import LIST_FILES, POOLS, select_format
 from judge_review import RULEBOOK, review_replay
+from player_policy import policy_for, released_strategy
 from preview_cards import registered, with_previews
 from windows_duel import canonical_choice, check_result, database_fingerprints, script_ids, verify
 from ygo_agent.arena.duel import DuelConfig
-from ygo_agent.arena.policies import SimplePolicy
 from ygo_agent.arena.runner import run_match
 from ygo_agent.arena.seats import PolicySeat
 from ygo_agent.core import Engine
 from ygo_agent.core.constants import WIN_REASON_NAMES
 
 
-def play(engine, decks, seed, first, replay, preview_records):
-    seats = tuple(PolicySeat(deck.name, SimplePolicy(seed * 2 + side))
-                  for side, deck in enumerate(decks))
+def play(engine, decks, seed, first, replay, preview_records, strategies):
+    seats = tuple(PolicySeat(deck.name, policy_for(strategy, seed * 2 + side))
+                  for side, (deck, strategy) in enumerate(zip(decks, strategies, strict=True)))
     try:
         game, = run_match(engine, DuelConfig(rules="mr5", max_retries=0), decks, seats,
                           seed=seed, first=first).games
@@ -135,7 +135,7 @@ def markdown(record):
     summary = record["summary"]
     names = record["decks"]
     lines = ["# Deckvergleich", "", f"Verglichen wurden **{names[0]}** (A) und **{names[1]}** (B).",
-             "", f"{record['rules']}. Zwei einfache lokale Bots spielen Einzelduelle.",
+             "", f"{record['rules']}. Die lokalen Bots spielen Einzelduelle.",
              f"{summary['cases']} ausgewertete Duelle pro Variante in "
              f"{summary['valid_blocks']} von {summary['blocks']} vollständigen Testblöcken.", "",
              "| Variante | Siegquote und Bilanz |", "|---|---|",
@@ -168,7 +168,11 @@ def markdown(record):
             lines += [f"| {name} | {turn} | {line_of_results(position['A'])} | {line_of_results(position['B'])} |"]
     lines += ["", "A und B erhalten pro Gegner und Startposition denselben Zufallsstartwert. "
               "Geänderte Decklisten können dabei unterschiedliche Starthände ergeben. "
-              "Die Zahlen gelten für die gewählten Gegner und den einfachen Bot.", ""]
+              "Die Zahlen gelten für die gewählten Decks und die jeweiligen Strategien.", ""]
+    if strategies := record.get("strategies"):
+        lines += ["## Spielerstrategien", ""]
+        lines.extend(f"- {name} · {strategy}" for name, strategy in zip(names, strategies, strict=True))
+        lines += [""]
     if review := record.get("judge"):
         lines += ["## Judge-Auswertung", "",
                   f"{review['chains']} abgeschlossene Ketten geprüft. "
@@ -183,6 +187,15 @@ def markdown(record):
                          f"Auflösung der Kettenglieder {order}.")
         for game in review["reviews"]:
             lines.append(f"- {game['replay']} · {game['status']}.")
+        if timing := review.get("timing"):
+            lines += ["", "### Timing-Belege im Replay", "",
+                      f"{timing['answers']} Antworten des anderen Spielers, "
+                      f"{timing['same_controller']} weitere Aktivierungen desselben Spielers und "
+                      f"{timing['damage_activations']} Aktivierungen im Damage Step beobachtet.", ""]
+            for item in timing["examples"]:
+                lines.append(f"- {item['replay']}, Zug {item['turn']}, Ereignis {item['event']} · "
+                             f"Karte {item['card']}, Kettenglied {item['link']}. "
+                             f"{item['finding']} [Konami-Regelhinweis]({item['source']})")
     return "\n".join(lines)
 
 
@@ -192,6 +205,8 @@ def compare(engine, profile, imports, args, previews):
     base.mkdir(parents=True, exist_ok=True)
     destination = Path(mkdtemp(prefix=datetime.now().strftime("%Y%m%d-%H%M%S-"), dir=base))
     decks = [entry.deck for entry in imports]
+    engine_hash = sha256(Path(engine.core.loaded_from).read_bytes()).hexdigest()
+    strategies = [released_strategy(entry, profile, engine_hash) for entry in imports]
     for index, entry in enumerate(imports):
         (destination / f"Deck-{index + 1}.ydk").write_bytes(entry.normalized.encode("utf-8"))
 
@@ -207,9 +222,10 @@ def compare(engine, profile, imports, args, previews):
                 block_number = len(blocks) + 1
                 for first in (0, 1):
                     case = {"opponent": index, "first": first}
-                    for version, deck in zip(("A", "B"), decks[:2]):
+                    for side, version in enumerate(("A", "B")):
                         replay = destination / f"{block_number:03d}-{first}-{version}.yrpX"
-                        case[version] = play(engine, (deck, opponent), seed, first, replay, preview_records)
+                        case[version] = play(engine, (decks[side], opponent), seed, first, replay,
+                                             preview_records, (strategies[side], strategies[index + 2]))
                     block["cases"].append(case)
                 blocks.append(block)
                 print(json.dumps(block, ensure_ascii=False), file=raw, flush=True)
@@ -220,18 +236,24 @@ def compare(engine, profile, imports, args, previews):
                    if "judge" in case[version]]
     reviews = [{"replay": game["replay"], **game["judge"]["headjudge"]}
                for game in judge_games if "headjudge" in game["judge"]]
+    timing_games = [(game["replay"], game["judge"]["timing"]) for game in judge_games
+                    if "timing" in game["judge"]]
+    timing = {key: sum(item[key] for _, item in timing_games)
+              for key in ("answers", "same_controller", "damage_activations")}
+    timing["examples"] = [{"replay": name, **case} for name, item in timing_games for case in item["examples"]][:8]
     record = {
         "decks": [deck.name for deck in decks], "rules": profile.label, "seed": args.seed,
         "banlist": {"name": profile.banlist.name, "sha256": profile.banlist_sha256,
                     "whitelist": profile.banlist.whitelist,
                     "limits": profile.banlist.content} if profile.banlist else None,
-        "engine_sha256": sha256(Path(engine.core.loaded_from).read_bytes()).hexdigest(),
+        "engine_sha256": engine_hash,
+        "strategies": strategies,
         "kartendaten": database_fingerprints(engine),
         "lua": {name: sha256(data).hexdigest() for name, data in engine.scripts.loaded_scripts().items()},
         "preview_cards": preview_records,
         "changes": deck_diff(decks[0], decks[1], engine.cards),
         "summary": analyze(blocks, args.seed),
-        "judge": {"chains": sum(game["judge"]["chains"] for game in judge_games),
+        "judge": {"chains": sum(game["judge"]["chains"] for game in judge_games), "timing": timing,
                   "escalations": len(reviews), "reviews": reviews,
                   "examples": [{"replay": game["replay"], "case": case}
                                for game in judge_games for case in game["judge"]["examples"]][:4]},

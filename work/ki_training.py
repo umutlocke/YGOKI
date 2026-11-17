@@ -13,14 +13,7 @@ import sys
 from tempfile import mkdtemp
 
 
-STRATEGIES = {
-    "Referenz": None,
-    "Effekte zuerst": ("activate", "special", "summon", False, False),
-    "Normalbeschwörung zuerst": ("summon", "activate", "special", False, False),
-    "Stärkstes Monster und Handtraps": ("special", "summon", "activate", True, True),
-    "Effekte und Handtraps": ("activate", "special", "summon", False, True),
-}
-HAND_TRAPS = {14558127, 59438930, 94145021, 24299458, 10045474}
+MIN_TRAINING_DUELS = 1000
 
 
 def evaluate(fight, policy, opponents, scenarios):
@@ -174,52 +167,13 @@ def scenarios(rng, opponents, blocks):
 def make_fight(engine, own):
     from windows_duel import check_result
     from ygo_agent.arena.duel import DuelConfig
-    from ygo_agent.arena.messages import IdleAction, SelectChain, SelectIdleCmd
-    from ygo_agent.arena.policies import SimplePolicy
+    from player_policy import policy_for
     from ygo_agent.arena.runner import run_match
     from ygo_agent.arena.seats import PolicySeat
 
-    class Candidate(SimplePolicy):
-        def __init__(self, descriptor, seed):
-            super().__init__(seed)
-            self.descriptor = descriptor
-            self.chained = {}
-
-        def __call__(self, message, view):
-            order, strongest, interruptions = self.descriptor[:3], self.descriptor[3], self.descriptor[4]
-            if isinstance(message, SelectChain) and interruptions and not message.forced:
-                if view.turn_player != view.team:
-                    for index, card in enumerate(message.chains):
-                        data = view.cards.get(card.code)
-                        base = data.base_code if data else card.code
-                        if base in HAND_TRAPS and self.chained.get(base) != view.turn:
-                            self.chained[base] = view.turn
-                            return message.respond(index)
-                return message.respond(None)
-            if not isinstance(message, SelectIdleCmd):
-                return super().__call__(message, view)
-            choices = {
-                "activate": (IdleAction.ACTIVATE, message.activatable),
-                "special": (IdleAction.SPSUMMON, message.special_summonable),
-                "summon": (IdleAction.SUMMON, message.summonable),
-            }
-            for name in order:
-                action, cards = choices[name]
-                if not cards or (name != "summon" and self._actions >= 8):
-                    continue
-                if name != "summon":
-                    self._actions += 1
-                if strongest and name != "activate":
-                    index = max(range(len(cards)), key=lambda i: getattr(view.cards.get(cards[i].code), "attack", 0))
-                else:
-                    index = self.rng.randrange(len(cards)) if name == "activate" else 0
-                return message.respond(action, index)
-            return super().__call__(message, view)
-
     def fight(strategy, opponent, seed, first):
-        descriptor = STRATEGIES[strategy]
-        own_policy = Candidate(descriptor, seed * 2) if descriptor else SimplePolicy(seed * 2)
-        seats = (PolicySeat(own.name, own_policy), PolicySeat(opponent.name, SimplePolicy(seed * 2 + 1)))
+        seats = (PolicySeat(own.name, policy_for(strategy, seed * 2)),
+                 PolicySeat(opponent.name, policy_for("Referenz", seed * 2 + 1)))
         try:
             game, = run_match(engine, DuelConfig(rules="mr5", max_retries=0),
                               (own, opponent), seats, seed=seed, first=first).games
@@ -235,8 +189,11 @@ def make_fight(engine, own):
 
 
 def train_player(engine, own, training, exam, args, rng):
+    from player_policy import STRATEGIES
+
     fight = make_fight(engine, own)
-    selection = scenarios(rng, training, args.training_blocks)
+    blocks = max(args.training_blocks, math.ceil(MIN_TRAINING_DUELS / (2 * len(training) * len(STRATEGIES))))
+    selection = scenarios(rng, training, blocks)
     holdout = scenarios(rng, exam, args.exam_blocks)
     games = {strategy: evaluate(fight, strategy, training, selection) for strategy in STRATEGIES}
     baseline = games["Referenz"]
@@ -249,10 +206,12 @@ def train_player(engine, own, training, exam, args, rng):
     reference = evaluate(fight, "Referenz", exam, holdout)
     selected = evaluate(fight, candidate, exam, holdout) if candidate != "Referenz" else reference
     grade = matched_result(selected, reference)
-    approved = passes_check(candidate, grade, len(holdout))
+    completed_training = sum(game["status"] != "Fehler" for series in games.values() for game in series)
+    approved = completed_training >= MIN_TRAINING_DUELS and passes_check(candidate, grade, len(holdout))
     return {
         "Deck": own.name, "Kandidat": candidate, "freigegeben": approved,
         "Strategie": STRATEGIES[candidate], "Auswahlspiele": games,
+        "GueltigeTrainingsduelle": completed_training,
         "Trainingsbilanz": {key: summary(value) for key, value in games.items()},
         "Vergleichsspiele": {"Referenz": reference, "Kandidat": selected},
         "Vergleich": grade, "Kandidatbilanz": summary(selected), "Referenzbilanz": summary(reference),
@@ -273,12 +232,14 @@ def render_report(record):
     for item in record["players"]:
         result = item["Vergleich"]
         lines += [f"- **{item['Deck']}** · ausgewählt wurde „{item['Kandidat']}“. "
+                  f"{item.get('GueltigeTrainingsduelle', 0)} gültige Trainingsduelle. "
                   f"{result['Spiele']} Paare mit gleichem Gegner, Seed und Startspieler. "
                   f"Kandidat {item['Kandidatbilanz']['Sieg']} Siege, "
                   f"Referenz {item['Referenzbilanz']['Sieg']} Siege. "
                   + ("Der Kandidat erfüllt die Kriterien dieses Trainingslaufs." if item["freigegeben"]
                      else "Der Kandidat erfüllt die Kriterien dieses Trainingslaufs noch nicht.")]
-    lines += ["", "Die Freigabeprüfung verlangt mindestens fünf Prozentpunkte Vorsprung und einen "
+    lines += ["", f"Die Freigabeprüfung verlangt mindestens {MIN_TRAINING_DUELS} gültige Trainingsduelle pro Deck, "
+              "mindestens fünf Prozentpunkte Vorsprung und einen "
               "Sign-Test mit p < 0,05 über vollständige Blöcke. Jeder Block enthält beide Startpositionen.",
               "", "## Judge und Headjudge", ""]
     for name in ("Judge", "Headjudge"):

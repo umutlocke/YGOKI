@@ -5,6 +5,7 @@ from collections import Counter
 from hashlib import sha256
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+from math import comb
 from pathlib import Path
 import re
 import sys
@@ -21,7 +22,7 @@ from deck_check import (
 )
 from comparison_jobs import Comparisons
 from duel_formats import LIST_FILES, POOLS, select_format
-from preview_cards import REGISTRY, catalog_with_previews, read_preview
+from preview_cards import PENDING, REGISTRY, catalog_with_previews, read_preview
 from ygo_agent.arena.deck import Deck
 from ygo_agent.core.constants import (
     SCOPE_OCG, SCOPE_PRERELEASE, SCOPE_TCG, TYPE_EFFECT, TYPE_FUSION, TYPE_LINK, TYPE_PENDULUM,
@@ -78,8 +79,17 @@ class Editor:
         previews = [read_preview(path) for path in REGISTRY.glob("*.json")]
         self.cards = catalog_with_previews(self.base_cards, previews)
         self.preview_codes = {entry.card.code for entry in previews}
+        self.pending_cards = {}
+        for path in PENDING.glob("*.json"):
+            try:
+                card = read_preview(path).card
+            except FileNotFoundError:
+                continue  # A background update can finish activation as the editor opens.
+            if card.code not in self.preview_codes:
+                self.pending_cards[card.code] = card
         self.scripts = self.base_scripts | {entry.card.code for entry in previews if entry.script}
-        self.catalog = sorted((card for card in self.cards.cards.values()
+        catalog = {**self.cards.cards, **self.pending_cards}
+        self.catalog = sorted((card for card in catalog.values()
                                if card.name and not card.alias and not card.is_token and not card.is_rush
                                and not card.type & TYPE_SKILL
                                and card.ot & (SCOPE_OCG | SCOPE_TCG | SCOPE_PRERELEASE)),
@@ -99,7 +109,7 @@ class Editor:
         return self.cards, self.scripts
 
     def describe(self, code):
-        card = self.cards.get(code)
+        card = self.pending_cards.get(code) or self.cards.get(code)
         if card is None:
             return {"code": code, "name": f"Unbekannte Karte #{code}", "type": "Unbekannt",
                     "kind": "unknown", "zone": "main", "scope": "Unbekannt"}
@@ -187,7 +197,7 @@ class Editor:
         match = (int(query) if query.isascii() and query.isdigit() else None)
         if match is not None:
             code = engine_code(match, self.cards)
-            card = self.cards.get(code)
+            card = self.pending_cards.get(code) or self.cards.get(code)
             candidates = [card] if card else []
         else:
             candidates = [card for card in self.catalog if all(term in card.name.casefold() for term in terms)]
@@ -207,6 +217,8 @@ class Editor:
             display = self.describe(card.code)
             rule_card = cards.get(card.code)
             display["pool_issue"] = scope_problem(rule_card, profile.allowed) if rule_card else "Vorschaukarte"
+            if card.code in self.pending_cards:
+                display["pool_issue"] = "Vorschau · wartet auf Skriptprüfung"
             display["limit"] = limits.get(card.base_code, default)
             items.append(display)
         return {"items": items, "total": len(candidates)}
@@ -224,6 +236,55 @@ class Editor:
         return {"label": profile.label, "valid": not result.errors,
                 "groups": {"Deckregeln und Banliste": result.problems,
                            "Kartenpool": result.pool_problems, "Effektskripte": result.missing_scripts}}
+
+    def suggestions(self, draft, locked, profile):
+        cards, scripts = self.lookup(profile)
+        result = validate_deck(draft, cards, profile, scripts)
+        main = result.deck.main
+        all_codes = main + result.deck.extra + result.deck.side
+        locked_bases = {(self.cards.get(code).base_code if self.cards.get(code) else code)
+                        for code in locked}
+        if result.errors:
+            return {"label": profile.label, "suggestions": list(result.errors),
+                    "note": "Behebe zuerst die Befunde der Formatprüfung. Gesperrte Karten "
+                            "bleiben geschützt. Für einen Konflikt mit einer gesperrten Karte "
+                            "kannst du das Format prüfen oder die Karte bewusst entsperren."}
+
+        total = Counter(cards.get(code).base_code for code in all_codes)
+        main_counts = Counter(cards.get(code).base_code for code in main)
+        main_cards = {cards.get(code).base_code: cards.get(code) for code in main}
+        themes = Counter(group for card in main_cards.values() for group in set(card.setcodes))
+        limits = normalized_limits(cards, profile.banlist) if profile.banlist else {}
+        default = 0 if profile.banlist and profile.banlist.whitelist else 3
+        editable = main_cards.keys() - locked_bases
+        candidates = []
+        for base, card in main_cards.items():
+            overlap = max((themes[group] for group in card.setcodes), default=0)
+            if base in editable and len(editable) > 1 and total[base] < limits.get(base, default) and overlap >= 3:
+                candidates.append((card, main_counts[base], overlap))
+        candidates.sort(key=lambda item: (not bool(item[0].type & (TYPE_EFFECT | TYPE_SPELL | TYPE_TRAP)),
+                                          -item[2], item[1], item[0].name.casefold(), item[0].code))
+        suggestions = []
+        for card, copies, overlap in candidates[:3]:
+            before, after = (100 * (1 - comb(len(main) - count, 5) / comb(len(main), 5))
+                             for count in (copies, copies + 1))
+            before_label, after_label = (f"{chance:.1f}".replace(".", ",") for chance in (before, after))
+            suggestions.append(
+                f"Teste eine zusätzliche Kopie von {card.name} ({copies} → {copies + 1} im Main Deck). "
+                f"Die Karte teilt eine Archetyp-Kennung mit {overlap - 1} anderen Karten im Main Deck. "
+                f"Bei gleicher Deckgröße steigt die Chance, sie unter den ersten fünf Karten zu ziehen, "
+                f"von {before_label} % auf {after_label} %. "
+                "Tausche dafür eine weniger wichtige, ungesperrte Karte aus."
+            )
+        if len(main) > 40 and editable:
+            suggestions.append(
+                f"Prüfe eine schlankere Variante deines {len(main)}-Karten-Main-Decks. "
+                "Weniger Karten erhöhen die Chance auf einen unveränderten Starter. Entferne probeweise "
+                "eine ungesperrte Karte, die du selten brauchst, und vergleiche beide Varianten."
+            )
+        return {"label": profile.label, "suggestions": suggestions,
+                "note": "Das sind Testideen aus Deckliste und Kartenpool. Die Ziehchance berücksichtigt "
+                        "keine Sucheffekte. Prüfe die Spielstärke im Deckvergleich."}
 
     def export(self, draft, locked, kind):
         if kind == "ydk":

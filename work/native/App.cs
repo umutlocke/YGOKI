@@ -257,6 +257,7 @@ namespace YgoKi
             OnClick("DeckMinus", () => ChangeQuantity(-1));
             OnClick("DeckPlus", () => ChangeQuantity(1));
             OnClick("ToggleLock", ToggleLock);
+            OnClickAsync("ShowSuggestions", ShowSuggestions);
             OnClick("MoveCard", MoveCard);
             OnClick("AddCard", AddCard);
             OnClick("PrevCards", () => { offset = Math.Max(0, offset - 24); ScheduleSearch(false); });
@@ -570,6 +571,54 @@ namespace YgoKi
             Text("CheckDetails").Text = String.Join(Environment.NewLine, findings.Select(line => "• " + line.Replace("`", "")));
         }
 
+        private async Task ShowSuggestions()
+        {
+            if (!ready) return;
+            var draft = Draft();
+            if (String.IsNullOrWhiteSpace(draft.Text("name")))
+            {
+                Status("Bitte einen Decknamen eingeben.");
+                return;
+            }
+            int version = deckVersion;
+            draft["format"] = Choice("EditorFormat");
+            draft["banlist"] = Banlist("EditorBanlist");
+            Button("ShowSuggestions").IsEnabled = false;
+            try
+            {
+                var result = Json.Object(await bridge.Call("suggestions", draft));
+                if (version != deckVersion)
+                {
+                    Status("Deck oder Format geändert. Rufe die Vorschläge erneut auf.");
+                    return;
+                }
+                var suggestions = result.Array("suggestions").Cast<string>().ToArray();
+                var content = new StackPanel { Margin = new Thickness(22) };
+                content.Children.Add(new TextBlock { Text = result.Text("label"), FontWeight = FontWeights.SemiBold });
+                if (suggestions.Length == 0)
+                    content.Children.Add(new TextBlock { Text = "Für diese Deckliste gibt es derzeit keine konkreten Vorschläge.",
+                        TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 14, 0, 0) });
+                foreach (string suggestion in suggestions)
+                    content.Children.Add(new TextBlock { Text = "• " + suggestion.Replace("`", ""),
+                        TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 14, 0, 0) });
+                content.Children.Add(new TextBlock { Text = result.Text("note"), TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 18, 0, 0) });
+                var dialog = new Window { Owner = window, Title = "Deck verbessern", Width = 630,
+                    SizeToContent = SizeToContent.Height, MaxHeight = Math.Min(650, SystemParameters.WorkArea.Height),
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false,
+                    Background = window.Background, Foreground = window.Foreground, FontSize = window.FontSize };
+                var close = new Button { Content = "Schließen", IsCancel = true, IsDefault = true,
+                    HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(16, 0, 22, 16) };
+                var layout = new DockPanel();
+                DockPanel.SetDock(close, Dock.Bottom);
+                layout.Children.Add(close);
+                layout.Children.Add(new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+                dialog.Content = layout;
+                dialog.ShowDialog();
+            }
+            finally { Button("ShowSuggestions").IsEnabled = true; }
+        }
+
         private void ScheduleSearch(bool reset)
         {
             if (!ready) return;
@@ -709,6 +758,14 @@ namespace YgoKi
                 details.Add("95-%-Intervall der Differenz von " + Delta(interval[0]) + " bis " + Delta(interval[1]) + ".");
             else
                 details.Add("Zu wenige vollständige Testblöcke für ein Unsicherheitsintervall.");
+            if (record.Get("strategies") is object[])
+            {
+                details.Add("");
+                details.Add("Spielerstrategien");
+                var strategies = record.Array("strategies");
+                for (int index = 0; index < names.Length; index++)
+                    details.Add(names[index] + " · " + strategies[index]);
+            }
             int excluded = Convert.ToInt32(result["blocks"]) - Convert.ToInt32(result["valid_blocks"]);
             if (excluded > 0) details.Add(excluded + " Blöcke wegen Duellfehlern ausgeschlossen.");
             details.Add("");
@@ -731,6 +788,12 @@ namespace YgoKi
                 details.Add("Judge-Auswertung");
                 details.Add(judge["chains"] + " abgeschlossene Ketten geprüft · " +
                     judge["escalations"] + " Duelle zur Nachprüfung an den Headjudge");
+                if (judge.Get("timing") is Dictionary<string, object>)
+                {
+                    var timing = Json.Object(judge["timing"]);
+                    details.Add(timing["answers"] + " Antworten in Ketten · " +
+                        timing["damage_activations"] + " Aktivierungen im Damage Step");
+                }
                 foreach (var review in judge.Array("reviews").Take(4).Select(Json.Object))
                     details.Add(review.Text("replay") + " · " + review.Text("status"));
             }
@@ -824,6 +887,16 @@ namespace YgoKi
             Expect(Text("ComparisonDetails").Text.Contains("abgeschlossene Ketten geprüft") &&
                 report.Text("content").Contains("Konami-Regelbuch"), "Judge-Auswertung fehlt.");
             Screenshot(Path.Combine(directory, "vergleich.png"));
+            var trained = MatchDeck("D-LINK V3.1", "original");
+            if (trained != null)
+            {
+                Combo("OriginalDeck").SelectedItem = trained;
+                await StartComparison();
+                await WaitForJob();
+                Expect(lastResult != null && Text("ComparisonDetails").Text.Contains("D-LINK V3.1 · Stärkstes Monster und Handtraps"),
+                    "Freigegebene Strategie für D-LINK V3.1 fehlt.");
+                Screenshot(Path.Combine(directory, "vergleich-dlink.png"));
+            }
             Field("Blocks").Text = "50";
             await StartComparison();
             await CancelComparison();

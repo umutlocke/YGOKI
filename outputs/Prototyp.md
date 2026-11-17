@@ -42,7 +42,9 @@ Wähle in der Windows-App **Deckeditor**. Der bisherige Browsereditor ist weiter
 
 Die Auswertung zeigt Siegquoten, den Unterschied in Prozentpunkten, die Änderungen an der Deckliste und Ergebnisse je Gegner und Startposition. Sobald genügend vollständige Blöcke vorliegen, zeigt sie außerdem ein gepaartes 95-%-Bootstrap-Intervall. Der Bericht und die Einzelspiele lassen sich herunterladen. Eingaben und Replays bleiben lokal gespeichert.
 
-Die Judge-Auswertung prüft die Auflösungsreihenfolge abgeschlossener Ketten. Der Bericht enthält Beispiele mit Replay, Zug und Ereignisnummer. Bei Abweichungen spielt der Headjudge das Replay erneut ab und vermerkt, ob sich der Fall reproduzieren lässt. Kartenspezifische Aktivierungsbedingungen erfordern zusätzliche Prüfungen.
+Die Judge-Auswertung prüft die Auflösungsreihenfolge abgeschlossener Ketten. Der Bericht enthält Beispiele mit Replay, Zug und Ereignisnummer. Er markiert auch beobachtete Antworten in Ketten und Aktivierungen im Damage Step. Bei Abweichungen spielt der Headjudge das Replay erneut ab und vermerkt, ob sich der Fall reproduzieren lässt. Passentscheidungen und kartenspezifische Aktivierungsbedingungen können weitere Belege erfordern.
+
+Konami veröffentlicht Beispiele zu Damage Step, Fast Effect Timing und Rivalry of Warlords. `work/judge_timing.py` prüft vorbereitete Fälle zu Fast Effect Timing und Damage Step, darunter offene Fälle bei fehlenden Angaben. Die Replay-Auswertung prüft weiterhin die Auflösungsreihenfolge von Ketten. [Konami-Rulings](https://www.yugioh-card.com/eu/de/play/rulings/) · [Konami-Kartendatenbank](https://www.db.yugioh-card.com/yugiohdb/)
 
 Alternativ lässt sich eine Serie mit `Deckvergleich.ps1` aus PowerShell starten. Wähle mit `-Original`, `-Variante` und `-Gegner` die `.ydk`-Dateien. `-Bloecke`, `-Format` und `-Banliste` funktionieren wie in der Browseransicht. Für eigene Banlisten steht dort `-BanlistenDatei` zur Verfügung.
 
@@ -50,7 +52,21 @@ Der Beispielvergleich startet mit einer an die TCG-Banliste angepassten Kopie vo
 
 ## KI-Training
 
-Doppelklicke in `outputs` auf `KI-Training.cmd`, um einen neuen lokalen Lauf zu starten. Der Lauf testet Spielstrategien für WinterRaven und D-LINK V3.1 und trainiert Judge und Headjudge mit gelabelten Grundfällen. Bericht, Einzelergebnisse und die beiden Entscheidungsbäume landen in einem neuen Ordner unter `work\training`. Die App verwendet für ihre Deckvergleiche die bisherige Referenzstrategie.
+Doppelklicke in `outputs` auf `KI-Training.cmd`, um einen neuen lokalen Lauf zu starten. Der Lauf simuliert mindestens 1.000 Trainingsduelle je Deck für WinterRaven und D-LINK V3.1. Die Freigabe verlangt mindestens 1.000 gültige Trainingsduelle pro Deck und bessere Ergebnisse in einem separaten Prüfsatz. Der Lauf trainiert außerdem Judge und Headjudge mit gelabelten Grundfällen. Bericht, Einzelergebnisse und die beiden Entscheidungsbäume landen unter `work\training`. Im Deckvergleich verwendet die unveränderte Liste von D-LINK V3.1 im Format Vorschau ohne Banliste die freigegebene Strategie. Der Bericht zeigt die Strategie je Deck.
+
+## Sicherung und Wiederherstellung
+
+Schließe die App und laufende Trainings. Starte anschließend in `outputs` die Datei `Sicherung.cmd`. Sie erstellt ein geprüftes, datiertes ZIP in `Dokumente\Codex\YGOKI-Sicherungen`. Das ZIP enthält die installierte App, Laufzeit, Decks, Vorschaukarten, Replays und Trainingsdaten. Über die Eingabeaufforderung kannst du mit `Sicherung.cmd "E:\YGOKI-Sicherungen"` ein anderes Ziel wählen.
+
+Kopiere das ZIP für Schutz vor einem Laufwerksausfall zusätzlich auf ein externes Laufwerk. Entpacke es zur Wiederherstellung vollständig in einen neuen Ordner und starte dort `YGO KI App.exe`.
+
+Die Windows-Aufgabe `YGOKI Sicherung` erstellt montags um 10 Uhr eine Sicherung, wenn du in Windows angemeldet bist. Im Unterordner `Automatisch` bleiben die vier neuesten erfolgreichen ZIPs erhalten. Manuell erstellte Archive haben einen eigenen Ordner und bleiben erhalten.
+
+## Quellen für neue Karten
+
+Ankündigungen und Veröffentlichungen stehen bei Konami. Project Ignis pflegt die maschinenlesbaren Kartendaten und Lua-Skripte. Bei einer Vorschaukarte kennt die App gegebenenfalls schon den Kartentext. Für Duelle werden ein passendes Skript und ein erfolgreicher Test benötigt. Vorläufige Passcodes können bei Veröffentlichung durch offizielle Passcodes ersetzt werden. [Konami OCG-Neuigkeiten](https://www.yugioh-card.com/japan/news/) · [Konami-Kartendatenbank](https://www.db.yugioh-card.com/yugiohdb/) · [BabelCDB](https://github.com/ProjectIgnis/BabelCDB) · [CardScripts](https://github.com/ProjectIgnis/CardScripts)
+
+`Kartenupdate.ps1 -Woechentlich` richtet eine lokale Windows-Aufgabe für sonntags um 10 Uhr ein. `Kartenupdate.ps1 -Jetzt` startet einen Abruf sofort. Der Abruf prüft bis zu 60 Kandidaten pro Lauf und protokolliert die Ergebnisse unter `work\card-updates`. Die App lädt den aktualisierten Katalog beim nächsten Start. Der automatische Abruf deckt Vorschaukarten ab. Die bestehenden TCG-/OCG-Datenbanken und Banlisten werden durch diesen Abruf nicht ersetzt.
 
 ## Format und Banliste auswählen
 

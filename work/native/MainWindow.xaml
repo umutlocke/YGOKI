@@ -178,7 +178,11 @@
                   <ComboBox x:Name="EditorBanlist" Width="102" AutomationProperties.Name="Banliste"/>
                 </StackPanel>
               </DockPanel>
-              <TextBlock x:Name="CheckSummary" Text="Deckliste wird geladen…" Foreground="{StaticResource Accent}" Margin="0,8,0,5"/>
+              <DockPanel Margin="0,6,0,5">
+                <Button DockPanel.Dock="Right" x:Name="ShowSuggestions" Content="Deck verbessern" Margin="8,0,0,0"/>
+                <TextBlock x:Name="CheckSummary" Text="Deckliste wird geladen…" Foreground="{StaticResource Accent}"
+                           VerticalAlignment="Center" TextWrapping="Wrap"/>
+              </DockPanel>
               <ScrollViewer MaxHeight="98" VerticalScrollBarVisibility="Auto">
                 <TextBlock x:Name="CheckDetails" TextWrapping="Wrap" Foreground="{StaticResource Muted}"/>
               </ScrollViewer>

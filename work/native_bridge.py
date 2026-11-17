@@ -20,10 +20,12 @@ def dispatch(editor, action, data):
     if action == "cards":
         profile = editor.format(data["format"], data.get("banlist"))
         return editor.search(data["query"], data["kind"], data["offset"], profile)
-    if action in ("check", "save", "export"):
+    if action in ("check", "suggestions", "save", "export"):
         draft, locked = editor.draft(data)
         if action == "check":
             return editor.check(draft, editor.format(data["format"], data.get("banlist")))
+        if action == "suggestions":
+            return editor.suggestions(draft, locked, editor.format(data["format"], data.get("banlist")))
         if action == "save":
             return editor.save(draft, locked, data.get("revision"))
         kind = data["kind"]
