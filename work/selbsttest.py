@@ -93,6 +93,42 @@ def training():
             f"{exam['judge']['headjudge_reproduced']} Replays exakt nachgespielt, Prozesse parallel")
 
 
+def tournament():
+    folder = WORK / "turniere" / "_selbsttest"
+    shutil.rmtree(folder, ignore_errors=True)
+    folder.mkdir(parents=True)
+    decks = sorted((WORK / "decks").glob("*.ydk"))[:3]
+    (folder / "Feld.json").write_text(json.dumps({"decks": [{"deck": str(d), "share": 1} for d in decks]}),
+                                      encoding="utf-8")
+    command = [sys.executable, "-B", "-X", "utf8", str(WORK / "ycs.py"), "--field", str(folder / "Feld.json"),
+               "--players", "32", "--workers", "4", "--seed", "5", "--ohne-qwen", "--run-dir", str(folder)]
+    result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=1500)
+    if result.returncode:
+        raise RuntimeError(result.stdout[-1500:] + result.stderr[-1500:])
+    record = json.loads((folder / "Ergebnis.json").read_text(encoding="utf-8"))
+    if not record.get("champion") or not (folder / "Bericht.html").is_file():
+        raise ValueError("Kein Sieger oder kein Bericht.")
+    return (f"{record['matches']} Bo3-Matches, {record['duels']} Duelle in {record['seconds']} s, "
+            f"meiste Top-Cut-Plätze: {record['decks'][0]['deck'] if record['decks'] else '-'}, {record['invalid']} Engine-Befunde")
+
+
+def obsidian():
+    import tempfile
+    import obsidian_export
+    target = Path(tempfile.mkdtemp(prefix="ygoki-vault-"))
+    original = obsidian_export.vault
+    obsidian_export.vault = lambda: target
+    try:
+        result = obsidian_export.export_all()
+    finally:
+        obsidian_export.vault = original
+    if not (target / "YGOKI" / "Start.md").is_file():
+        raise ValueError("Start.md fehlt.")
+    shutil.rmtree(target, ignore_errors=True)
+    return (f"{result['decks']} Decks, {result['trainings']} Trainings, {result['tournaments']} Turniere exportierbar · "
+            f"Vault: {original()}")
+
+
 def qwen():
     from qwen_local import ask, model_ready
     try:
@@ -120,7 +156,10 @@ def bridge():
             return answer["result"]
         runs = call("train_runs")
         state = call("qwen_status")
-        return f"{len(call('decks'))} Decks, {len(runs)} Trainingsläufe, {state['message']}"
+        queue = call("queue_overview")
+        tournaments = call("ycs_runs")
+        return (f"{len(call('decks'))} Decks, {len(runs)} Trainingsläufe, {len(tournaments)} Turniere, "
+                f"Warteschlange {len(queue['jobs'])} Aufträge, {state['message']}")
     finally:
         process.stdin.close()
         process.wait(10)
@@ -130,6 +169,8 @@ def main():
     print(f"YGOKI Selbsttest · {time.strftime('%Y-%m-%d %H:%M')} · Python {sys.version.split()[0]} · {os.cpu_count()} Kerne")
     step("Engine, Decks und lernende Spieler-KIs (je 3 Duelle)", decks)
     step("Kurztraining mit Prüfrunde, Judge und Headjudge", training)
+    step("YCS-Simulation (32 Spieler, Swiss, Top Cut, Bo3)", tournament)
+    step("Obsidian-Export (Probelauf in Temp-Ordner)", obsidian)
     step("Lokale Qwen-Anbindung", qwen)
     step("App-Bridge (Training, Qwen-Status)", bridge)
     print("ERGEBNIS: " + ("alles in Ordnung" if not failures else f"{failures} Fehler"))

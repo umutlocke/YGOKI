@@ -12,6 +12,7 @@ import sys
 
 WORK = Path(__file__).resolve().parent
 RUNS = WORK / "ki-lernen"
+TOURNAMENTS = WORK / "turniere"
 QWEN = WORK / "qwen-local"
 PYTHON = Path(sys.executable)
 NO_WINDOW = 0x08000000 if os.name == "nt" else 0
@@ -22,9 +23,10 @@ def _alive(pid):
     if not pid:
         return False
     if os.name == "nt":
-        out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"], capture_output=True, text=True,
-                             creationflags=NO_WINDOW).stdout
-        return str(pid) in out
+        # tasklist answers in the console code page (umlauts), so compare raw bytes instead of decoding.
+        out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH", "/FO", "CSV"], capture_output=True,
+                             creationflags=NO_WINDOW).stdout or b""
+        return f'"{pid}"'.encode() in out
     try:
         os.kill(pid, 0)
         return True
@@ -41,8 +43,8 @@ def _read(path):
 
 def _safe_run(folder):
     path = Path(folder).resolve()
-    if RUNS.resolve() not in path.parents:
-        raise ValueError("Unbekannter Trainingsordner.")
+    if RUNS.resolve() not in path.parents and TOURNAMENTS.resolve() not in path.parents:
+        raise ValueError("Unbekannter Lauf-Ordner.")
     return path
 
 
@@ -84,6 +86,8 @@ def start(deck_path, data):
     args = [str(PYTHON), "-B", "-X", "utf8", str(WORK / "ki_lernen.py"), "--deck", str(deck_path),
             "--players", str(players), "--min-duels", str(int(data.get("min_duels", 1000))),
             "--target", str(float(data.get("target", 9))), "--run-dir", str(folder)]
+    if data.get("max_generations"):
+        args += ["--max-generations", str(int(data["max_generations"]))]
     if not data.get("qwen", True):
         args.append("--ohne-qwen")
     return _launch(args, folder)
@@ -137,10 +141,11 @@ def status(folder):
     return info
 
 
-def runs():
-    if not RUNS.exists():
+def runs(root=RUNS):
+    if not root.exists():
         return []
-    folders = sorted((p for p in RUNS.iterdir() if p.is_dir() and not p.name.startswith("_")), key=lambda p: p.stat().st_mtime, reverse=True)
+    folders = sorted((p for p in root.iterdir() if p.is_dir() and not p.name.startswith("_")),
+                     key=lambda p: p.stat().st_mtime, reverse=True)
     return [status(folder) for folder in folders[:30]]
 
 
@@ -148,3 +153,35 @@ def stop(folder):
     folder = _safe_run(folder)
     (folder / "STOP").write_text("Stopp aus der App", encoding="utf-8")
     return status(folder)
+
+
+def tournament_start(field, data):
+    """field = [(deck path, share), ...]"""
+    if len(field) < 2:
+        raise ValueError("Das Feld braucht mindestens zwei Decks.")
+    players = int(data.get("players", 2500))
+    if not 4 <= players <= 20000:
+        raise ValueError("Spielerzahl: 4 bis 20000.")
+    TOURNAMENTS.mkdir(parents=True, exist_ok=True)
+    folder = TOURNAMENTS / f"YCS-{players}-{datetime.now():%Y%m%d-%H%M%S}"
+    folder.mkdir()
+    spec = {"decks": [{"deck": str(path), "share": float(share)} for path, share in field]}
+    (folder / "Feld.json").write_text(json.dumps(spec, ensure_ascii=False, indent=2), encoding="utf-8")
+    args = [str(PYTHON), "-B", "-X", "utf8", str(WORK / "ycs.py"), "--field", str(folder / "Feld.json"),
+            "--players", str(players), "--run-dir", str(folder)]
+    if int(data.get("top_cut", -1)) >= 0:
+        args += ["--top-cut", str(int(data["top_cut"]))]
+    if not data.get("qwen", True):
+        args.append("--ohne-qwen")
+    return _launch(args, folder)
+
+
+def trained(deck_path):
+    """Best available playbook rating for this exact deck list: {"rating", "released"} or None."""
+    from hashlib import sha256
+    from deck_check import read_ydk  # noqa: F401  (puts ygo-agent on sys.path)
+    from playbook_store import best_playbook
+    from qwen_training import load_deck
+    _, inspected = load_deck(Path(deck_path))
+    _, info = best_playbook(sha256(inspected.normalized.encode("utf-8")).hexdigest())
+    return info

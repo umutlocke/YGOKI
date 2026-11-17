@@ -17,8 +17,8 @@ from ygo_agent.arena.messages import (BattleAction, IdleAction, SelectBattleCmd,
                                       SelectEffectYn, SelectIdleCmd, SelectOption, SelectPosition,
                                       SelectTribute, SelectUnselectCard, SelectYesNo)
 from ygo_agent.arena.policies import RandomPolicy
-from ygo_agent.core.constants import (LOCATION_DECK, LOCATION_HAND, POS_FACEUP_ATTACK, POS_FACEUP_DEFENSE,
-                                      TYPE_MONSTER)
+from ygo_agent.core.constants import (LOCATION_DECK, LOCATION_HAND, LOCATION_MZONE, LOCATION_SZONE,
+                                      POS_FACEUP_ATTACK, POS_FACEUP_DEFENSE, TYPE_MONSTER)
 
 ACTIONS = ("summon", "special", "activate", "mset", "sset")
 GOOD_HINTS = {506, 508, 509, 510, 514, 518, 522, 523, 527, 529}       # search, summon, set, equip, to field
@@ -43,6 +43,8 @@ class Playbook:
     yes: float = 0.85              # chance to answer "use this effect?" with yes
     attack: float = 0.9            # chance to attack with an available attacker
     origin: str = "start"
+    combos: list = field(default_factory=list)   # remembered combo lines: [{"steps": [codes], "weight": w}]
+    combo_bonus: float = 1.5       # how strongly the next step of a remembered combo is preferred
 
     @classmethod
     def initial(cls, codes, rng: random.Random, noise=0.35):
@@ -64,13 +66,16 @@ class Playbook:
         return {"weights": {str(k): v for k, v in self.weights.items()},
                 "chain_opp": {str(k): v for k, v in self.chain_opp.items()},
                 "bias": self.bias, "end_threshold": self.end_threshold, "chain_own": self.chain_own,
-                "yes": self.yes, "attack": self.attack, "origin": self.origin}
+                "yes": self.yes, "attack": self.attack, "origin": self.origin,
+                "combos": self.combos, "combo_bonus": self.combo_bonus}
 
     @classmethod
     def from_json(cls, data):
         return cls({int(k): v for k, v in data["weights"].items()},
                    {int(k): v for k, v in data["chain_opp"].items()}, dict(data["bias"]),
-                   data["end_threshold"], data["chain_own"], data["yes"], data["attack"], data.get("origin", ""))
+                   data["end_threshold"], data["chain_own"], data["yes"], data["attack"], data.get("origin", ""),
+                   [dict(steps=list(c["steps"]), weight=c.get("weight", 1.0)) for c in data.get("combos", [])],
+                   data.get("combo_bonus", 1.5))
 
     def copy(self, origin=None):
         twin = Playbook.from_json(json.loads(json.dumps(self.to_json())))
@@ -93,6 +98,11 @@ def mutate(book: Playbook, rng: random.Random, strength=1.0, origin="Mutation"):
     for name in ("chain_own", "yes", "attack"):
         if rng.random() < 0.25:
             setattr(child, name, round(_clamp(getattr(child, name) + rng.gauss(0, 0.12 * strength)), 3))
+    for combo in child.combos:
+        if rng.random() < 0.3:
+            combo["weight"] = round(_clamp(combo["weight"] + rng.gauss(0, 0.3 * strength), 0.0, 3.0), 3)
+    if rng.random() < 0.2:
+        child.combo_bonus = round(_clamp(child.combo_bonus + rng.gauss(0, 0.3 * strength), 0.0, 4.0), 3)
     return child
 
 
@@ -105,10 +115,25 @@ def crossover(a: Playbook, b: Playbook, rng: random.Random):
     for key in ACTIONS:
         if rng.random() < 0.5:
             child.bias[key] = b.bias[key]
-    for name in ("end_threshold", "chain_own", "yes", "attack"):
+    for name in ("end_threshold", "chain_own", "yes", "attack", "combo_bonus"):
         if rng.random() < 0.5:
             setattr(child, name, getattr(b, name))
+    theirs = {tuple(c["steps"]): c["weight"] for c in b.combos}
+    for combo in child.combos:
+        if tuple(combo["steps"]) in theirs and rng.random() < 0.5:
+            combo["weight"] = theirs[tuple(combo["steps"])]
     return child
+
+
+def remember(book: Playbook, combos, weight=1.0):
+    """Teach a playbook combo lines it does not know yet (memory from the deck's combo library)."""
+    known = {tuple(c["steps"]) for c in book.combos}
+    for steps in combos:
+        if tuple(steps) not in known:
+            book.combos.append({"steps": list(steps), "weight": weight})
+            known.add(tuple(steps))
+    del book.combos[:-12]   # keep the 12 most recent lines
+    return book
 
 
 def adjust(book: Playbook, changes, origin="Qwen-Vorschlag"):
@@ -144,10 +169,52 @@ class PlaybookPolicy(RandomPolicy):
         self.activated = Counter()
         self.used = Counter()
         self.chained_opp = Counter()
+        self.steps = []          # (kind, code) of this own turn: N normal, S special, A activate, M/Z set, K chain
+        self.start_hand = []
+        self.logged_turn = -1
+        self.turns = []          # one record per own turn: start hand, steps, board at the end of Main Phase 1
+        self.combo_follow = {}   # combo key -> [turns started, turns completed]
 
     def stats(self):
         return {"opening": self.opening or [], "activated": dict(self.activated), "used": dict(self.used),
-                "chained_opp": dict(self.chained_opp)}
+                "chained_opp": dict(self.chained_opp), "turns": self.turns, "combo_follow": self.combo_follow}
+
+    def _combo_bonus(self):
+        """Next step of every remembered combo whose earlier steps were played this turn (in order)."""
+        bonus = {}
+        if not self.book.combos:
+            return bonus
+        done = [code for _, code in self.steps]
+        for combo in self.book.combos:
+            steps, position = combo["steps"], 0
+            for code in done:
+                if position < len(steps) and code == steps[position]:
+                    position += 1
+            if position < len(steps):
+                code = steps[position]
+                bonus[code] = max(bonus.get(code, 0.0), self.book.combo_bonus * combo["weight"] * (1 + 0.25 * position))
+        return bonus
+
+    def _log_turn(self, view):
+        if view.turn_player != view.team or self.logged_turn == view.turn or len(self.steps) < 2:
+            return
+        self.logged_turn = view.turn
+        monsters = [c for c in view.location(view.team, LOCATION_MZONE) if c and c.code]
+        backrow = [c for c in view.location(view.team, LOCATION_SZONE) if c and c.code]
+        attack = sum((c.attack or 0) for c in monsters)
+        score = round(len(monsters) + 0.5 * len(backrow) + attack / 3000, 2)
+        self.turns.append({"turn": view.turn, "hand": self.start_hand, "steps": list(self.steps),
+                           "board": [len(monsters), len(backrow), attack], "score": score})
+        done = [code for _, code in self.steps]
+        for combo in self.book.combos:
+            steps, position = combo["steps"], 0
+            for code in done:
+                if position < len(steps) and code == steps[position]:
+                    position += 1
+            if position:
+                entry = self.combo_follow.setdefault("-".join(map(str, steps)), [0, 0])
+                entry[0] += 1
+                entry[1] += position == len(steps)
 
     # -- helpers ------------------------------------------------------------------------------------------
     def weight(self, code):
@@ -158,6 +225,9 @@ class PlaybookPolicy(RandomPolicy):
             self.turn = view.turn
             self.turn_actions = 0
             self.repeats.clear()
+            self.steps = []
+            if view.turn_player == view.team:
+                self.start_hand = [c.code for c in view.location(view.team, LOCATION_HAND) if c and c.code]
         if self.opening is None:
             hand = view.location(view.team, LOCATION_HAND)
             self.opening = [card.code for card in hand if card and card.code]
@@ -187,6 +257,7 @@ class PlaybookPolicy(RandomPolicy):
         if isinstance(p, SelectIdleCmd):
             self._new_turn(view)
             options = []
+            bonus = self._combo_bonus()
             groups = (("summon", IdleAction.SUMMON, p.summonable), ("special", IdleAction.SPSUMMON,
                       p.special_summonable), ("activate", IdleAction.ACTIVATE, p.activatable),
                       ("mset", IdleAction.MSET, p.monster_settable), ("sset", IdleAction.SSET, p.spell_settable))
@@ -195,7 +266,7 @@ class PlaybookPolicy(RandomPolicy):
                     key = (name, card.code, getattr(card, "description", 0))
                     if self.repeats[key] >= REPEATS_PER_TURN:
                         continue
-                    score = book.bias[name] + self.weight(card.code) + rng.gauss(0, 0.05)
+                    score = book.bias[name] + self.weight(card.code) + bonus.get(card.code, 0.0) + rng.gauss(0, 0.05)
                     options.append((score, name, action, index, key, card.code))
             if options and self.turn_actions < ACTIONS_PER_TURN:
                 score, name, action, index, key, code = max(options)
@@ -203,9 +274,13 @@ class PlaybookPolicy(RandomPolicy):
                     self.turn_actions += 1
                     self.repeats[key] += 1
                     self.used[code] += 1
+                    if view.turn_player == view.team:
+                        self.steps.append(({"summon": "N", "special": "S", "activate": "A", "mset": "M",
+                                            "sset": "Z"}[name], code))
                     if name == "activate":
                         self.activated[code] += 1
                     return p.respond(action, index)
+            self._log_turn(view)
             if p.can_battle_phase and view.turn > 1:
                 return p.respond(IdleAction.BATTLE)
             if p.can_end_phase:
@@ -233,6 +308,8 @@ class PlaybookPolicy(RandomPolicy):
                     self.repeats[("chain", code, view.turn)] += 1
                     self.activated[code] += 1
                     self.used[code] += 1
+                    if not theirs:
+                        self.steps.append(("K", code))
                     if theirs:
                         self.chained_opp[code] += 1
                     return p.respond(index)

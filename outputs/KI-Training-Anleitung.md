@@ -64,3 +64,96 @@ Alle Optionen zeigt `work\upstream\python-win32\python.exe work\ki_lernen.py --h
 - Die Playbooks lernen Prioritäten und Tendenzen, aber keine kompletten Kombo-Routen. Für echte Kombos wäre der nächste Schritt eine Qwen-Spielerrolle an Schlüsselentscheidungen. Die ist aber deutlich langsamer.
 - Der Referenz-Bot ist einfach. Eine 9/10 heißt deshalb: deutlich und stabil besser als einfaches Spiel und als der eigene Startstand. Turnierniveau bedeutet sie nicht.
 - WindBot (die Deck-KI von EDOPro) ist noch nicht eingebunden. Im Projekt fehlt der Quellcode, und WindBot braucht einen eigenen Duellserver.
+
+# Turnier (YCS-Simulation)
+
+Im Reiter **Turnier** stellst du ein großes Turnier mit KI-Spielern nach.
+
+1. **Meta-Feld zusammenstellen:** Deck wählen, Anteil in Prozent eintragen und auf **Hinzufügen** klicken. Das wiederholst du für jedes Deck. Neben jedem Deck steht, ob es ein trainiertes Playbook hat. Die Anteile müssen nicht genau 100 % ergeben, sie werden umgerechnet.
+2. **Spielerzahl** eintragen, zum Beispiel 2500, und den Top Cut wählen. Bei „Automatisch“ ist es ab 2.000 Spielern Top 128 und ab 1.000 Spielern Top 64.
+3. **Turnier starten**. Fortschritt und Protokoll erscheinen rechts. Danach öffnest du den Bericht mit **Bericht öffnen**.
+
+**Ablauf:** Schweizer System mit Best-of-3-Matches (3 Punkte für einen Sieg, 1 für ein Unentschieden, Freilos zählt als Sieg). Die Runden richten sich nach der Spielerzahl, bei 2.500 Spielern sind es 12. Tiebreaker sind die Siegquote der Gegner (OMW) und danach die ihrer Gegner (OOMW). Anschließend folgt der Top Cut im K.-o.-System.
+
+**Spieler:** Jeder Spieler nutzt das freigegebene Playbook seines Decks aus dem KI-Training. Gibt es keins, spielt er mit dem neutralen Playbook. Eine kleine Streuung sorgt dafür, dass nicht alle Spieler eines Decks gleich spielen.
+
+**Bericht** (`work\turniere\YCS-...`): Sieger, Finale, Top Cut, pro Deck Siegquote, Top-Cut-Plätze und Conversion Rate, dazu eine farbige Matchup-Tabelle und die Schweizer Tabelle. Mit Qwen gibt es einen Turnierkommentar. Die Rohdaten liegen in `Decks.csv`, `Matchups.csv`, `Tabelle.csv` und `Ergebnis.json`.
+
+**Grenzen:** Es spielen KIs, keine Menschen. Das Ergebnis zeigt, wie die Playbooks mit diesen Decks gegeneinander abschneiden. Am aussagekräftigsten ist es, wenn alle Decks im Feld vorher trainiert wurden. Das Side Deck wird noch nicht gewechselt.
+
+Kommandozeile: `work\upstream\python-win32\python.exe work\ycs.py --field Feld.json --players 2500`
+
+# Warteschlange
+
+Mit der Warteschlange laufen mehrere Trainings und Turniere automatisch nacheinander, auch wenn die App geschlossen ist.
+
+- **KI-Training → Zur Warteschlange:** stellt das gewählte Deck mit den eingetragenen Einstellungen hinten an. So kannst du nacheinander beliebig viele Decks einreihen.
+- **Turnier → Erst Feld trainieren, dann Turnier:** reiht für jedes Deck im Feld, das noch kein freigegebenes Playbook hat, ein Training ein (64 KIs, 1.000 Duelle, Ziel 9) und danach das Turnier.
+- **Anhalten** lässt den laufenden Auftrag zu Ende laufen und startet danach keinen neuen. **Fortsetzen** macht weiter. **Entfernen** löscht einen wartenden Auftrag. **Erledigte entfernen** räumt die Liste auf.
+
+Ein laufendes Training oder Turnier stoppst du wie gewohnt im jeweiligen Reiter. Danach startet die Warteschlange den nächsten Auftrag. Erreicht ein Deck die 9/10 nicht, nutzt das Turnier trotzdem den besten trainierten Champion dieses Decks und weist ihn im Bericht als „nicht freigegeben“ aus. Das Protokoll der Warteschlange liegt in `work\warteschlange\Warteschlange.log`.
+
+# Obsidian: Fortschritte ansehen
+
+Alle Fortschritte der KIs werden zusätzlich als **Obsidian-Notizen** gespeichert. Das passiert automatisch nach jeder Prüfrunde, nach jedem Training und nach jedem Turnier. Die Rohdaten bleiben außerdem unter `work\ki-lernen` und `work\turniere`.
+
+**Einrichten (einmal):**
+1. Obsidian installieren (obsidian.md), falls noch nicht vorhanden.
+2. In Obsidian **„Ordner als Vault öffnen“** wählen und `Desktop\YGO KI APP\YGOKI Vault` nehmen. Wenn du schon einen eigenen Vault hast, trag dessen Ordner in der App unter **KI-Training → Obsidian → Vault-Ordner** ein und klick auf **Ordner speichern**. YGOKI schreibt dann nur in den Unterordner `YGOKI`, deine eigenen Notizen bleiben unberührt.
+3. In der App auf **In Obsidian öffnen** klicken.
+
+**Was du im Vault findest:**
+- `YGOKI/Start.md`: Übersicht mit allen Decks (beste Note, freigegeben ja oder nein), den letzten Trainings und den Turnieren
+- `YGOKI/Decks/<Deck>.md`: Fortschrittskurve über alle Trainings, wichtigste Karten, Hinweise von Qwen, Turnier-Ergebnisse und Matchups
+- `YGOKI/Trainings/…`: Elo-Kurve, Noten der Prüfrunden mit Ziellinie, Teilnoten, Judges, Zuschauer-Reviewer, Trainer-Coach, Deckanalyse
+- `YGOKI/Turniere/…`: Sieger, Top-Cut-Anteile, Decktabelle, Matchups und Qwen-Kommentar
+
+Die Notizen sind über `[[Links]]` verbunden. In der **Graph-Ansicht** siehst du deshalb, welche Decks in welchen Trainings und Turnieren vorkommen. Jede Notiz hat Frontmatter (`beste_note`, `freigegeben`, `status` …). Damit kannst du mit Dataview oder Bases eigene Tabellen bauen, ein Beispiel steht auf der Startseite. **Jetzt aktualisieren** baut alle Notizen neu auf. Änderungen in den YGOKI-Notizen werden dabei überschrieben, eigene Notizen legst du deshalb außerhalb des Ordners `YGOKI` an.
+
+**Deck-Notizen mit allem Gelernten:** Jede Deck-Notiz (`YGOKI/Decks/<Deck>.md`) sammelt alles, was die KIs zu diesem Deck gelernt und rückgemeldet haben:
+- **Gelernte Spielweise** aus dem besten Training: welche Karten zuerst gespielt oder behalten werden, welche zuerst als Kosten abgegeben werden, welche Handtraps im Zug des Gegners wie oft gekettet werden, und allgemeine Tendenzen
+- **Was sich zwischen den Trainings verändert hat**: welche Karten wichtiger oder unwichtiger geworden sind
+- **Feedback aus jedem Training**: Qwen-Deckanalyse (gut, weniger gut, ausbaufähig), vorgeschlagene A/B-Tests, Starthand-Auswertung, ungenutzte Karten, Zuschauer-Reviewer, alle Vorschläge des Trainer-Coachs und die Judge-Befunde
+- **Feedback aus jedem Turnier**: Platzierung, Matchups mit Farbmarkierung und eine Qwen-Einschätzung zum Deck (Einordnung, Stärken, Schwächen, Empfehlung)
+- **Lernjournal**: alle Trainings und Turniere des Decks in zeitlicher Reihenfolge
+
+Fehlt bei einem älteren Turnier noch die Qwen-Einschätzung pro Deck, ergänzt **Jetzt aktualisieren** sie einmalig. Das läuft im Hintergrund und dauert bei rund 20 Decks ein paar Minuten.
+
+# Kombo-Gedächtnis
+
+Die Spieler-KIs zeichnen in jedem eigenen Zug auf, welche Karten sie in welcher Reihenfolge einsetzen (Beschwörungen, Aktivierungen, Setzen, Ketten) und welches Board am Ende der Main Phase 1 steht. Nach jeder Prüfrunde sucht das Training darin nach Kombos:
+
+- **Linien** sind komplette Züge, die immer wieder vorkommen und ein überdurchschnittliches Board ergeben.
+- **Kerne** sind kurze Folgen aus 3 bis 5 Karten, die in starken Zügen deutlich häufiger vorkommen als in schwachen.
+
+Gefundene Kombos kommen in die **Kombo-Bibliothek des Decks** (`work\kombos\`). Dort bleiben sie dauerhaft, auch über mehrere Trainings hinweg. Jede Spieler-KI bekommt die besten Kombos „eingeprägt“: Hat sie den Anfang einer bekannten Kombo gespielt, bevorzugt sie den nächsten Schritt. Wie stark sie das tut, lernt sie im Training selbst. Eine Kombo, die nichts bringt, verliert so an Gewicht. Eine gute Kombo setzt sich durch.
+
+Qwen gibt den stärksten Kombos einen Namen und eine kurze Beschreibung. In Obsidian steht in jeder Deck-Notiz der Abschnitt **Kombos** mit allen Schritten, Startkarten, Häufigkeit, Siegquote und dem typischen Board am Ende.
+
+# Deckeditor: Rollen, Starthand-Chancen und Vorschläge
+
+**Neue Spalten in der Deckliste:**
+- **Starthand 5 / 6** zeigt die Chance, mindestens ein Exemplar der Karte unter den ersten 5 Karten (du beginnst) bzw. 6 Karten (du ziehst zuerst) zu haben. Sie passt sich sofort an, wenn du Kopien oder die Deckgröße änderst.
+- **Rolle** zeigt Starter, Extender, Handtrap oder Sonstige. ★ steht für eine Kernkarte, ⇄ für eine laut Training austauschbare Karte. Fährst du mit der Maus darüber, siehst du den Grund, zum Beispiel „11 von 11 Starthänden ungenutzt“.
+
+Unter der Liste steht die Verteilung (Starter, Extender, Handtraps) und die Chance auf mindestens einen Starter in der Starthand.
+
+**Woher die Rollen kommen:** Gibt es ein KI-Training für diese Deckliste oder eine sehr ähnliche (mindestens die Hälfte gleiche Karten), nutzt die App das Gelernte:
+- **Starter** eröffnen die Züge, in denen sie gespielt werden, oder starten erkannte Kombos.
+- **Extender** kommen meist mitten in einer laufenden Kombo.
+- **Handtraps** werden im Zug des Gegners gekettet.
+
+Ohne Training entscheidet der Kartentext (gekennzeichnet mit „(Text)“). Nach dem nächsten Training werden die Rollen genauer, weil Trainings jetzt auch zählen, welche Karten Züge eröffnen und welche Kombos verlängern.
+
+**„Deck verbessern“** macht jetzt diese Vorschläge:
+- **Verteilung:** wie viele Starter, Extender und Handtraps das Deck hat und was gesund wäre. Bei 40 Karten sind das etwa 13 oder mehr Starter (85 % Chance auf mindestens einen in 5 Karten), 5 bis 10 Extender und 9 bis 14 Handtraps.
+- **Starter- und Extender-Maxing:** Karten dieser Rollen auf 3 Kopien erhöhen, mit der Änderung der Starthand-Chance und dem passenden Platz dafür (austauschbare Karten aus dem Training).
+- **Karten aus der Datenbank:** Fehlen Starter, Extender oder Handtraps, sucht die App passende Karten. Starter und Extender kommen aus dem Archetyp des Decks, Handtraps aus bewährten Staples und aus dem, was deine anderen Decks spielen. Es werden nur Karten vorgeschlagen, die im gewählten Format und mit der gewählten Banliste erlaubt sind und ein Skript haben.
+
+Prüfe jeden Vorschlag im **Deckvergleich**, bevor du ihn übernimmst.
+
+# Kombos befolgen und ausbauen
+
+- **Befolgen:** Jede KI zählt, wie oft sie eine gemerkte Kombo begonnen und wie oft sie sie vollständig durchgespielt hat. In Obsidian steht das bei jeder Kombo („Befolgt: in X von Y begonnenen Zügen vollständig“).
+- **Ausbauen:** Nach jeder Prüfrunde prüft das Training, welche Karte nach einer bekannten Kombo gespielt wurde und das Board dabei verbessert hat. Daraus entsteht eine **Erweiterung**, die die KIs ab dann ebenfalls einprägen.
+- **Erweitern:** Ein Viertel der KIs probiert außerdem gezielt längere Versionen der besten Kombos aus, mit einer zusätzlichen Karte, die in starken Zügen häufig vorkommt. Behalten wird nur, was in echten Duellen wirklich passiert und funktioniert.

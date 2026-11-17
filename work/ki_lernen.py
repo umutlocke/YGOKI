@@ -36,7 +36,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from deck_check import WORK  # noqa: E402  (also puts ygo-agent on sys.path)
 from bewertung import rating, wilson_lower  # noqa: E402
-from playbook import Playbook, PlaybookPolicy, adjust, crossover, mutate  # noqa: E402
+from playbook import Playbook, PlaybookPolicy, adjust, crossover, mutate, remember  # noqa: E402
+import kombos  # noqa: E402
+from obsidian_export import quiet_export  # noqa: E402
 
 RUNS = WORK / "ki-lernen"
 PLAYBOOKS = WORK / "playbooks"
@@ -218,6 +220,13 @@ class Trainer:
                            "valid": 0, "invalid": 0, "history": [], "exams": [], "judge_findings": [],
                            "qwen": [], "state": "läuft"}
         self.start_book = Playbook.neutral(self.codes).to_json()
+        # Kombo-Gedächtnis: what earlier trainings of this deck list discovered is taught to every new player.
+        self.library = kombos.load(self.playbook_key)
+        remembered = kombos.best_lines(self.library)
+        if remembered and not args.resume:
+            for book in self.population[1:]:
+                remember(book, remembered, weight=round(self.rng.uniform(0.3, 1.5), 2))
+        self.record["combos_remembered_at_start"] = len(remembered)
         self.qwen = Qwen(not args.ohne_qwen, self.record.setdefault("qwen", []))
         self.record["model"] = self.qwen.model
         self.card_wins = defaultdict(lambda: [0, 0])   # code -> [used in won games, used in lost games]
@@ -400,10 +409,35 @@ class Trainer:
                 "vs_start": dict(zip(("points", "games"), score(vs_start))),
                 "second": dict(zip(("points", "games"), score(vs_ref, True))),
                 "judge": judge, "champion": champ.to_json()}
+        exam["combos"] = self.learn_combos(valid, index)
         exam["reviewers"] = self.reviewers(exam)
         self.record["exams"].append(exam)
         self._last_exam_games = [r for r in valid]
         return exam
+
+    def learn_combos(self, games, index):
+        """Find combos in the champion's turns of this exam, store them and teach them to the population."""
+        turns = [(turn, points(game, 0) == 1.0) for game in games if game["stats"][0]
+                 for turn in game["stats"][0].get("turns", [])]
+        found = kombos.mine(turns)
+        grown = kombos.extensions(self.library, turns)
+        found += grown
+        kombos.follow_rates(self.library, [game["stats"][0].get("combo_follow") for game in games if game["stats"][0]])
+        if found:
+            kombos.merge(self.library, found, self.deck.name, self.folder.name)
+            if not self.folder.name.startswith("_"):   # self-tests do not touch the real combo memory
+                kombos.save(self.playbook_key, self.library)
+            lines = kombos.best_lines(self.library)
+            for book in self.population:
+                remember(book, lines, weight=round(self.rng.uniform(0.3, 1.5), 2))
+        # Kombos ausbauen: a quarter of the players tries a longer version of the best combos. Only what then
+        # really happens in duels (and makes the board better) is kept by the next mining step.
+        tries = kombos.experiments(self.library, turns, self.rng)
+        if tries:
+            for book in self.rng.sample(self.population, max(1, len(self.population) // 4)):
+                remember(book, tries, weight=1.5)
+        return {"turns": len(turns), "found": len(found), "extended": len(grown), "experiments": len(tries),
+                "library": len(self.library.get("combos", []))}
 
     def reviewers(self, exam):
         if not self.qwen.enabled:
@@ -466,6 +500,8 @@ class Trainer:
                     self.status(f"Prüfrunde {exam['round']}: {exam['rating']:.1f}/10 gemessen, Zuschauer "
                                 f"{statistics.median(grades) if grades else '-'}, Judges "
                                 f"{'ohne Befund' if exam['judge']['clear'] else 'mit Befund'}")
+                    self.checkpoint()
+                    quiet_export()
                     if self.released():
                         reason = "Ziel erreicht"
                         break
@@ -488,6 +524,9 @@ class Trainer:
         self.checkpoint()
         self.report()
         state = "freigegeben" if self.record["released"] else "beendet"
+        self.record["state"] = state
+        self.checkpoint()
+        quiet_export()
         self.status(f"Fertig ({reason}). Bericht: {self.folder / 'Bericht.html'}", state)
 
     def stagnated(self):
@@ -503,6 +542,12 @@ class Trainer:
         rows = []
         champion = Playbook.from_json(self.record["exams"][-1]["champion"])
         copies = Counter(self.deck.main)
+        opened, extended = Counter(), Counter()
+        for game in games:
+            for turn in game["stats"][0].get("turns", []):
+                codes = [code for _, code in turn["steps"]]
+                for position, code in enumerate(dict.fromkeys(codes)):
+                    (opened if codes.index(code) < 2 else extended)[code] += 1
         for code in self.codes:
             in_opening = [g for g in games if code in g["stats"][0]["opening"]]
             used = [g for g in games if code in g["stats"][0]["used"]]
@@ -519,7 +564,8 @@ class Trainer:
                 "siegquote_in_starthand": round(win_open / len(in_opening), 3) if in_opening else None,
                 "differenz_zur_gesamtquote": round(win_open / len(in_opening) - overall, 3) if in_opening else None,
                 "tot_auf_der_hand": len(dead),
-                "gekettet_im_gegnerzug": sum(g["stats"][0]["chained_opp"].get(code, 0) for g in games)})
+                "gekettet_im_gegnerzug": sum(g["stats"][0]["chained_opp"].get(code, 0) for g in games),
+                "startet_zuege": opened[code], "verlaengert": extended[code]})
         rows.sort(key=lambda row: (-row["spiele_mit_einsatz"], -row["prioritaet"]))
         return overall, len(games), rows
 
@@ -537,7 +583,7 @@ class Trainer:
             writer.writerows(self.record["history"])
         champion = last["champion"]
         save(self.folder / "Playbook-Champion.json", champion)
-        if self.record.get("released"):
+        if self.record.get("released") and not self.folder.name.startswith("_"):
             PLAYBOOKS.mkdir(parents=True, exist_ok=True)
             save(PLAYBOOKS / f"{self.playbook_key}.json", {"deck": self.deck.name, "rating": last["rating"],
                                                         "run": str(self.folder), "playbook": champion})
@@ -558,6 +604,14 @@ class Trainer:
             "A/B-Tests für Kartentausch vor (sie lassen sich im Deckvergleich der App ausführen).",
             data, obj(staerken=TEXT, schwaechen=TEXT, ausbaufaehig=TEXT, ab_tests=TEXT), self.args.seed + 901)
         data["qwen_analyse"] = analyst
+        if self.qwen.enabled and not self.folder.name.startswith("_"):
+            from qwen_local import ask
+            kombos.describe(self.library, self.names, ask, self.args.seed + 950)
+            kombos.save(self.playbook_key, self.library)
+        champion_lines = {tuple(c["steps"]): c["weight"] for c in champion.get("combos", [])}
+        data["kombos"] = [{**c, "text": kombos.steps_text(c, self.names),
+                           "gewicht_champion": champion_lines.get(tuple(c["steps"]))}
+                          for c in self.library.get("combos", [])[:12]]
         save(self.folder / "Deckanalyse.json", data)
         self.record["analysis"] = data
         self.checkpoint()
@@ -591,6 +645,13 @@ def markdown(record, data, rows):
              f"exakt nachgespielt, Befund: {'keiner' if last['judge']['clear'] else 'siehe Ergebnis.json'}.", "",
              "## Zuschauer-Reviewer", ""]
     lines += [f"- {r['role']}: {r['note']}/10 – {r['kommentar']}" for r in last["reviewers"]] or ["- Qwen war aus."]
+    if data.get("kombos"):
+        lines += ["", "## Erkannte Kombos (Kombo-Gedächtnis)", ""]
+        for combo in data["kombos"][:8]:
+            title = combo.get("name") or f"{combo['typ']} mit {len(combo['steps'])} Schritten"
+            lines += [f"- **{title}** · {combo['count']}× gesehen, {combo['wins']} Siege, Board am Ende "
+                      f"{combo['board'][0]:.1f} Monster / {combo['board'][1]:.1f} Zauber+Fallen: {combo['text']}"
+                      + (f" – {combo['beschreibung']}" if combo.get("beschreibung") else "")]
     lines += ["", "## Karten mit dem stärksten Zusammenhang zu Siegen (Starthand)", ""]
     lines += [_card_line(row) for row in data["staerkste_starthandkarten"]]
     lines += ["", "## Karten mit dem schwächsten Zusammenhang", ""]

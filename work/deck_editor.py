@@ -282,9 +282,29 @@ class Editor:
                 "Weniger Karten erhöhen die Chance auf einen unveränderten Starter. Entferne probeweise "
                 "eine ungesperrte Karte, die du selten brauchst, und vergleiche beide Varianten."
             )
+        try:
+            import kartenrollen
+            learned, info = kartenrollen.suggestions(
+                list(main), list(result.deck.extra), cards, limits, default, locked_bases,
+                [card for card in cards.cards.values()
+                 if not (card.is_token or card.is_rush or card.type & TYPE_SKILL)
+                 and not scope_problem(card, profile.allowed)
+                 and (not requires_script(card) or {card.code, card.alias} & scripts)])
+            if info.get("source"):   # trained knowledge replaces the plain "one more copy" ideas
+                suggestions = [line for line in suggestions if not line.startswith("Teste eine zusätzliche Kopie")]
+            suggestions = learned + suggestions
+        except Exception as error:  # the classic suggestions must never break because of the learned part
+            suggestions.append(f"Gelernte Vorschläge nicht verfügbar: {error}")
         return {"label": profile.label, "suggestions": suggestions,
-                "note": "Das sind Testideen aus Deckliste und Kartenpool. Die Ziehchance berücksichtigt "
-                        "keine Sucheffekte. Prüfe die Spielstärke im Deckvergleich."}
+                "note": "Rollen und Austauschkandidaten stammen aus dem passendsten KI-Training dieses Decks, sonst "
+                        "aus dem Kartentext. Ziehchancen berücksichtigen keine Sucheffekte. Prüfe jeden Tausch im "
+                        "Deckvergleich."}
+
+    def roles(self, draft, profile):
+        import kartenrollen
+        cards, scripts = self.lookup(profile)
+        deck = draft.deck
+        return kartenrollen.roles_for(list(deck.main), list(deck.extra), cards)
 
     def export(self, draft, locked, kind):
         if kind == "ydk":

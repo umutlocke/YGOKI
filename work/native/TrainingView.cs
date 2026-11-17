@@ -26,6 +26,21 @@ namespace YgoKi
         }
     }
 
+    sealed class QueueItem
+    {
+        public QueueItem(Dictionary<string, object> data) { Data = data; }
+        public Dictionary<string, object> Data { get; private set; }
+        public string Id { get { return Data.Text("id"); } }
+        public string State { get { return Data.Text("state") ?? ""; } }
+
+        public override string ToString()
+        {
+            string symbol = State == "läuft" ? "▶ " : State == "wartet" ? "○ " : State == "fertig" ? "✓ " : "! ";
+            string progress = Data.Text("progress");
+            return symbol + Data.Text("title") + " · " + State + (String.IsNullOrEmpty(progress) ? "" : "\n   " + progress);
+        }
+    }
+
     sealed partial class Desktop
     {
         private readonly DispatcherTimer trainTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
@@ -39,6 +54,40 @@ namespace YgoKi
             Combo("TrainPlayers").SelectedIndex = 0;
             OnClickAsync("QwenStart", StartQwen);
             OnClickAsync("TrainStart", StartTraining);
+            OnClickAsync("TrainQueue", QueueTraining);
+            OnClickAsync("QueueRemove", async () =>
+            {
+                var item = Find<ListBox>("QueueList").SelectedItem as QueueItem;
+                if (item != null) RenderQueue(Json.Object(await bridge.Call("queue_remove", Json.Fields("id", item.Id))));
+            });
+            OnClickAsync("QueuePause", async () =>
+            {
+                bool paused = (string)Button("QueuePause").Content == "Fortsetzen";
+                RenderQueue(Json.Object(await bridge.Call(paused ? "queue_resume" : "queue_pause")));
+            });
+            OnClickAsync("QueueClear", async () => RenderQueue(Json.Object(await bridge.Call("queue_clear"))));
+            OnClickAsync("ObsidianSave", async () =>
+            {
+                var value = Json.Object(await bridge.Call("obsidian_set", Json.Fields("vault", Field("ObsidianVault").Text.Trim())));
+                Field("ObsidianVault").Text = value.Text("vault");
+                Status("Obsidian-Vault gespeichert: " + value.Text("vault"));
+            });
+            OnClickAsync("ObsidianExport", ExportObsidian);
+            OnClickAsync("ObsidianOpen", async () =>
+            {
+                var value = Json.Object(await bridge.Call("obsidian_settings"));
+                try { Process.Start(new ProcessStartInfo("obsidian://open?path=" + Uri.EscapeDataString(value.Text("start"))) { UseShellExecute = true }); }
+                catch (System.ComponentModel.Win32Exception)
+                {
+                    Status("Obsidian ist nicht installiert. Der Vault-Ordner wird stattdessen im Explorer geöffnet.");
+                    OpenPath(value.Text("vault"));
+                }
+            });
+            Find<ListBox>("QueueList").SelectionChanged += delegate
+            {
+                var item = Find<ListBox>("QueueList").SelectedItem as QueueItem;
+                Button("QueueRemove").IsEnabled = item != null && item.State != "läuft";
+            };
             OnClickAsync("TrainStop", () => TrainingAction("train_stop"));
             OnClickAsync("TrainResume", () => TrainingAction("train_resume"));
             OnClick("TrainReport", () => OpenPath(SelectedRunValue("report")));
@@ -69,12 +118,19 @@ namespace YgoKi
             trainTimer.Start();
             await Guard(RefreshQwen);
             await Guard(LoadRuns);
+            await Guard(RefreshQueue);
+            await Guard(async () =>
+            {
+                if (String.IsNullOrEmpty(Field("ObsidianVault").Text))
+                    Field("ObsidianVault").Text = Json.Object(await bridge.Call("obsidian_settings")).Text("vault");
+            });
         }
 
         private async Task TrainingTick()
         {
             if (!trainVisible) return;
             await PollTraining();
+            await RefreshQueue();
             if (++qwenTicks % 5 == 0) await RefreshQwen();
         }
 
@@ -101,6 +157,56 @@ namespace YgoKi
             var selected = runs.FirstOrDefault(run => run.Folder == trainFolder) ?? runs.FirstOrDefault();
             if (selected != null) Find<ListBox>("TrainRuns").SelectedItem = selected;
             else RenderRun(null);
+        }
+
+        private Dictionary<string, object> TrainingSettings()
+        {
+            int minDuels;
+            double target;
+            if (!Int32.TryParse(Field("TrainMinDuels").Text, out minDuels) || minDuels < 100 || minDuels > 100000)
+                throw new InvalidOperationException("Mindestduelle: bitte eine Zahl zwischen 100 und 100000.");
+            if (!Double.TryParse(Field("TrainTarget").Text.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out target)
+                || target < 1 || target > 10)
+                throw new InvalidOperationException("Zielnote: bitte eine Zahl zwischen 1 und 10.");
+            return Json.Fields("players", Int32.Parse((string)Combo("TrainPlayers").SelectedItem), "min_duels", minDuels,
+                "target", target, "qwen", Find<CheckBox>("TrainQwen").IsChecked == true);
+        }
+
+        private async Task QueueTraining()
+        {
+            var deck = Combo("TrainDeck").SelectedItem as DeckRef;
+            if (deck == null) throw new InvalidOperationException("Bitte ein Deck wählen.");
+            var item = Json.Fields("kind", "training", "deck", deck.Data, "settings", TrainingSettings());
+            RenderQueue(Json.Object(await bridge.Call("queue_add", Json.Fields("items", new object[] { item }))));
+            Status(deck.Name + " ist in der Warteschlange.");
+        }
+
+        private async Task ExportObsidian()
+        {
+            var value = Json.Object(await bridge.Call("obsidian_export"));
+            Status("Obsidian wird im Hintergrund aktualisiert (" + value.Text("vault") + "). Fehlt bei einem Turnier noch " +
+                "das Qwen-Feedback zu den Decks, dauert es ein paar Minuten.");
+        }
+
+        private async Task RefreshQueue()
+        {
+            RenderQueue(Json.Object(await bridge.Call("queue_overview")));
+        }
+
+        private void RenderQueue(Dictionary<string, object> overview)
+        {
+            var list = Find<ListBox>("QueueList");
+            var selected = list.SelectedItem as QueueItem;
+            var items = ((object[])overview["jobs"]).Select(job => new QueueItem(Json.Object(job))).ToList();
+            list.ItemsSource = items;
+            if (selected != null) list.SelectedItem = items.FirstOrDefault(item => item.Id == selected.Id);
+            bool paused = overview.Get("paused") is bool && (bool)overview.Get("paused");
+            bool runner = overview.Get("runner") is bool && (bool)overview.Get("runner");
+            int waiting = items.Count(item => item.State == "wartet");
+            Button("QueuePause").Content = paused ? "Fortsetzen" : "Anhalten";
+            Text("QueueState").Text = items.Count == 0 ? "Leer. Mit „Zur Warteschlange“ laufen Trainings automatisch nacheinander." :
+                (paused ? "Angehalten: der laufende Auftrag endet noch, danach startet keiner mehr. " :
+                 runner ? "Läuft. " : "Bereit. ") + waiting + " wartend.";
         }
 
         private async Task StartTraining()

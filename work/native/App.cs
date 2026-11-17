@@ -149,6 +149,9 @@ namespace YgoKi
         public int Quantity { get; set; }
         public bool Locked { get; set; }
         public string LockLabel { get { return Locked ? "Gesperrt" : ""; } }
+        public string Role { get; set; }
+        public string RoleReason { get; set; }
+        public string Starthand { get; set; }
         public BitmapImage Picture { get; private set; }
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -261,6 +264,7 @@ namespace YgoKi
             OnClick("ShowComparison", () => ShowPage("Comparison"));
             OnClick("ShowWatch", () => ShowPage("Watch"));
             OnClick("ShowTraining", () => ShowPage("Training"));
+            OnClick("ShowTournament", () => ShowPage("Tournament"));
             OnClick("NewDeck", NewDeck);
             OnClickAsync("ImportDeck", ImportFile);
             OnClickAsync("ExportYdk", () => ExportDeck("ydk"));
@@ -308,6 +312,7 @@ namespace YgoKi
             OnClickAsync("ExportGames", () => ExportReport("einzelspiele", "JSON Lines|*.jsonl"));
             SetupWatcher();
             SetupTraining();
+            SetupTournament();
         }
 
         private async Task Initialize()
@@ -337,6 +342,7 @@ namespace YgoKi
             Find<ListBox>("Opponents").ItemsSource = library;
             WatchLibrary();
             TrainingLibrary();
+            TournamentLibrary();
             if (original != null) Combo("OriginalDeck").SelectedItem = MatchDeck(original.Name, original.Source);
             if (variant != null) Combo("VariantDeck").SelectedItem = MatchDeck(variant.Name, variant.Source);
             foreach (var item in opponents)
@@ -474,11 +480,29 @@ namespace YgoKi
 
         private void RenderDeck(long? selection)
         {
+            int mainSize = sections["main"].Count;
             var rows = sections[zone].GroupBy(code => code).Select(group =>
             {
                 var card = cards[group.Key];
                 card.Quantity = group.Count();
                 card.Locked = locks.Contains(card.Code);
+                card.Starthand = zone == "main" && mainSize > 0
+                    ? Percent(AtLeastOne(card.Quantity, mainSize, 5)) + " / " + Percent(AtLeastOne(card.Quantity, mainSize, 6))
+                    : "";
+                Dictionary<string, object> role;
+                if (deckRoles != null && deckRoles.TryGetValue(card.Code.ToString(CultureInfo.InvariantCulture), out role))
+                {
+                    bool exchangeable = role.Get("exchangeable") is bool && (bool)role.Get("exchangeable");
+                    bool core = role.Get("core") is bool && (bool)role.Get("core");
+                    card.Role = (exchangeable ? "⇄ austauschbar · " : core ? "★ " : "") + role.Text("role") +
+                        (role.Text("source") == "gelernt" ? "" : " (Text)");
+                    card.RoleReason = role.Text("reason");
+                }
+                else
+                {
+                    card.Role = "";
+                    card.RoleReason = "";
+                }
                 return card;
             }).ToList();
             Table("DeckCards").ItemsSource = rows;
@@ -491,6 +515,43 @@ namespace YgoKi
             }
             Text("LockCount").Text = locks.Count + (locks.Count == 1 ? " Karte gesperrt" : " Karten gesperrt");
             UpdateCardControls();
+        }
+
+        private static double AtLeastOne(int copies, int deckSize, int draws)
+        {
+            if (copies <= 0 || deckSize <= 0) return 0;
+            draws = Math.Min(draws, deckSize);
+            if (deckSize - copies < draws) return 1;
+            double none = 1;
+            for (int i = 0; i < draws; i++) none *= (double)(deckSize - copies - i) / (deckSize - i);
+            return 1 - none;
+        }
+
+        private static string Percent(double value)
+        {
+            return (100 * value).ToString("0", CultureInfo.GetCultureInfo("de-DE")) + " %";
+        }
+
+        private Dictionary<string, Dictionary<string, object>> deckRoles;
+
+        private async Task LoadRoles(Dictionary<string, object> draft, int version)
+        {
+            Dictionary<string, object> result;
+            try { result = Json.Object(await bridge.Call("deck_roles", draft)); }
+            catch (InvalidOperationException) { return; }
+            if (version != deckVersion) return;
+            var roles = Json.Object(result["roles"]);
+            deckRoles = roles.ToDictionary(pair => pair.Key, pair => Json.Object(pair.Value));
+            var ratio = Json.Object(result["ratio"]);
+            int size = Convert.ToInt32(result["size"]);
+            Func<string, int> count = key => ratio.ContainsKey(key) ? Convert.ToInt32(ratio[key]) : 0;
+            Text("RoleSummary").Text = count("Starter") + " Starter · " + count("Extender") + " Extender · " +
+                count("Handtrap") + " Handtraps · mind. 1 Starter in der Starthand: " +
+                Percent(AtLeastOne(count("Starter"), size, 5)) + " (5 Karten) / " + Percent(AtLeastOne(count("Starter"), size, 6)) +
+                " (6 Karten)" + (result.Text("source") != null ? "\nRollen gelernt aus " + result.Text("source") :
+                "\nRollen nach Kartentext – nach einem KI-Training dieses Decks werden sie genauer.");
+            var selected = Table("DeckCards").SelectedItem as CardRow;
+            RenderDeck(selected == null ? (long?)null : selected.Code);
         }
 
         private void UpdateCardControls()
@@ -584,6 +645,7 @@ namespace YgoKi
             draft["format"] = Choice("EditorFormat");
             draft["banlist"] = Banlist("EditorBanlist");
             var result = Json.Object(await bridge.Call("check", draft));
+            await LoadRoles(draft, version);
             if (version != deckVersion) return;
             var groups = Json.Object(result["groups"]);
             var findings = groups.Values.SelectMany(value => (object[])value).Cast<string>().ToList();
@@ -744,12 +806,13 @@ namespace YgoKi
         private void ShowPage(string page)
         {
             if (page != "Watch") PauseWatch(true);
-            foreach (string tab in new[] { "Editor", "Comparison", "Watch", "Training" })
+            foreach (string tab in new[] { "Editor", "Comparison", "Watch", "Training", "Tournament" })
             {
                 Find<Grid>(tab + "Page").Visibility = tab == page ? Visibility.Visible : Visibility.Collapsed;
                 Button("Show" + tab).Style = (Style)window.FindResource(tab == page ? "PrimaryButton" : (object)typeof(Button));
             }
             TrainingVisible(page == "Training");
+            TournamentVisible(page == "Tournament");
         }
 
         private void PlannedGames()
@@ -1001,7 +1064,8 @@ namespace YgoKi
             await SaveDeck();
             var original = MatchDeck("HERO", "original");
             var variant = MatchDeck(openedName, "saved");
-            var opponent = MatchDeck("D Link", "original");
+            var opponent = MatchDeck("D Link", "original") ??
+                library.FirstOrDefault(deck => deck.Source == "original" && deck.Name != "HERO");
             Expect(original != null && variant != null && opponent != null, "Gespeichertes Deck fehlt.");
             await OpenDeck(variant);
             Expect(locks.Contains(46986414), "Kartensperre fehlt nach Wiederöffnen.");
@@ -1030,7 +1094,9 @@ namespace YgoKi
                 Combo("OriginalDeck").SelectedItem = trained;
                 await StartComparison();
                 await WaitForJob();
-                Expect(lastResult != null && Text("ComparisonDetails").Text.Contains("D-LINK V3.1 · Stärkstes Monster und Handtraps"),
+                string details = Text("ComparisonDetails").Text;
+                Expect(lastResult != null && (details.Contains("D-LINK V3.1 · Gelerntes Playbook") ||
+                    details.Contains("D-LINK V3.1 · Stärkstes Monster und Handtraps")),
                     "Freigegebene Strategie für D-LINK V3.1 fehlt.");
                 Screenshot(Path.Combine(directory, "vergleich-dlink.png"));
             }
@@ -1045,9 +1111,16 @@ namespace YgoKi
             await LoadRuns();
             Expect(Combo("TrainDeck").Items.Count > 0, "Im KI-Training fehlen die Decks.");
             Expect(!String.IsNullOrEmpty(Text("QwenState").Text), "Der Qwen-Status wird nicht angezeigt.");
+            await RefreshQueue();
+            Expect(!String.IsNullOrEmpty(Text("QueueState").Text), "Die Warteschlange wird nicht angezeigt.");
             Screenshot(Path.Combine(directory, "training.png"));
+            ShowPage("Tournament");
+            await LoadTournaments();
+            Expect(Combo("YcsDeck").Items.Count > 0, "Im Turnier fehlen die Decks.");
+            Expect(Combo("YcsCut").Items.Count > 0 && !String.IsNullOrEmpty(Text("YcsPlan").Text), "Turnierplanung fehlt.");
+            Screenshot(Path.Combine(directory, "turnier.png"));
             ShowPage("Editor");
-            File.WriteAllText(Path.Combine(directory, "ok.txt"), "Deckeditor, Vergleich, Zuschauen, Pause, Einzelschritt, Abbruch und KI-Training erfolgreich.");
+            File.WriteAllText(Path.Combine(directory, "ok.txt"), "Deckeditor, Vergleich, Zuschauen, Pause, Einzelschritt, Abbruch, KI-Training, Warteschlange und Turnier erfolgreich.");
             dirty = false;
         }
     }

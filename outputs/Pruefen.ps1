@@ -19,7 +19,7 @@ try {
         Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $app 'work') -Force
     }
     New-Item -ItemType Directory -Force -Path (Join-Path $app 'work\native') | Out-Null
-    foreach ($name in 'App.cs', 'CardImages.cs', 'SpectatorView.cs', 'TrainingView.cs', 'MainWindow.xaml', 'build.ps1') {
+    foreach ($name in 'App.cs', 'CardImages.cs', 'SpectatorView.cs', 'TrainingView.cs', 'TournamentView.cs', 'MainWindow.xaml', 'build.ps1') {
         Copy-Item -LiteralPath (Join-Path $repo "work\native\$name") -Destination (Join-Path $app 'work\native') -Force
     }
     Get-ChildItem -Path (Join-Path $repo 'outputs\*') -Include '*.cmd', '*.ps1', 'Prototyp.md', 'KI-Training-Anleitung.md' -File | ForEach-Object {

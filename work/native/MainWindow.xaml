@@ -166,6 +166,7 @@
       <Button x:Name="ShowComparison" Content="Deckvergleich"/>
       <Button x:Name="ShowWatch" Content="Zuschauen"/>
       <Button x:Name="ShowTraining" Content="KI-Training"/>
+      <Button x:Name="ShowTournament" Content="Turnier"/>
       <TextBlock DockPanel.Dock="Right" Text="Lokal" Foreground="#8FDEBB" VerticalAlignment="Center" Margin="9,0,0,0"/>
     </DockPanel>
     <Grid Grid.Row="1" x:Name="EditorPage">
@@ -207,15 +208,25 @@
                   <GridViewColumn Header="Typ" Width="111" DisplayMemberBinding="{Binding Type}"/>
                   <GridViewColumn Header="Menge" Width="61" DisplayMemberBinding="{Binding Quantity}"/>
                   <GridViewColumn Header="Sperre" Width="75" DisplayMemberBinding="{Binding LockLabel}"/>
+                  <GridViewColumn Header="Rolle" Width="170">
+                    <GridViewColumn.CellTemplate><DataTemplate>
+                      <TextBlock Text="{Binding Role}" ToolTip="{Binding RoleReason}"/>
+                    </DataTemplate></GridViewColumn.CellTemplate>
+                  </GridViewColumn>
+                  <GridViewColumn Header="Starthand 5 / 6" Width="110" DisplayMemberBinding="{Binding Starthand}"/>
                 </GridView></ListView.View>
               </ListView>
-              <WrapPanel Grid.Row="3" Margin="0,10,0,0">
+              <StackPanel Grid.Row="3">
+              <TextBlock x:Name="RoleSummary" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,0"
+                         ToolTip="Starthand 5 / 6: Chance, mindestens ein Exemplar unter den ersten 5 (du beginnst) bzw. 6 Karten zu haben. ★ = Kernkarte, ⇄ = laut Training austauschbar."/>
+              <WrapPanel Margin="0,10,0,0">
                 <Button x:Name="DeckMinus" Content="−" AutomationProperties.Name="Exemplar entfernen"/>
                 <Button x:Name="DeckPlus" Content="+" AutomationProperties.Name="Exemplar hinzufügen"/>
                 <Button x:Name="ToggleLock" Content="Karte sperren"/>
                 <ComboBox x:Name="MoveZone" Width="118" Margin="6,0,6,0" AutomationProperties.Name="Zielbereich"/>
                 <Button x:Name="MoveCard" Content="Verschieben"/>
               </WrapPanel>
+              </StackPanel>
             </Grid>
           </Border>
           <Border Grid.Row="2" Style="{StaticResource Panel}">
@@ -416,7 +427,32 @@
             </CheckBox>
             <TextBlock TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,0,0,10" LineHeight="19"
                        Text="Die Spieler-KIs spielen Spiegelduelle im Turnier und verbessern ihre Playbooks. Prüfrunden messen den Champion gegen den Referenz-Bot und das Start-Playbook. Das Training endet bei zwei Prüfrunden ab der Zielnote, bei Stillstand oder auf Wunsch."/>
-            <Button x:Name="TrainStart" Content="Training starten" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left"/>
+            <StackPanel Orientation="Horizontal">
+              <Button x:Name="TrainStart" Content="Training starten" Style="{StaticResource PrimaryButton}"/>
+              <Button x:Name="TrainQueue" Content="Zur Warteschlange"/>
+            </StackPanel>
+            <TextBlock Text="Warteschlange" Style="{StaticResource SectionTitle}" Margin="0,22,0,6"/>
+            <TextBlock x:Name="QueueState" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,6"
+                       Text="Aufträge laufen automatisch nacheinander, auch wenn die App geschlossen ist."/>
+            <ListBox x:Name="QueueList" Height="150" Margin="0,0,0,6" AutomationProperties.Name="Warteschlange"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+              <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap"/></DataTemplate></ListBox.ItemTemplate>
+            </ListBox>
+            <WrapPanel>
+              <Button x:Name="QueueRemove" Content="Entfernen" IsEnabled="False"/>
+              <Button x:Name="QueuePause" Content="Anhalten"/>
+              <Button x:Name="QueueClear" Content="Erledigte entfernen"/>
+            </WrapPanel>
+            <TextBlock Text="Obsidian" Style="{StaticResource SectionTitle}" Margin="0,22,0,6"/>
+            <TextBlock Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,6" LineHeight="19"
+                       Text="Alle Fortschritte (Decks, Trainings, Turniere) werden als verlinkte Notizen mit Diagrammen in einen Obsidian-Vault geschrieben, automatisch nach jeder Prüfrunde und jedem Turnier."/>
+            <TextBlock Text="Vault-Ordner" Style="{StaticResource LabelText}"/>
+            <TextBox x:Name="ObsidianVault" Margin="0,0,0,6" AutomationProperties.Name="Obsidian-Vault-Ordner"/>
+            <WrapPanel>
+              <Button x:Name="ObsidianSave" Content="Ordner speichern"/>
+              <Button x:Name="ObsidianExport" Content="Jetzt aktualisieren"/>
+              <Button x:Name="ObsidianOpen" Content="In Obsidian öffnen"/>
+            </WrapPanel>
           </StackPanel>
         </ScrollViewer>
       </Border>
@@ -438,6 +474,63 @@
             <Button x:Name="TrainResume" Content="Fortsetzen" IsEnabled="False"/>
             <Button x:Name="TrainReport" Content="Bericht öffnen" IsEnabled="False"/>
             <Button x:Name="TrainFolder" Content="Ordner öffnen" IsEnabled="False"/>
+          </StackPanel>
+        </Grid>
+      </Border>
+    </Grid>
+    <Grid Grid.Row="1" x:Name="TournamentPage" Visibility="Collapsed">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="380"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <Border Style="{StaticResource Panel}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel>
+            <TextBlock Text="Meta-Feld" Style="{StaticResource SectionTitle}"/>
+            <Grid Margin="0,0,0,8">
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="8"/><ColumnDefinition Width="70"/><ColumnDefinition Width="8"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel><TextBlock Text="Deck" Style="{StaticResource LabelText}"/><ComboBox x:Name="YcsDeck" AutomationProperties.Name="Deck für das Feld"/></StackPanel>
+              <StackPanel Grid.Column="2"><TextBlock Text="Anteil %" Style="{StaticResource LabelText}"/><TextBox x:Name="YcsShare" Text="10"/></StackPanel>
+              <Button Grid.Column="4" x:Name="YcsAdd" Content="Hinzufügen" VerticalAlignment="Bottom" Margin="0"/>
+            </Grid>
+            <ListBox x:Name="YcsField" Height="190" Margin="0,0,0,6" AutomationProperties.Name="Decks im Feld"/>
+            <DockPanel Margin="0,0,0,14">
+              <Button x:Name="YcsRemove" Content="Entfernen" IsEnabled="False"/>
+              <TextBlock x:Name="YcsShareSum" Foreground="{StaticResource Muted}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+            </DockPanel>
+            <Grid Margin="0,0,0,9">
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="9"/><ColumnDefinition/></Grid.ColumnDefinitions>
+              <StackPanel><TextBlock Text="Spieler" Style="{StaticResource LabelText}"/><TextBox x:Name="YcsPlayers" Text="2500"/></StackPanel>
+              <StackPanel Grid.Column="2"><TextBlock Text="Top Cut" Style="{StaticResource LabelText}"/><ComboBox x:Name="YcsCut"/></StackPanel>
+            </Grid>
+            <TextBlock x:Name="YcsPlan" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+            <CheckBox x:Name="YcsQwen" IsChecked="True" Foreground="#E6E9F2" Margin="0,0,0,6">
+              <TextBlock TextWrapping="Wrap" Text="Mit Qwen: Turnierkommentar im Bericht"/>
+            </CheckBox>
+            <TextBlock TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,0,0,10" LineHeight="19"
+                       Text="Schweizer System mit Best of 3, danach Top Cut. Jeder Spieler nutzt das trainierte Playbook seines Decks, sonst das neutrale. Side Deck wird noch nicht gewechselt."/>
+            <StackPanel Orientation="Horizontal">
+              <Button x:Name="YcsStart" Content="Turnier starten" Style="{StaticResource PrimaryButton}"/>
+              <Button x:Name="YcsQueue" Content="Erst Feld trainieren, dann Turnier"/>
+            </StackPanel>
+            <TextBlock TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,8,0,0" LineHeight="19"
+                       Text="„Erst Feld trainieren“ stellt für jedes Deck ohne freigegebenes Playbook ein KI-Training (64 KIs, 1.000 Duelle, Ziel 9) und danach das Turnier in die Warteschlange (Reiter KI-Training)."/>
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+      <Border Grid.Column="2" Style="{StaticResource Panel}">
+        <Grid>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="150"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+          <TextBlock Text="Turniere" Style="{StaticResource SectionTitle}"/>
+          <ListBox Grid.Row="1" x:Name="YcsRuns" AutomationProperties.Name="Turniere"/>
+          <StackPanel Grid.Row="2" Margin="0,12,0,8">
+            <TextBlock x:Name="YcsHeadline" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"/>
+            <TextBlock x:Name="YcsProgress" Foreground="{StaticResource Accent}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+          </StackPanel>
+          <ListBox Grid.Row="3" x:Name="YcsLog" ScrollViewer.HorizontalScrollBarVisibility="Disabled" FontFamily="Consolas" FontSize="12">
+            <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap"/></DataTemplate></ListBox.ItemTemplate>
+          </ListBox>
+          <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,10,0,0">
+            <Button x:Name="YcsStop" Content="Stoppen" IsEnabled="False"/>
+            <Button x:Name="YcsReport" Content="Bericht öffnen" IsEnabled="False"/>
+            <Button x:Name="YcsFolder" Content="Ordner öffnen" IsEnabled="False"/>
           </StackPanel>
         </Grid>
       </Border>

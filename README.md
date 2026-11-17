@@ -12,7 +12,11 @@ In der App unter **KI-Training**: 32 oder 64 Spieler-KIs lernen ein Deck in Spie
 
 - `work/playbook.py`: lernbares Playbook und die Spielweise danach
 - `work/ki_lernen.py`: Turnier, Evolution, Prüfrunden, Judges, Qwen-Rollen, Bericht
-- `work/training_jobs.py`: Start, Status und Stopp von Trainings und Qwen für die App
+- `work/ycs.py`: YCS-Simulation mit Meta-Feld, Schweizer System, Top Cut und Best of 3 (Reiter **Turnier**)
+- `work/obsidian_export.py`: alle Fortschritte als verlinkte Obsidian-Notizen mit Diagrammen
+- `work/warteschlange.py`: Warteschlange für Trainings und Turniere (läuft im Hintergrund nacheinander)
+- `work/playbook_store.py`: bestes verfügbares Playbook je Deck (freigegeben oder bester Champion)
+- `work/training_jobs.py`: Start, Status und Stopp von Trainings, Turnieren und Qwen für die App
 - `work/selbsttest.py` und `outputs/Pruefen.cmd`: Stand übernehmen, App bauen, alles prüfen
 
 `work/qwen_training.py`, `work/ki_training.py` und `work/tournament.py` sind die älteren Versuche mit fünf festen Spielweisen. Sie bleiben vorerst zum Nachlesen erhalten.

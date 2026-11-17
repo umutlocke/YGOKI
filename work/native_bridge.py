@@ -43,6 +43,47 @@ def dispatch(editor, action, data):
         return training_jobs.stop(data["folder"])
     if action == "train_resume":
         return training_jobs.resume(data["folder"])
+    if action == "ycs_start":
+        field = [(editor.deck_path(item["source"], item["name"]), item["share"]) for item in data["field"]]
+        return training_jobs.tournament_start(field, data)
+    if action == "ycs_runs":
+        return training_jobs.runs(training_jobs.TOURNAMENTS)
+    if action == "deck_trained":
+        info = training_jobs.trained(editor.deck_path(data["source"], data["name"]))
+        return {"rating": info and info["rating"], "released": bool(info and info["released"])}
+    if action.startswith("queue_"):
+        import warteschlange
+        if action == "queue_add":
+            items = []
+            for item in data["items"]:
+                if item["kind"] == "training":
+                    deck = item["deck"]
+                    items.append({"kind": "training", "deck": str(editor.deck_path(deck["source"], deck["name"])),
+                                  "title": f"Training {deck['name']}", "settings": item.get("settings", {})})
+                else:
+                    field = [[str(editor.deck_path(e["source"], e["name"])), e["share"]] for e in item["field"]]
+                    items.append({"kind": "turnier", "field": field, "settings": item.get("settings", {}),
+                                  "title": f"Turnier mit {item['settings'].get('players', 2500)} Spielern"})
+            return warteschlange.add(items)
+        if action == "queue_overview":
+            return warteschlange.overview()
+        if action == "queue_remove":
+            return warteschlange.remove(data["id"])
+        if action == "queue_clear":
+            return warteschlange.clear_finished()
+        if action == "queue_pause":
+            return warteschlange.pause()
+        if action == "queue_resume":
+            return warteschlange.resume()
+    if action.startswith("obsidian_"):
+        import obsidian_export
+        if action == "obsidian_set":
+            obsidian_export.set_vault(data["vault"])
+        if action == "obsidian_export":
+            return obsidian_export.background(with_qwen=True)
+        vault = obsidian_export.vault()
+        return {"vault": str(vault), "start": str(vault / "YGOKI" / "Start.md"),
+                "exists": (vault / "YGOKI" / "Start.md").is_file()}
     if action == "decks":
         return editor.library()
     if action == "open":
@@ -52,6 +93,9 @@ def dispatch(editor, action, data):
     if action == "cards":
         profile = editor.format(data["format"], data.get("banlist"))
         return editor.search(data["query"], data["kind"], data["offset"], profile)
+    if action == "deck_roles":
+        draft, _ = editor.draft(data)
+        return editor.roles(draft, editor.format(data["format"], data.get("banlist")))
     if action in ("check", "suggestions", "save", "export"):
         draft, locked = editor.draft(data)
         if action == "check":

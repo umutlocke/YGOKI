@@ -13,6 +13,7 @@
 !/work/native/CardImages.cs
 !/work/native/SpectatorView.cs
 !/work/native/TrainingView.cs
+!/work/native/TournamentView.cs
 !/work/native/MainWindow.xaml
 !/work/native/build.ps1
 
