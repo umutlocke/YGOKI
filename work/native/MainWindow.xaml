@@ -18,6 +18,21 @@
         </Grid>
       </Border>
     </DataTemplate>
+    <DataTemplate x:Key="WatchTile">
+      <Border Margin="2" Padding="3" MinHeight="69" Background="#121826" BorderBrush="{StaticResource Line}"
+              BorderThickness="1" CornerRadius="4" ToolTip="{Binding Name}">
+        <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="31"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+          <Image Source="{Binding Art.Picture}" Width="28" Height="41" Stretch="Uniform"/>
+          <StackPanel Grid.Column="1" VerticalAlignment="Center">
+            <TextBlock Text="{Binding Name}" TextWrapping="Wrap" MaxHeight="37" FontSize="11"/>
+            <TextBlock Text="{Binding Stats}" Foreground="{StaticResource Muted}" FontSize="10"/>
+          </StackPanel>
+        </Grid>
+      </Border>
+    </DataTemplate>
+    <ItemsPanelTemplate x:Key="MonsterSlots"><UniformGrid Columns="7"/></ItemsPanelTemplate>
+    <ItemsPanelTemplate x:Key="SpellSlots"><UniformGrid Columns="8"/></ItemsPanelTemplate>
     <Style TargetType="Button">
       <Setter Property="Foreground" Value="#EFF2FA"/>
       <Setter Property="Background" Value="#263148"/>
@@ -128,6 +143,7 @@
       <TextBlock Text="YGO KI APP" FontWeight="Bold" FontSize="24" Margin="0,0,30,0" VerticalAlignment="Center"/>
       <Button x:Name="ShowEditor" Content="Deckeditor" Style="{StaticResource PrimaryButton}"/>
       <Button x:Name="ShowComparison" Content="Deckvergleich"/>
+      <Button x:Name="ShowWatch" Content="Zuschauen"/>
       <TextBlock DockPanel.Dock="Right" Text="Lokal" Foreground="#8FDEBB" VerticalAlignment="Center" Margin="9,0,0,0"/>
     </DockPanel>
     <Grid Grid.Row="1" x:Name="EditorPage">
@@ -278,6 +294,57 @@
           </ScrollViewer>
         </DockPanel>
       </Border>
+    </Grid>
+    <Grid Grid.Row="1" x:Name="WatchPage" Visibility="Collapsed">
+      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+      <Border Style="{StaticResource Panel}" Margin="0,0,0,12">
+        <StackPanel>
+          <WrapPanel>
+            <StackPanel Margin="0,0,10,0"><TextBlock Text="Deck A · beginnt" Style="{StaticResource LabelText}"/><ComboBox x:Name="WatchLeft" Width="212"/></StackPanel>
+            <StackPanel Margin="0,0,10,0"><TextBlock Text="Deck B" Style="{StaticResource LabelText}"/><ComboBox x:Name="WatchRight" Width="212"/></StackPanel>
+            <StackPanel Margin="0,0,10,0"><TextBlock Text="Format" Style="{StaticResource LabelText}"/><ComboBox x:Name="WatchFormat" Width="103"/></StackPanel>
+            <StackPanel Margin="0,0,10,0"><TextBlock Text="Tempo" Style="{StaticResource LabelText}"/><ComboBox x:Name="WatchSpeed" Width="94"/></StackPanel>
+          </WrapPanel>
+          <WrapPanel Margin="0,10,0,0">
+            <Button x:Name="WatchStart" Content="Duell starten" Style="{StaticResource PrimaryButton}"/>
+            <Button x:Name="WatchPause" Content="Pause" IsEnabled="False"/>
+            <Button x:Name="WatchNext" Content="Nächste Aktion" IsEnabled="False"/>
+            <Button x:Name="WatchStop" Content="Beenden" IsEnabled="False"/>
+            <TextBlock x:Name="WatchState" Margin="8,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource Accent}" TextWrapping="Wrap"/>
+          </WrapPanel>
+          <TextBlock x:Name="WatchError" Margin="0,7,0,0" Foreground="#FFCC90" TextWrapping="Wrap" Visibility="Collapsed" MaxHeight="100"/>
+        </StackPanel>
+      </Border>
+      <Grid Grid.Row="1">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="2.75*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+        <Border Style="{StaticResource Panel}">
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+              <TextBlock x:Name="WatchTopName" Text="Deck B" Style="{StaticResource SectionTitle}"/>
+              <TextBlock x:Name="WatchTopInfo" Foreground="{StaticResource Muted}" Margin="0,0,0,6"/>
+              <TextBlock Text="Zauber- und Fallenzonen" Style="{StaticResource LabelText}"/>
+              <ItemsControl x:Name="WatchTopSpells" ItemTemplate="{StaticResource WatchTile}" ItemsPanel="{StaticResource SpellSlots}"/>
+              <TextBlock Text="Monsterzonen" Style="{StaticResource LabelText}" Margin="0,5,0,3"/>
+              <ItemsControl x:Name="WatchTopMonsters" ItemTemplate="{StaticResource WatchTile}" ItemsPanel="{StaticResource MonsterSlots}"/>
+              <Border Height="1" Background="{StaticResource Line}" Margin="0,10"/>
+              <TextBlock Text="Monsterzonen" Style="{StaticResource LabelText}"/>
+              <ItemsControl x:Name="WatchBottomMonsters" ItemTemplate="{StaticResource WatchTile}" ItemsPanel="{StaticResource MonsterSlots}"/>
+              <TextBlock Text="Zauber- und Fallenzonen" Style="{StaticResource LabelText}" Margin="0,5,0,3"/>
+              <ItemsControl x:Name="WatchBottomSpells" ItemTemplate="{StaticResource WatchTile}" ItemsPanel="{StaticResource SpellSlots}"/>
+              <TextBlock x:Name="WatchBottomName" Text="Deck A" Style="{StaticResource SectionTitle}" Margin="0,9,0,4"/>
+              <TextBlock x:Name="WatchBottomInfo" Foreground="{StaticResource Muted}"/>
+            </StackPanel>
+          </ScrollViewer>
+        </Border>
+        <Border Grid.Column="2" Style="{StaticResource Panel}">
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Text="Duellverlauf" Style="{StaticResource SectionTitle}"/>
+            <ListBox x:Name="WatchLog" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+              <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap"/></DataTemplate></ListBox.ItemTemplate>
+            </ListBox>
+          </DockPanel>
+        </Border>
+      </Grid>
     </Grid>
     <TextBlock Grid.Row="2" x:Name="Status" Margin="0,10,0,0" Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
   </Grid>

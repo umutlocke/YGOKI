@@ -37,6 +37,10 @@ Wähle in der Windows-App **Deckeditor**. Der bisherige Browsereditor ist weiter
 - **Sperren** schützt die Karte als Vorgabe für spätere automatische Änderungsvorschläge. Du kannst das Deck weiterhin manuell bearbeiten. Bei `YDK exportieren` werden Sperren als Kommentar im Deck mitgegeben und beim Import in diesem Editor wiederhergestellt. `TXT exportieren` liefert Kartennamen und Mengen.
 - **Deck speichern** legt die Datei in `work\editor-decks` ab. Öffnest du eine Vorlage und speicherst sie, erhältst du eine eigene Arbeitskopie. Du kannst eine gespeicherte `.ydk` mit `-DeckA` oder `-DeckB` im Duellstarter verwenden.
 
+## Den KIs zuschauen
+
+Unter **Zuschauen** wählst du zwei Decks und das Format. Deck A beginnt. Während des Duells zeigt die App das Spielfeld, Lebenspunkte, Zugphase und öffentliche Kartenaktionen. Verdeckte Karten und die Handkarten bleiben geheim. Du kannst das Tempo ändern, pausieren, mit **Nächste Aktion** einen Einzelschritt auslösen oder das Duell beenden. Ein Doppelklick auf eine offene Karte zeigt das große Kartenbild.
+
 ## Deckvarianten vergleichen
 
 Öffne oben **Deckvergleich**. Wähle Original A, Variante B und einen oder mehrere Gegner aus deinen Vorlagen oder gespeicherten Decks. Testblöcke, Format, Banliste und Seed lassen sich einstellen. Ein Block besteht aus vier Einzelduellen. A und B spielen je einmal als Erster und als Zweiter gegen denselben Gegner mit demselben Zufallsstartwert.

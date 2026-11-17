@@ -161,7 +161,7 @@ namespace YgoKi
         }
     }
 
-    sealed class Desktop
+    sealed partial class Desktop
     {
         private static readonly string[] Zones = { "main", "extra", "side" };
         private static readonly string[] ZoneButtons = { "MainZone", "ExtraZone", "SideZone" };
@@ -214,7 +214,7 @@ namespace YgoKi
             {
                 if (testData == null && !CanLeaveDeck()) e.Cancel = true;
             };
-            window.Closed += delegate { catalogTimer.Stop(); checkTimer.Stop(); jobTimer.Stop(); };
+            window.Closed += delegate { catalogTimer.Stop(); checkTimer.Stop(); jobTimer.Stop(); watchTimer.Stop(); };
         }
 
         private T Find<T>(string name) where T : class { return (T)window.FindName(name); }
@@ -257,8 +257,9 @@ namespace YgoKi
             ConfigureCombo("CompareBanlist", new[] { "Standard", "TCG", "OCG", "Keine" });
             ConfigureCombo("CardKind", new[] { "Alle Typen", "Monster", "Extra Deck", "Zauber", "Fallen" });
             ConfigureCombo("AddTarget", new[] { "Passender Bereich", "Side Deck" });
-            OnClick("ShowEditor", () => ShowPage(false));
-            OnClick("ShowComparison", () => ShowPage(true));
+            OnClick("ShowEditor", () => ShowPage("Editor"));
+            OnClick("ShowComparison", () => ShowPage("Comparison"));
+            OnClick("ShowWatch", () => ShowPage("Watch"));
             OnClick("NewDeck", NewDeck);
             OnClickAsync("ImportDeck", ImportFile);
             OnClickAsync("ExportYdk", () => ExportDeck("ydk"));
@@ -304,6 +305,7 @@ namespace YgoKi
             OnClickAsync("CancelComparison", CancelComparison);
             OnClickAsync("ExportReport", () => ExportReport("bericht", "Markdown|*.md"));
             OnClickAsync("ExportGames", () => ExportReport("einzelspiele", "JSON Lines|*.jsonl"));
+            SetupWatcher();
         }
 
         private async Task Initialize()
@@ -331,6 +333,7 @@ namespace YgoKi
             Combo("OriginalDeck").ItemsSource = library;
             Combo("VariantDeck").ItemsSource = library;
             Find<ListBox>("Opponents").ItemsSource = library;
+            WatchLibrary();
             if (original != null) Combo("OriginalDeck").SelectedItem = MatchDeck(original.Name, original.Source);
             if (variant != null) Combo("VariantDeck").SelectedItem = MatchDeck(variant.Name, variant.Source);
             foreach (var item in opponents)
@@ -735,12 +738,14 @@ namespace YgoKi
             return dialog;
         }
 
-        private void ShowPage(bool comparison)
+        private void ShowPage(string page)
         {
-            Find<Grid>("EditorPage").Visibility = comparison ? Visibility.Collapsed : Visibility.Visible;
-            Find<Grid>("ComparisonPage").Visibility = comparison ? Visibility.Visible : Visibility.Collapsed;
-            Button("ShowEditor").Style = (Style)window.FindResource(comparison ? (object)typeof(Button) : "PrimaryButton");
-            Button("ShowComparison").Style = (Style)window.FindResource(comparison ? "PrimaryButton" : (object)typeof(Button));
+            if (page != "Watch") PauseWatch(true);
+            foreach (string tab in new[] { "Editor", "Comparison", "Watch" })
+            {
+                Find<Grid>(tab + "Page").Visibility = tab == page ? Visibility.Visible : Visibility.Collapsed;
+                Button("Show" + tab).Style = (Style)window.FindResource(tab == page ? "PrimaryButton" : (object)typeof(Button));
+            }
         }
 
         private void PlannedGames()
@@ -993,7 +998,7 @@ namespace YgoKi
             Expect(original != null && variant != null && opponent != null, "Gespeichertes Deck fehlt.");
             await OpenDeck(variant);
             Expect(locks.Contains(46986414), "Kartensperre fehlt nach Wiederöffnen.");
-            ShowPage(true);
+            ShowPage("Comparison");
             Combo("OriginalDeck").SelectedItem = original;
             Combo("VariantDeck").SelectedItem = variant;
             Find<ListBox>("Opponents").SelectedItems.Add(opponent);
@@ -1027,7 +1032,8 @@ namespace YgoKi
             await CancelComparison();
             await WaitForJob();
             Expect(Text("ComparisonProgress").Text.Contains("abgebrochen"), "Vergleich ließ sich nicht abbrechen.");
-            File.WriteAllText(Path.Combine(directory, "ok.txt"), "Native Oberfläche, Deckprüfung, Import, Export, Kartensperre, Vergleich und Abbruch erfolgreich.");
+            await TestWatcher(directory);
+            File.WriteAllText(Path.Combine(directory, "ok.txt"), "Deckeditor, Vergleich, Zuschauen, Pause, Einzelschritt und Abbruch erfolgreich.");
             dirty = false;
         }
     }

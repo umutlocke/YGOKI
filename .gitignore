@@ -11,6 +11,7 @@
 /work/native/*
 !/work/native/App.cs
 !/work/native/CardImages.cs
+!/work/native/SpectatorView.cs
 !/work/native/MainWindow.xaml
 !/work/native/build.ps1
 
