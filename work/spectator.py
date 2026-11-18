@@ -19,7 +19,8 @@ from ygo_agent.arena.query import parse_location
 from ygo_agent.arena.runner import run_match
 from ygo_agent.arena.seats import PolicySeat
 from ygo_agent.core import Engine
-from ygo_agent.core.constants import LOCATION_DECK, LOCATION_GRAVE, LOCATION_HAND, LOCATION_MZONE, LOCATION_SZONE, Msg, QUERY_CODE
+from ygo_agent.core.constants import (LOCATION_DECK, LOCATION_EXTRA, LOCATION_GRAVE, LOCATION_HAND, LOCATION_MZONE,
+                                      LOCATION_REMOVED, LOCATION_SZONE, Msg, QUERY_CODE)
 
 
 PHASES = {1: "Ziehphase", 2: "Standby", 4: "Main Phase 1", 8: "Kampfphase",
@@ -68,11 +69,22 @@ class Spectator(DuelObserver):
 
     def zone(self, team, location, count):
         slots = list(self.duel.view_location(None, team, location))
-        return [None if card is None else {
-            "code": card.code or 0,
-            "name": self.duel.engine.cards.name(card.code) if card.code else "Verdeckt",
-            "attack": card.attack, "defense": card.defense,
-        } for card in (slots + [None] * count)[:count]]
+        return [None if card is None else self.slot(card, location)
+                for card in (slots + [None] * count)[:count]]
+
+    def slot(self, card, location):
+        position = card.position or 0
+        if location == LOCATION_MZONE:
+            pos = ("verdeckt " if position & 0xA else "") + ("Verteidigung" if position & 0xC else "Angriff")
+        else:
+            pos = "gesetzt" if position & 0xA else ""
+        data = {"code": card.code or 0,
+                "name": self.duel.engine.cards.name(card.code) if card.code else "Verdeckt",
+                "attack": card.attack, "defense": card.defense, "pos": pos,
+                "materials": len(card.overlay_cards or []), "link": card.link or 0}
+        if card.counters:
+            data["counters"] = sum(card.counters.values())
+        return data
 
     def pile(self, team, location):
         raw = self.duel.core.query_location(team, location, QUERY_CODE)
@@ -91,6 +103,8 @@ class Spectator(DuelObserver):
                 "hand_cards": self.pile(side, LOCATION_HAND),
                 "deck_cards": self.pile(side, LOCATION_DECK),
                 "grave_cards": self.pile(side, LOCATION_GRAVE),
+                "extra_cards": self.pile(side, LOCATION_EXTRA),
+                "banished_cards": self.pile(side, LOCATION_REMOVED),
                 "monsters": self.zone(side, LOCATION_MZONE, 7),
                 "spells": self.zone(side, LOCATION_SZONE, 8),
             })

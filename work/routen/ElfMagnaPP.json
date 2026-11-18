@@ -1,0 +1,126 @@
+{
+  "deck": "ElfMagnaPP",
+  "quelle": "Engine-Texte und CardScripts official; siehe Prüfbericht",
+  "routes": [
+    {
+      "name": "ElfMagnaPP · Lucina → Strelitzia (Ein-Karten-Ansatz)",
+      "priority": 2,
+      "goal": "Combo-Ansatz: Strelitzia plus Welcome Home gesucht bzw. Lucina + Medius und Theorealize Medius. Für Fortsetzung sind Auswahloptionen und Monsterzonen relevant; keine garantierte Zahl von Unterbrechungen.",
+      "requires": [
+        12375297,
+        13597785,
+        42302563,
+        64491754
+      ],
+      "test_hand": [
+        13597785,
+        42141493,
+        42141493,
+        42141493,
+        14558127
+      ],
+      "steps": [
+        {
+          "code": 13597785,
+          "do": "S",
+          "pick": [],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 13597785,
+          "do": "E",
+          "pick": [
+            12375297
+          ],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 12375297,
+          "do": "N",
+          "pick": [],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 12375297,
+          "do": "E",
+          "pick": [
+            42302563
+          ],
+          "cost": [
+            13597785,
+            12375297
+          ],
+          "optional": false,
+          "note": "Power Patron (Quick Effect): Level +3 auf die mittlere Zone, danach Synchro zu Strelitzia (korrigiert von Claude: Strelitzia kommt über diesen Effekt, nicht als eigene Spezialbeschwörung)"
+        },
+        {
+          "code": 12375297,
+          "do": "E",
+          "pick": [
+            64491754
+          ],
+          "cost": [],
+          "optional": false
+        }
+      ]
+    },
+    {
+      "name": "ElfMagnaPP · Lucina + Past Lull (ohne Normal)",
+      "priority": 2,
+      "goal": "Combo-Ansatz: Strelitzia plus Welcome Home gesucht bzw. Lucina + Medius und Theorealize Medius. Für Fortsetzung sind Auswahloptionen und Monsterzonen relevant; keine garantierte Zahl von Unterbrechungen.",
+      "requires": [
+        13597785,
+        36709484,
+        56651978,
+        90875418,
+        97556336
+      ],
+      "test_hand": [
+        13597785,
+        36709484,
+        42141493,
+        42141493,
+        42141493
+      ],
+      "steps": [
+        {
+          "code": 13597785,
+          "do": "S",
+          "pick": [],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 13597785,
+          "do": "E",
+          "pick": [
+            56651978
+          ],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 36709484,
+          "do": "E",
+          "pick": [
+            97556336
+          ],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 97556336,
+          "do": "E",
+          "pick": [
+            90875418
+          ],
+          "cost": [],
+          "optional": false
+        }
+      ]
+    }
+  ]
+}

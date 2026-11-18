@@ -277,6 +277,7 @@ def _note(base, p, data, view):
 
 # -- one first turn ----------------------------------------------------------------------------------------
 _ENGINE = _DECK = None
+LAST_POLICY = None   # playbook of the last play_turn (routen_test reads its route progress)
 
 
 def _init_worker(deck_path):
@@ -323,6 +324,8 @@ def play_turn(book_json, seed, stack, prefix, style=0):
                                   else None, **_describe(p, data)})
             step = duel.respond(data)
         score, details = board_score(views[0])
+        global LAST_POLICY
+        LAST_POLICY = base
     finally:
         duel.close()
     return score, details, decisions, hand or []
@@ -389,11 +392,8 @@ def _route(line):
         codes = decision.get("codes") or []
         label = decision["label"]
         kind = decision["kind"]
-        if decision.get("action") in ("mset", "sset"):
-            current = None          # routes do not set cards; the playbook decides that itself
-            continue
         if kind in ("SelectIdleCmd", "SelectChain", "SelectEffectYn") and decision.get("code"):
-            do = {"summon": "N", "special": "S"}.get(decision.get("action"), "E")
+            do = {"summon": "N", "special": "S", "sset": "Z", "mset": "M"}.get(decision.get("action"), "E")
             current = {"do": do, "code": decision["code"], "note": label}
             if decision["end"]:
                 current["when"] = "end"

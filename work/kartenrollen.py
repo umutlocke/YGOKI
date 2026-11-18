@@ -22,7 +22,10 @@ TYPE_MONSTER, TYPE_SPELL, TYPE_TRAP = 0x1, 0x2, 0x4   # same values as ygo_agent
 
 WORK = Path(__file__).resolve().parent
 RUNS = WORK / "ki-lernen"
-GENERIC_HANDTRAPS = [14558127, 23434538, 27204311, 10045474, 59438930, 97268402, 94145021, 73642296, 52038441]
+GENERIC_HANDTRAPS = [14558127, 23434538, 27204311, 10045474, 59438930, 97268402, 94145021, 73642296, 52038441,
+                     91800273,   # Dimension Shifter (Text ohne "opponent"/"negate")
+                     34267821,   # Artifact Lancea
+                     46502744]   # Retaliating "C" (wurde sonst als Starter eingestuft)
 
 
 # --------------------------------------------------------------------------------------------------------

@@ -1,0 +1,138 @@
+{
+  "deck": "Branded",
+  "quelle": "Engine-Texte und official/c44362883.lua, c62962630.lua, c70534340.lua, c36577931.lua",
+  "routes": [
+    {
+      "name": "Branded · Aluber + Abwurf → Mirrorjade",
+      "priority": 3,
+      "goal": "Mirrorjade; Albaz + Lubellion werden zurückgemischt. Eine weitere Handkarte für Lubellions Abwurf nötig. Nur Fusionen aus dem Extra Deck in diesem Zug.",
+      "requires": [
+        36577931,
+        44146295,
+        44362883,
+        62962630,
+        68468459,
+        70534340
+      ],
+      "test_hand": [
+        62962630,
+        18144506,
+        14558127,
+        14558127,
+        14558127
+      ],
+      "steps": [
+        {
+          "code": 62962630,
+          "do": "N",
+          "pick": [],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 62962630,
+          "do": "E",
+          "pick": [
+            44362883
+          ],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 44362883,
+          "do": "E",
+          "pick": [
+            70534340
+          ],
+          "cost": [
+            68468459,
+            36577931
+          ],
+          "optional": false
+        },
+        {
+          "code": 36577931,
+          "do": "E",
+          "pick": [
+            62962630
+          ],
+          "cost": [],
+          "optional": true,
+          "note": "Optional hinsichtlich Reihenfolge: Tragedy und Lubellion triggern gleichzeitig; Suchziel bleibt flexibel."
+        },
+        {
+          "code": 70534340,
+          "do": "E",
+          "pick": [
+            44146295
+          ],
+          "cost": [
+            18144506,
+            68468459,
+            70534340
+          ],
+          "optional": false,
+          "note": "Abwurf und Fusionsmaterial werden von der Policy beide über cost (Hints 501/511) ausgewählt."
+        }
+      ]
+    },
+    {
+      "name": "Branded · Branded Fusion + Abwurf (ohne Normal)",
+      "priority": 2,
+      "goal": "Mirrorjade; Albaz + Lubellion werden zurückgemischt. Eine weitere Handkarte für Lubellions Abwurf nötig. Nur Fusionen aus dem Extra Deck in diesem Zug.",
+      "requires": [
+        36577931,
+        44146295,
+        44362883,
+        62962630,
+        68468459,
+        70534340
+      ],
+      "test_hand": [
+        44362883,
+        18144506,
+        14558127,
+        14558127,
+        14558127
+      ],
+      "steps": [
+        {
+          "code": 44362883,
+          "do": "E",
+          "pick": [
+            70534340
+          ],
+          "cost": [
+            68468459,
+            36577931
+          ],
+          "optional": false
+        },
+        {
+          "code": 36577931,
+          "do": "E",
+          "pick": [
+            62962630
+          ],
+          "cost": [],
+          "optional": true,
+          "note": "Optional hinsichtlich Reihenfolge: Tragedy und Lubellion triggern gleichzeitig; Suchziel bleibt flexibel."
+        },
+        {
+          "code": 70534340,
+          "do": "E",
+          "pick": [
+            44146295
+          ],
+          "cost": [
+            18144506,
+            68468459,
+            70534340
+          ],
+          "optional": false,
+          "note": "Abwurf und Fusionsmaterial werden von der Policy beide über cost (Hints 501/511) ausgewählt."
+        }
+      ]
+    }
+  ]
+}

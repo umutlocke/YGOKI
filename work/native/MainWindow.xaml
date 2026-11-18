@@ -52,8 +52,6 @@
       <Setter Property="FontWeight" Value="SemiBold"/>
     </Style>
     <ItemsPanelTemplate x:Key="HandSlots"><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
-    <ItemsPanelTemplate x:Key="MonsterSlots"><UniformGrid Columns="7"/></ItemsPanelTemplate>
-    <ItemsPanelTemplate x:Key="SpellSlots"><UniformGrid Columns="8"/></ItemsPanelTemplate>
     <Style TargetType="Button">
       <Setter Property="Foreground" Value="#EFF2FA"/>
       <Setter Property="Background" Value="#263148"/>
@@ -364,28 +362,17 @@
               <WrapPanel Margin="0,0,0,5">
                 <TextBlock x:Name="WatchTopName" Text="Deck B" FontSize="15" FontWeight="SemiBold"
                            Margin="0,0,12,0" VerticalAlignment="Center"/>
-                <Button x:Name="WatchTopDeck" Content="Deck" IsEnabled="False"/>
-                <Button x:Name="WatchTopGrave" Content="Friedhof" IsEnabled="False"/>
                 <TextBlock x:Name="WatchTopInfo" Foreground="{StaticResource Muted}" VerticalAlignment="Center"/>
               </WrapPanel>
               <TextBlock x:Name="WatchTopHandLabel" Text="Hand" Style="{StaticResource LabelText}"/>
               <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Margin="0,0,0,5">
                 <ItemsControl x:Name="WatchTopHand" ItemTemplate="{StaticResource WatchHandCard}" ItemsPanel="{StaticResource HandSlots}"/>
               </ScrollViewer>
-              <TextBlock Text="Zauber- und Fallenzonen" Style="{StaticResource LabelText}"/>
-              <ItemsControl x:Name="WatchTopSpells" ItemTemplate="{StaticResource WatchTile}" ItemsPanel="{StaticResource SpellSlots}"/>
-              <TextBlock Text="Monsterzonen" Style="{StaticResource LabelText}" Margin="0,5,0,3"/>
-              <ItemsControl x:Name="WatchTopMonsters" ItemTemplate="{StaticResource WatchTile}" ItemsPanel="{StaticResource MonsterSlots}"/>
-              <Border Height="1" Background="{StaticResource Line}" Margin="0,10"/>
-              <TextBlock Text="Monsterzonen" Style="{StaticResource LabelText}"/>
-              <ItemsControl x:Name="WatchBottomMonsters" ItemTemplate="{StaticResource WatchTile}" ItemsPanel="{StaticResource MonsterSlots}"/>
-              <TextBlock Text="Zauber- und Fallenzonen" Style="{StaticResource LabelText}" Margin="0,5,0,3"/>
-              <ItemsControl x:Name="WatchBottomSpells" ItemTemplate="{StaticResource WatchTile}" ItemsPanel="{StaticResource SpellSlots}"/>
+              <!-- Spielfeld nach Master Rule: wird in SpectatorView.cs aufgebaut (BuildField) -->
+              <Grid x:Name="WatchField" Margin="0,2,0,2"/>
               <WrapPanel Margin="0,7,0,5">
                 <TextBlock x:Name="WatchBottomName" Text="Deck A" FontSize="15" FontWeight="SemiBold"
                            Margin="0,0,12,0" VerticalAlignment="Center"/>
-                <Button x:Name="WatchBottomDeck" Content="Deck" IsEnabled="False"/>
-                <Button x:Name="WatchBottomGrave" Content="Friedhof" IsEnabled="False"/>
                 <TextBlock x:Name="WatchBottomInfo" Foreground="{StaticResource Muted}" VerticalAlignment="Center"/>
               </WrapPanel>
               <TextBlock x:Name="WatchBottomHandLabel" Text="Hand" Style="{StaticResource LabelText}"/>

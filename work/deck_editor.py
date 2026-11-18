@@ -71,8 +71,11 @@ def card_kind(card):
 
 
 class Editor:
-    def __init__(self, save_dir):
+    def __init__(self, save_dir, extra_originals=None):
         self.save_dir = save_dir
+        # Der App-Selbsttest bringt eigene Prüfdecks mit (work/testdecks), damit er nicht von den Decks abhängt,
+        # die gerade in work/decks liegen. Im normalen Betrieb gibt es nur work/decks.
+        self.original_dirs = [WORK / "decks"] + ([Path(extra_originals)] if extra_originals else [])
         self.save_lock = Lock()
         self.comparisons = Comparisons()
         self.base_cards, self.base_scripts = read_sources()
@@ -125,9 +128,16 @@ class Editor:
                 "script": script, "preview": code in self.preview_codes}
 
     def library(self):
-        return [{"name": path.stem, "source": source}
-                for source, folder in (("original", WORK / "decks"), ("saved", self.save_dir))
-                for path in sorted(folder.glob("*.ydk"), key=lambda file: file.name.casefold())]
+        originals, seen = [], set()
+        for folder in self.original_dirs:
+            for path in sorted(folder.glob("*.ydk"), key=lambda file: file.name.casefold()):
+                if path.stem.casefold() not in seen:
+                    seen.add(path.stem.casefold())
+                    originals.append(path)
+        originals.sort(key=lambda file: file.name.casefold())
+        saved = sorted(self.save_dir.glob("*.ydk"), key=lambda file: file.name.casefold())
+        return ([{"name": path.stem, "source": "original"} for path in originals]
+                + [{"name": path.stem, "source": "saved"} for path in saved])
 
     def opened(self, data, name, source=None):
         result = parse_ydk_data(data, name, self.cards)
@@ -148,9 +158,13 @@ class Editor:
     def deck_path(self, source, name):
         if source not in ("original", "saved"):
             raise ValueError("Unbekannte Deckquelle.")
-        directory = self.save_dir if source == "saved" else WORK / "decks"
         name = filename_stem(name)
-        return directory / f"{name}.ydk"
+        if source == "saved":
+            return self.save_dir / f"{name}.ydk"
+        for directory in self.original_dirs:
+            if (directory / f"{name}.ydk").is_file():
+                return directory / f"{name}.ydk"
+        return self.original_dirs[0] / f"{name}.ydk"
 
     def open_deck(self, source, name):
         path = self.deck_path(source, name)

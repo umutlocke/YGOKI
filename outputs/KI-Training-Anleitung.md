@@ -80,6 +80,15 @@ Jeder Schritt nennt die Karte (`code`), die Art (`do`: `N` Normal, `S` Spezial, 
 
 Wie oft jede Route begonnen und bis zum Endboard gespielt wurde, steht im Bericht und in Obsidian unter **Geschriebene Routen**. Eine niedrige Quote heißt meist: Der Gegner hat unterbrochen (Ash, Imperm), oder die Hand passte nicht. Neue Routen legst du als weitere JSON-Datei in `work\routen` ab. Die Prüfung übernimmt Routen aus dem Projekt nur, wenn sie neuer sind als die im App-Ordner.
 
+## Combos aus Videos und Guides übernehmen
+
+1. Kopier das Transkript (YouTube: „Transkript anzeigen“) oder deine Notizen in eine Textdatei. Am besten mit Decknamen, Video-Titel und Link.
+2. Gib sie Claude oder ChatGPT mit dem Auftrag, daraus Routen für `work\routen\<Deck>.json` zu schreiben. Pro Linie gehören dazu: die Starthand (`hand`), die Schritte mit `pick`/`cost`, das Ziel-Board (`goal`) und die Quelle (`quelle`).
+3. Prüfe die Routen mit `outputs\Routen-Test.cmd --deck "..\work\decks\<Deck>.ydk"`. Der Bericht unter `work\routen-tests\` zeigt pro Route, ob sie bis zum Ende durchläuft, an welchem Schritt sie hängt, ob stattdessen eine andere Route gespielt wurde, und was der Combo-Solver mit derselben Hand schafft.
+4. Häufige Ursachen, wenn eine Route hängt: Die Karte ist nicht in deiner Liste, der `do`-Typ ist falsch (Effekt statt Beschwörung), `pick` oder `cost` stimmen nicht, eine Einmal-pro-Zug-Sperre greift, oder eine andere Route mit gleichem Anfang hat eine höhere `priority`.
+
+Transkripte enthalten oft nur Kartennamen in der Kurzform, die Spieler benutzen (z. B. „Mart“ statt „Maluth the White Crow Knight“). Die KI muss sie in die Codes deiner Deckliste übersetzen. Eine Karte, die nicht in deiner Liste ist, kann keine Route spielen.
+
 ## Combo-Solver (erster Zug)
 
 Der Solver sucht für Starthände die Linie mit dem stärksten Endboard. Die Engine ist deterministisch: Gleicher Seed und gleiche Antworten ergeben immer dasselbe Duell. Der Solver spielt deshalb den ersten Zug mit dem gelernten Playbook des Decks, probiert an jeder eigenen Entscheidung die Alternativen aus (andere Beschwörung, anderes Suchziel, ketten oder nicht) und lässt das Playbook danach weiterspielen. Ist das Board zu Beginn des gegnerischen Zugs besser, wird die neue Linie übernommen. Hilft keine einzelne Änderung mehr, startet er mit einer anderen Spielweise neu, bis das Budget verbraucht ist (Standard: 400 Probe-Züge pro Hand).

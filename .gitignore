@@ -10,6 +10,9 @@
 !/work/routen/
 /work/routen/*
 !/work/routen/*.json
+!/work/testdecks/
+/work/testdecks/*
+!/work/testdecks/*.ydk
 !/work/native/
 /work/native/*
 !/work/native/App.cs

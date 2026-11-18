@@ -6,11 +6,16 @@ deck by the cards they need, so they work for every version of a deck that still
 
 Step fields
   code   card that is used
-  do     N = Normal Summon, S = Special Summon, E = effect/activation (idle or chain); empty = any
+  do     N = Normal Summon, S = Special Summon, E = effect/activation (idle or chain),
+         Z = set a Spell/Trap, M = set a monster; empty = any
   pick   cards to choose when the effect searches / summons / sets (in this order)
   cost   cards to use when the effect asks for a cost (send, banish, return to deck ...)
   when   "end" = only in the End Phase (e.g. Deep Forest setting Illusion)
   optional  true = the route continues if this step cannot be played
+
+Route fields: name, priority, goal, steps, optional "requires" (extra cards the deck must contain),
+"hand" (the starting hand the route is meant for; used by routen_test.py) and "quelle" (where it comes from,
+e.g. a video).
 """
 
 from __future__ import annotations
@@ -20,7 +25,7 @@ import json
 from pathlib import Path
 
 FOLDER = Path(__file__).resolve().parent / "routen"
-GROUPS = {"summon": "N", "special": "S", "activate": "E", "chain": "E"}
+GROUPS = {"summon": "N", "special": "S", "activate": "E", "chain": "E", "sset": "Z", "mset": "M"}
 
 
 def _step(raw):
@@ -44,7 +49,8 @@ def load_all(folder=None):
             needs = {int(c) for c in raw.get("requires", [])} | {s["code"] for s in steps if not s["optional"]}
             routes.append({"name": raw.get("name", f"Route {index + 1}"), "file": path.name,
                            "deck": data.get("deck", path.stem), "steps": steps, "needs": sorted(needs),
-                           "priority": float(raw.get("priority", 0)), "goal": raw.get("goal", "")})
+                           "priority": float(raw.get("priority", 0)), "goal": raw.get("goal", ""),
+                           "hand": [int(c) for c in raw.get("hand") or raw.get("test_hand") or []], "source": raw.get("quelle", "")})
     return routes
 
 
@@ -62,10 +68,20 @@ def matches(step, group, code):
     return step["code"] == code and (not step["do"] or step["do"] == group)
 
 
-def progress(route, done):
-    """How many steps of `route` were played in order in `done` [(group, code)]; optional steps may be skipped."""
+def progress(route, done, present=frozenset()):
+    """How many steps of `route` were played in order in `done` [(group, code)]; optional steps may be skipped.
+
+    `present` = own monsters on the field now. A begun route also counts a Normal/Special Summon step as done
+    when that monster got onto the field another way (e.g. Anu summons Raven Spoils with her own effect)."""
     steps, position = route["steps"], 0
+
+    def arrived():
+        nonlocal position
+        while 0 < position < len(steps) and steps[position]["do"] in ("N", "S") and steps[position]["code"] in present:
+            position += 1
+
     for group, code in done:
+        arrived()
         probe = position
         while probe < len(steps):
             if matches(steps[probe], group, code):
@@ -74,6 +90,7 @@ def progress(route, done):
             if not steps[probe]["optional"]:
                 break
             probe += 1
+    arrived()
     return position
 
 
@@ -96,7 +113,7 @@ def next_steps(route, position):
 def describe(route, names):
     parts = []
     for step in route["steps"]:
-        verb = {"N": "Normal", "S": "Spezial", "E": "Effekt"}.get(step["do"], "")
+        verb = {"N": "Normal", "S": "Spezial", "E": "Effekt", "Z": "Setze", "M": "Setze Monster"}.get(step["do"], "")
         text = f"{verb} {names(step['code'])}".strip()
         if step["pick"]:
             text += " → " + " + ".join(names(c) for c in step["pick"])

@@ -22,6 +22,10 @@ namespace YgoKi
         private readonly DispatcherTimer watchTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
         private readonly Dictionary<long, CardRow> watchArt = new Dictionary<long, CardRow>();
         private readonly Dictionary<string, object[]> watchPiles = new Dictionary<string, object[]>();
+        private readonly Dictionary<string, ContentControl> fieldSlots = new Dictionary<string, ContentControl>();
+        private readonly Dictionary<string, TextBlock> fieldMarks = new Dictionary<string, TextBlock>();
+        private static readonly string[] PileKinds = { "Deck", "Extra", "Grave", "Banished" };
+        private static readonly string[] PileLabels = { "Deck", "Extra Deck", "Friedhof", "Verbannt" };
         private bool watchRunning, watchPaused, watchPolling, watchWaiting;
         private int watchSerial, watchGeneration;
         private DateTime watchNextAfter;
@@ -40,12 +44,15 @@ namespace YgoKi
             OnClickAsync("WatchNext", AdvanceWatch);
             OnClickAsync("WatchStop", StopWatch);
             watchTimer.Tick += async delegate { await Guard(PollWatch); };
+            BuildField();
             foreach (string side in new[] { "Top", "Bottom" })
             {
-                foreach (string group in new[] { "Monsters", "Spells", "Hand" })
-                    Find<ItemsControl>("Watch" + side + group).MouseLeftButtonDown += WatchPicture;
-                OnClick("Watch" + side + "Deck", () => ShowWatchPile(side, "Deck", "Deck"));
-                OnClick("Watch" + side + "Grave", () => ShowWatchPile(side, "Grave", "Friedhof"));
+                Find<ItemsControl>("Watch" + side + "Hand").MouseLeftButtonDown += WatchPicture;
+                for (int index = 0; index < PileKinds.Length; index++)
+                {
+                    string kind = PileKinds[index], label = PileLabels[index];
+                    OnClick("Watch" + side + kind, () => ShowWatchPile(side, kind, label));
+                }
             }
             ResetBoard();
         }
@@ -69,12 +76,10 @@ namespace YgoKi
             Text("WatchTopInfo").Text = Text("WatchBottomInfo").Text = "";
             watchPiles.Clear();
             MarkPhase(0);
+            foreach (var key in fieldSlots.Keys.ToArray()) SetZone(key, null, false, null);
             foreach (string side in new[] { "Top", "Bottom" })
             {
-                SetPile(side, "Deck", "Deck", null);
-                SetPile(side, "Grave", "Friedhof", null);
-                Find<ItemsControl>("Watch" + side + "Monsters").ItemsSource = new WatchSlot[7];
-                Find<ItemsControl>("Watch" + side + "Spells").ItemsSource = new WatchSlot[8];
+                for (int index = 0; index < PileKinds.Length; index++) SetPile(side, PileKinds[index], PileLabels[index], null);
                 Find<ItemsControl>("Watch" + side + "Hand").ItemsSource = null;
                 Text("Watch" + side + "HandLabel").Text = "Hand";
             }
@@ -205,10 +210,31 @@ namespace YgoKi
                 Text("Watch" + panel + "HandLabel").Text = "Hand · " + hand.Length;
                 Find<ItemsControl>("Watch" + panel + "Hand").ItemsSource = hand.Select(value => WatchCard(value, false)).ToArray();
                 SetPile(panel, "Deck", "Deck", player.Array("deck_cards"));
+                SetPile(panel, "Extra", "Extra Deck", player.Array("extra_cards"));
                 SetPile(panel, "Grave", "Friedhof", player.Array("grave_cards"));
-                Find<ItemsControl>("Watch" + panel + "Monsters").ItemsSource = player.Array("monsters").Select(value => WatchCard(value, true)).ToArray();
-                Find<ItemsControl>("Watch" + panel + "Spells").ItemsSource = player.Array("spells").Select(value => WatchCard(value, false)).ToArray();
+                SetPile(panel, "Banished", "Verbannt", player.Array("banished_cards"));
+                var monsters = player.Array("monsters") ?? new object[0];
+                var spells = player.Array("spells") ?? new object[0];
+                for (int zone = 0; zone < 5; zone++)
+                    SetZone(panel + "M" + zone, zone < monsters.Length ? monsters[zone] : null, true, null);
+                for (int zone = 0; zone < 6; zone++)
+                    SetZone(panel + "S" + zone, zone < spells.Length ? spells[zone] : null, false, null);
             }
+            // Extra-Monsterzonen gehören keinem Spieler fest: links/rechts aus Sicht des unteren Spielers
+            var extra = new object[2];
+            var owner = new string[2];
+            for (int side = 0; side < players.Length; side++)
+            {
+                var monsters = players[side].Array("monsters") ?? new object[0];
+                for (int zone = 0; zone < 2; zone++)
+                {
+                    if (5 + zone >= monsters.Length || monsters[5 + zone] == null) continue;
+                    int place = side == 0 ? zone : 1 - zone;
+                    extra[place] = monsters[5 + zone];
+                    owner[place] = side == 0 ? "unten" : "oben";
+                }
+            }
+            for (int place = 0; place < 2; place++) SetZone("XE" + place, extra[place], true, owner[place]);
             var log = Find<ListBox>("WatchLog");
             foreach (object entry in frame.Array("events"))
             {
@@ -227,6 +253,83 @@ namespace YgoKi
                     ? "WatchPhaseActive" : "WatchPhaseChip");
                 if (chip.Style != style) chip.Style = style;
             }
+        }
+
+        private void BuildField()
+        {
+            var grid = Find<Grid>("WatchField");
+            for (int column = 0; column < 7; column++) grid.ColumnDefinitions.Add(new ColumnDefinition());
+            for (int row = 0; row < 5; row++) grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            // oberer Spieler (gegenüber, um 180 Grad gedreht): seine Zone 1 liegt rechts
+            FieldPile(grid, 0, 0, "Top", "Deck", "Deck");
+            for (int zone = 0; zone < 5; zone++) FieldZone(grid, 0, 5 - zone, "Top", "S" + zone, SpellLabel(zone));
+            FieldPile(grid, 0, 6, "Top", "Extra", "Extra Deck");
+            FieldPile(grid, 1, 0, "Top", "Grave", "Friedhof");
+            for (int zone = 0; zone < 5; zone++) FieldZone(grid, 1, 5 - zone, "Top", "M" + zone, "Monsterzone " + (zone + 1));
+            FieldZone(grid, 1, 6, "Top", "S5", "Feldzone");
+            FieldPile(grid, 2, 0, "Top", "Banished", "Verbannt");
+            FieldZone(grid, 2, 2, "X", "E0", "Extra-Monsterzone");
+            FieldZone(grid, 2, 4, "X", "E1", "Extra-Monsterzone");
+            FieldPile(grid, 2, 6, "Bottom", "Banished", "Verbannt");
+            FieldZone(grid, 3, 0, "Bottom", "S5", "Feldzone");
+            for (int zone = 0; zone < 5; zone++) FieldZone(grid, 3, 1 + zone, "Bottom", "M" + zone, "Monsterzone " + (zone + 1));
+            FieldPile(grid, 3, 6, "Bottom", "Grave", "Friedhof");
+            FieldPile(grid, 4, 0, "Bottom", "Extra", "Extra Deck");
+            for (int zone = 0; zone < 5; zone++) FieldZone(grid, 4, 1 + zone, "Bottom", "S" + zone, SpellLabel(zone));
+            FieldPile(grid, 4, 6, "Bottom", "Deck", "Deck");
+        }
+
+        private static string SpellLabel(int zone)
+        {
+            return "Zauber/Falle " + (zone + 1) + (zone == 0 || zone == 4 ? " · Pendel" : "");
+        }
+
+        private void FieldZone(Grid grid, int row, int column, string side, string zone, string label)
+        {
+            bool extra = side == "X";
+            var cell = new Grid { MinHeight = 56, Margin = new Thickness(2) };
+            cell.Children.Add(new Border
+            {
+                CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(1),
+                BorderBrush = (Brush)window.FindResource("Line"),
+                Background = new SolidColorBrush(extra ? Color.FromRgb(0x1A, 0x16, 0x2C) : Color.FromRgb(0x0E, 0x13, 0x1F))
+            });
+            var mark = new TextBlock
+            {
+                Text = label, FontSize = 10, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center,
+                Foreground = (Brush)window.FindResource("Muted"), Margin = new Thickness(4),
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+            };
+            cell.Children.Add(mark);
+            var slot = new ContentControl { ContentTemplate = (DataTemplate)window.FindResource("WatchTile") };
+            cell.Children.Add(slot);
+            cell.MouseLeftButtonDown += WatchPicture;
+            Grid.SetRow(cell, row);
+            Grid.SetColumn(cell, column);
+            grid.Children.Add(cell);
+            fieldSlots[side + zone] = slot;
+            fieldMarks[side + zone] = mark;
+        }
+
+        private void FieldPile(Grid grid, int row, int column, string side, string kind, string label)
+        {
+            var button = new Button
+            {
+                Content = label, IsEnabled = false, Margin = new Thickness(2), MinHeight = 56, FontSize = 11,
+                ToolTip = label + " öffnen"
+            };
+            Grid.SetRow(button, row);
+            Grid.SetColumn(button, column);
+            grid.Children.Add(button);
+            window.RegisterName("Watch" + side + kind, button);
+        }
+
+        private void SetZone(string key, object value, bool monster, string owner)
+        {
+            var slot = WatchCard(value, monster);
+            if (slot != null && owner != null) slot.Stats = (slot.Stats == null ? "" : slot.Stats + " · ") + owner;
+            fieldSlots[key].Content = slot;
+            fieldMarks[key].Visibility = slot == null ? Visibility.Visible : Visibility.Hidden;
         }
 
         private void SetPile(string side, string kind, string label, object[] cards)
@@ -295,8 +398,16 @@ namespace YgoKi
             var data = Json.Object(value);
             long code = Convert.ToInt64(data["code"]);
             var slot = new WatchSlot { Name = data.Text("name") };
+            var parts = new List<string>();
+            int link = data.Get("link") == null ? 0 : Convert.ToInt32(data["link"]);
             if (monster && data.Get("attack") != null)
-                slot.Stats = data["attack"] + " ATK" + (data.Get("defense") == null ? "" : " / " + data["defense"] + " DEF");
+                parts.Add(link > 0 ? "Link-" + link + " · " + data["attack"] + " ATK"
+                    : data["attack"] + " ATK" + (data.Get("defense") == null ? "" : " / " + data["defense"] + " DEF"));
+            if (!String.IsNullOrEmpty(data.Text("pos")) && data.Text("pos") != "Angriff") parts.Add(data.Text("pos"));
+            int materials = data.Get("materials") == null ? 0 : Convert.ToInt32(data["materials"]);
+            if (materials > 0) parts.Add(materials + (materials == 1 ? " Material" : " Materialien"));
+            if (data.Get("counters") != null) parts.Add(data["counters"] + " Zählmarken");
+            if (parts.Count > 0) slot.Stats = String.Join(" · ", parts);
             if (code == 0) return slot;
             CardRow art;
             if (!watchArt.TryGetValue(code, out art))
@@ -359,6 +470,8 @@ namespace YgoKi
                 Expect(watchPiles[side + "Deck"].Length != 0 && watchPiles.ContainsKey(side + "Grave"),
                     "Deck oder Friedhof fehlt.");
             }
+            Expect(fieldSlots.Count == 24 && Button("WatchBottomExtra").IsEnabled && watchPiles.ContainsKey("TopBanished"),
+                "Das Spielfeld (Zonen, Extra Deck, Verbannt) ist unvollständig.");
             Expect(WatchPhases.Count(name => Text("WatchPhase" + name).Style ==
                 (Style)window.FindResource("WatchPhaseActive")) == 1, "Die aktive Phase ist nicht markiert.");
             var pile = CreateWatchPile("Deck A", "Deck", watchPiles["BottomDeck"]);

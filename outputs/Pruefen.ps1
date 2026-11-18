@@ -18,6 +18,11 @@ try {
     Get-ChildItem -LiteralPath (Join-Path $repo 'work') -Filter '*.py' | ForEach-Object {
         Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $app 'work') -Force
     }
+    # Prüfdecks für den App-Selbsttest (unabhängig von den eigenen Decks in work\decks)
+    New-Item -ItemType Directory -Force -Path (Join-Path $app 'work\testdecks') | Out-Null
+    Get-ChildItem -LiteralPath (Join-Path $repo 'work\testdecks') -Filter '*.ydk' -ErrorAction SilentlyContinue | ForEach-Object {
+        Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $app "work\testdecks\$($_.Name)") -Force
+    }
     # Routen (feste Eröffnungen): neuere Datei gewinnt, damit im App-Ordner bearbeitete Routen erhalten bleiben
     New-Item -ItemType Directory -Force -Path (Join-Path $app 'work\routen') | Out-Null
     Get-ChildItem -LiteralPath (Join-Path $repo 'work\routen') -Filter '*.json' -ErrorAction SilentlyContinue | ForEach-Object {

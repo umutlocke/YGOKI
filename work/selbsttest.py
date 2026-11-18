@@ -129,6 +129,50 @@ def solver():
             f"{result['rollouts']} Probe-Zügen in {result['seconds']} s")
 
 
+def handtrap_guard():
+    """Bekannte Handtraps müssen als Handtrap erkannt werden (sonst würden sie beschworen oder gesetzt)."""
+    from kartenrollen import text_role
+    from qwen_training import load_deck
+    engine, _ = load_deck(sorted((WORK / "decks").glob("*.ydk"))[0])
+    known = {14558127: "Ash Blossom", 42141493: "Mulcharmy Fuwalos", 84192580: "Mulcharmy Purulia",
+             87126721: "Mulcharmy Meowls", 23434538: "Maxx C", 94145021: "Droll & Lock Bird",
+             59438930: "Ghost Ogre", 73642296: "Ghost Belle", 52038441: "Ghost Mourner", 97268402: "Effect Veiler",
+             10045474: "Infinite Impermanence", 27204311: "Nibiru", 91800273: "Dimension Shifter",
+             34267821: "Artifact Lancea", 46502744: "Retaliating C", 40366667: "Dominus Impulse"}
+    wrong = [f"{name} ({text_role(engine.cards.get(code))})" for code, name in known.items()
+             if engine.cards.get(code) and text_role(engine.cards.get(code)) != "Handtrap"]
+    if wrong:
+        raise ValueError("Nicht als Handtrap erkannt: " + ", ".join(wrong))
+    return f"{len(known)} bekannte Handtraps richtig erkannt"
+
+
+def route_test():
+    """Every deck that has a written route: play each route once with a fitting starting hand."""
+    import random
+    import combo_solver
+    import routen
+    import routen_test
+    from playbook import Playbook
+    checked, finished, tested = 0, 0, []
+    for deck_path in sorted((WORK / "decks").glob("*.ydk")):
+        from qwen_training import load_deck
+        engine, inspected = load_deck(deck_path)
+        deck = inspected.deck
+        routes = routen.for_codes(deck.main + deck.extra)
+        if not routes:
+            continue
+        combo_solver._ENGINE, combo_solver._DECK = engine, deck
+        book = Playbook.neutral(sorted(set(deck.main + deck.extra))).to_json()
+        for route in routes:
+            result = routen_test.test_route(route, book, deck, 1, 0, random.Random(3))[0]
+            checked += 1
+            finished += result["finished"]
+        tested.append(deck_path.stem)
+    if not checked:
+        return "keine Routen vorhanden"
+    return f"{checked} Routen in {', '.join(tested)}: {finished} ohne Gegner bis zum Endboard gespielt"
+
+
 def obsidian():
     import tempfile
     import obsidian_export
@@ -190,6 +234,8 @@ def main():
     step("Kurztraining mit Prüfrunde, Judge und Headjudge", training)
     step("YCS-Simulation (32 Spieler, Swiss, Top Cut, Bo3)", tournament)
     step("Combo-Solver (1 Starthand, 40 Probe-Züge)", solver)
+    step("Handtrap-Erkennung (Ash, Mulcharmy, Shifter …)", handtrap_guard)
+    step("Routen-Test (jede Route einmal)", route_test)
     step("Obsidian-Export (Probelauf in Temp-Ordner)", obsidian)
     step("Lokale Qwen-Anbindung", qwen)
     step("App-Bridge (Training, Qwen-Status)", bridge)

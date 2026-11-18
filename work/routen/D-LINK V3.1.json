@@ -1,0 +1,133 @@
+{
+  "deck": "D-LINK V3.1",
+  "quelle": "Engine-Texte und official/c25554552.lua, c67748760.lua, c31443476.lua, c29301450.lua",
+  "routes": [
+    {
+      "name": "D-LINK · Loader (Ein-Karten-Fallback)",
+      "priority": 1,
+      "goal": "S:P Little Knight plus Rokket Tracer auf der Hand. Eine temporäre Verbannung als Reaktion auf gegnerischen Effekt; DARK-Lock von Loader. Konservativer Fallback, kein maximales Dragon-Link-Board.",
+      "requires": [
+        25554552,
+        29301450,
+        67748760,
+        68464358
+      ],
+      "test_hand": [
+        25554552,
+        14558127,
+        14558127,
+        14558127,
+        59438930
+      ],
+      "steps": [
+        {
+          "code": 25554552,
+          "do": "N",
+          "pick": [],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 25554552,
+          "do": "E",
+          "pick": [
+            67748760
+          ],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 67748760,
+          "do": "S",
+          "pick": [],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 29301450,
+          "do": "S",
+          "pick": [],
+          "cost": [
+            25554552,
+            67748760
+          ],
+          "optional": false
+        },
+        {
+          "code": 67748760,
+          "do": "E",
+          "pick": [
+            68464358
+          ],
+          "cost": [],
+          "optional": false
+        }
+      ]
+    },
+    {
+      "name": "D-LINK · Quick Launch (ohne Normal)",
+      "priority": 1,
+      "goal": "S:P Little Knight plus Rokket Tracer auf der Hand. Eine temporäre Verbannung als Reaktion auf gegnerischen Effekt; DARK-Lock von Loader. Konservativer Fallback, kein maximales Dragon-Link-Board.",
+      "requires": [
+        25554552,
+        29301450,
+        31443476,
+        67748760,
+        68464358
+      ],
+      "test_hand": [
+        31443476,
+        14558127,
+        14558127,
+        14558127,
+        59438930
+      ],
+      "steps": [
+        {
+          "code": 31443476,
+          "do": "E",
+          "pick": [
+            25554552
+          ],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 25554552,
+          "do": "E",
+          "pick": [
+            67748760
+          ],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 67748760,
+          "do": "S",
+          "pick": [],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 29301450,
+          "do": "S",
+          "pick": [],
+          "cost": [
+            25554552,
+            67748760
+          ],
+          "optional": false
+        },
+        {
+          "code": 67748760,
+          "do": "E",
+          "pick": [
+            68464358
+          ],
+          "cost": [],
+          "optional": false
+        }
+      ]
+    }
+  ]
+}

@@ -28,8 +28,8 @@ GOOD_HINTS = {506, 508, 509, 510, 514, 518, 522, 523, 527, 529}       # search, 
 COST_HINTS = {500, 501, 503, 504, 507, 511, 512, 513, 519, 531, 532, 533}  # tribute, discard, banish, material
 HOSTILE_HINTS = {502, 505, 520, 528, 530, 549, 551}                    # destroy, bounce, control, target
 PHASE_MAIN1, PHASE_END = 0x04, 0x200
-STEP_GROUP = {"N": "N", "S": "S", "A": "E", "K": "E"}
-GROUPS_IDLE = {"summon": "N", "special": "S", "activate": "E"}
+STEP_GROUP = {"N": "N", "S": "S", "A": "E", "K": "E", "Z": "Z", "M": "M"}
+GROUPS_IDLE = {"summon": "N", "special": "S", "activate": "E", "sset": "Z", "mset": "M"}
 ACTIONS_PER_TURN = 18
 REPEATS_PER_TURN = 3
 
@@ -228,6 +228,7 @@ class PlaybookPolicy(RandomPolicy):
         self.combo_follow = {}   # combo key -> [turns started, turns completed]
         self.routes = routen.for_codes(book.weights) if book.weights else []
         self.picks, self.costs, self.avoid = [], [], set()
+        self.present = frozenset()   # own monsters on the field (route steps reached another way)
         self.route_log = {}      # route name -> [turns started, turns completed]
 
     def stats(self):
@@ -259,7 +260,7 @@ class PlaybookPolicy(RandomPolicy):
         """[(score, route, position, step)] for every step a route would play next."""
         options, done = [], self._done()
         for route in self.routes:
-            position = routen.progress(route, done)
+            position = routen.progress(route, done, self.present)
             for offset, step in enumerate(routen.next_steps(route, position)):
                 if step["when"] == "end" and not end_phase:
                     continue
@@ -287,11 +288,11 @@ class PlaybookPolicy(RandomPolicy):
 
     def _route_finished(self):
         done = self._done()
-        return any(routen.finished(route, routen.progress(route, done)) for route in self.routes)
+        return any(routen.finished(route, routen.progress(route, done, self.present)) for route in self.routes)
 
     def _route_cards(self):
         done = self._done()
-        return {s["code"] for route in self.routes if routen.progress(route, done) for s in route["steps"]}
+        return {s["code"] for route in self.routes if routen.progress(route, done, self.present) for s in route["steps"]}
 
     def _log_turn(self, view):
         if view.turn_player != view.team or self.logged_turn == view.turn or len(self.steps) < 2:
@@ -320,7 +321,7 @@ class PlaybookPolicy(RandomPolicy):
         done = self._done()
         best, best_key = None, None
         for route in self.routes:
-            position = routen.progress(route, done)
+            position = routen.progress(route, done, self.present)
             key = (routen.finished(route, position), position, route["priority"])
             if position and (best_key is None or key > best_key):
                 best, best_key = (route, position), key
@@ -373,6 +374,8 @@ class PlaybookPolicy(RandomPolicy):
             if hint in HOSTILE_HINTS:
                 return (0 if not mine else 1, -self._attack_of(view, card.code) if not mine else own_value(card))
             if hint in COST_HINTS and not (card.location == LOCATION_DECK and mine):
+                if mine and card.location == LOCATION_HAND and card_sense(view, card.code)[0]:
+                    return (0.5, own_value(card))     # keep hand traps for the opponent's turn
                 return (0 if mine else 1, own_value(card))
             return (0 if mine else 1, -own_value(card))
         return sorted(range(len(cards)), key=key)
@@ -417,6 +420,11 @@ class PlaybookPolicy(RandomPolicy):
     # -- prompts -----------------------------------------------------------------------------------------
     def __call__(self, p, view):
         book, rng = self.book, self.rng
+        if self.routes and view.turn_player == view.team:
+            try:
+                self.present = frozenset(c.code for c in view.location(view.team, LOCATION_MZONE) if c and c.code)
+            except Exception:   # noqa: BLE001 - a failed query must never stop a duel
+                self.present = frozenset()
         if isinstance(p, SelectIdleCmd):
             self._new_turn(view)
             options = []
@@ -425,7 +433,7 @@ class PlaybookPolicy(RandomPolicy):
             route_bonus = {}
             if own and self.routes:
                 for score, _, _, step in self._route_options():
-                    for group in (step["do"],) if step["do"] else ("N", "S", "E"):
+                    for group in (step["do"],) if step["do"] else ("N", "S", "E", "Z", "M"):
                         key = (group, step["code"])
                         route_bonus[key] = max(route_bonus.get(key, 0.0), score)
             groups = (("summon", IdleAction.SUMMON, p.summonable), ("special", IdleAction.SPSUMMON,
@@ -476,8 +484,11 @@ class PlaybookPolicy(RandomPolicy):
             self._new_turn(view)
             if not p.chains:
                 return p.respond(None)
-            ranked = sorted(range(len(p.chains)), key=lambda i: -self.weight(p.chains[i].code))
             theirs = view.turn_player != view.team
+            if theirs:   # im gegnerischen Zug zählt die gelernte Kettenquote, nicht die Ausspiel-Priorität
+                ranked = sorted(range(len(p.chains)), key=lambda i: -book.chain_opp.get(p.chains[i].code, 0.6))
+            else:
+                ranked = sorted(range(len(p.chains)), key=lambda i: -self.weight(p.chains[i].code))
             end_phase = _duel_phase(view) == PHASE_END
             if not theirs and self.routes:
                 best = None
@@ -512,6 +523,8 @@ class PlaybookPolicy(RandomPolicy):
                     elif handtrap and responder and not opponent_link:
                         if not (targets and last is None and _duel_phase(view) == PHASE_MAIN1):
                             continue      # Ash/Ogre/Imperm: only in response to the opponent
+                    elif handtrap and not responder and not targets and _duel_phase(view) > PHASE_MAIN1:
+                        continue          # Fuwalos/Maxx "C"/Shifter wirken "this turn": nach Main Phase 1 wertlos
                     elif not handtrap and last is None:
                         chance *= 0.15 if end_phase else 0.4   # no reason to fire into an empty chain
                 if self.repeats[("chain", code, view.turn)] < 2 and rng.random() < chance:

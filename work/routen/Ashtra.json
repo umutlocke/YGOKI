@@ -1,0 +1,144 @@
+{
+  "deck": "Ashtra",
+  "quelle": "Engine-Texte und CardScripts; route-audit/Ashtra - Vorschau TCG.json; lokale Solverprüfung",
+  "routes": [
+    {
+      "name": "Ashtra · Tamayori → Yoa → Divine Domain",
+      "priority": 3,
+      "goal": "Yoa und gesetzte Divine Domain; im Gegnerzug Zauber/Fallen-Effekt negieren, sofern Gegner keine verdeckten Karten kontrolliert. Tamayori kann verdeckt liegen.",
+      "requires": [
+        101403018,
+        1710647,
+        37839434
+      ],
+      "test_hand": [
+        101403018,
+        14558127,
+        59438930,
+        97268402,
+        94145021
+      ],
+      "steps": [
+        {
+          "code": 101403018,
+          "do": "N",
+          "pick": [],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 101403018,
+          "do": "E",
+          "pick": [
+            1710647,
+            101403018
+          ],
+          "cost": [],
+          "optional": false,
+          "note": "Optionales Verdecken: falls gewählt, Tamayori verdecken; Yoa offen lassen. Extra-Deck-Lock beachten."
+        },
+        {
+          "code": 1710647,
+          "do": "E",
+          "pick": [
+            37839434
+          ],
+          "cost": [],
+          "optional": false
+        }
+      ]
+    },
+    {
+      "name": "Ashtra · Tamayori → Akasuna (Ein-Karten-Ansatz)",
+      "priority": 2,
+      "goal": "Akasuna plus in der End Phase gesetzte Divine Domain. Die Falle kann entweder Akasunas Kosten bezahlen oder selbst negieren; nicht als zwei unabhängige Unterbrechungen zählen.",
+      "requires": [
+        101403018,
+        38331244,
+        37839434
+      ],
+      "test_hand": [
+        101403018,
+        14558127,
+        59438930,
+        97268402,
+        94145021
+      ],
+      "steps": [
+        {
+          "code": 101403018,
+          "do": "N",
+          "pick": [],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 101403018,
+          "do": "E",
+          "pick": [
+            38331244,
+            101403018
+          ],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 38331244,
+          "do": "E",
+          "pick": [
+            37839434
+          ],
+          "cost": [],
+          "optional": false,
+          "when": "end"
+        }
+      ]
+    },
+    {
+      "name": "Ashtra · Yoa + gesetzte Falle (ohne Normal)",
+      "priority": 1,
+      "goal": "Yoa, durch seinen Effekt gesetzte Divine Domain; zurückgenommene Cursed Roar kann das Playbook erneut setzen. Voraussetzung: Cursed Roar vor Yoa setzen (nicht im N/S/E-Format darstellbar).",
+      "requires": [
+        1710647,
+        91444835,
+        37839434
+      ],
+      "test_hand": [
+        1710647,
+        91444835,
+        14558127,
+        59438930,
+        97268402
+      ],
+      "steps": [
+        {
+          "code": 91444835,
+          "do": "Z",
+          "pick": [],
+          "cost": [],
+          "optional": false,
+          "note": "Cursed Roar zuerst setzen (ergänzt von Claude: Routen können jetzt setzen)"
+        },
+        {
+          "code": 1710647,
+          "do": "S",
+          "pick": [
+            91444835
+          ],
+          "cost": [],
+          "optional": false,
+          "note": "Cursed Roar muss bereits verdeckt liegen. Das Skript fragt mit HINTMSG_CONFIRM: deshalb pick, obwohl Rückgabe Beschwörungskosten ist."
+        },
+        {
+          "code": 1710647,
+          "do": "E",
+          "pick": [
+            37839434
+          ],
+          "cost": [],
+          "optional": false
+        }
+      ]
+    }
+  ]
+}

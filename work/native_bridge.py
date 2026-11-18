@@ -126,7 +126,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--test-data", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
-    editor = Editor(args.test_data / "decks" if args.test_data else WORK / "editor-decks")
+    editor = Editor(args.test_data / "decks" if args.test_data else WORK / "editor-decks",
+                    extra_originals=WORK / "testdecks" if args.test_data else None)
     editor.spectator = None
     if args.test_data:
         editor.comparisons.root = args.test_data / "comparisons"

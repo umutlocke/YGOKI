@@ -35,6 +35,7 @@ import traceback
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from deck_check import WORK  # noqa: E402  (also puts ygo-agent on sys.path)
+from kartenrollen import text_role  # noqa: E402
 from bewertung import gauntlet_lines, rating, route_lines, route_summary, wilson_lower  # noqa: E402
 from playbook import Playbook, PlaybookPolicy, adjust, crossover, mutate, remember  # noqa: E402
 import kombos  # noqa: E402
@@ -388,7 +389,11 @@ class Trainer:
         cards = []
         for code in self.codes:
             won, lost = self.card_wins.get(code, (0, 0))
-            cards.append({"code": code, "karte": self.names[code], "prioritaet": round(best.weights[code], 2),
+            card = self.engine.cards.get(code)
+            cards.append({"code": code, "karte": self.names[code],
+                          "rolle": text_role(card) if card else "Sonstige",
+                          "text": ((getattr(card, "text", "") or "").replace("\n", " "))[:160],
+                          "prioritaet": round(best.weights[code], 2),
                           "kettenquote_gegnerzug": round(best.chain_opp[code], 2),
                           "eingesetzt_in_siegen": won, "eingesetzt_in_niederlagen": lost})
         change = {"type": "object", "additionalProperties": False, "required": ["code", "priority", "chain"],
@@ -398,8 +403,10 @@ class Trainer:
         answer = self.qwen.ask(
             "Trainer-Coach", "Du verbesserst das Playbook eines Yu-Gi-Oh!-Decks. 'prioritaet' bestimmt, welche "
             "Karte zuerst gespielt bzw. behalten wird, 'kettenquote_gegnerzug' wie oft eine Karte im Zug des Gegners "
-            "gekettet wird (Handtraps). Schlage höchstens 6 Änderungen vor, die sich aus den Einsatzzahlen in Siegen "
-            "und Niederlagen begründen lassen. Die Engine testet jede Änderung in neuen Duellen.",
+            "gekettet wird (Handtraps). 'rolle' und 'text' zeigen, was die Karte tut. Handtraps werden nie beschworen "
+            "(das verhindert die Engine), sie brauchen eine passende Kettenquote. Starter brauchen hohe Priorität. "
+            "Schlage höchstens 6 Änderungen vor, die sich aus Kartentext und den Einsatzzahlen in Siegen und "
+            "Niederlagen begründen lassen. Die Engine testet jede Änderung in neuen Duellen.",
             {"deck": self.deck.name, "karten": cards},
             obj(changes={"type": "array", "items": change, "maxItems": 6}, reason=TEXT),
             self.args.seed + self.record["generation"])

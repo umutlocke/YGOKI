@@ -1,0 +1,156 @@
+{
+  "deck": "Blue-Eyes",
+  "quelle": "Engine-Texte, official/c63198739.lua, c56506740.lua, c17725109.lua, c59822133.lua, c71039903.lua",
+  "routes": [
+    {
+      "name": "Blue-Eyes · Beryl (Ein-Karten-Ansatz)",
+      "priority": 3,
+      "goal": "Beryl + Blue-Eyes White Dragon + Lode; Drillbeam gesucht, muss für Gegnerzug noch gesetzt werden.",
+      "test_hand": [
+        63198739,
+        14558127,
+        14558127,
+        14558127,
+        12580477
+      ],
+      "requires": [
+        29095457,
+        56506740,
+        63198739,
+        89631139
+      ],
+      "steps": [
+        {
+          "code": 63198739,
+          "do": "N",
+          "pick": [],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 63198739,
+          "do": "E",
+          "pick": [
+            56506740
+          ],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 56506740,
+          "do": "E",
+          "pick": [
+            29095457
+          ],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 56506740,
+          "do": "E",
+          "pick": [
+            89631139
+          ],
+          "cost": [],
+          "optional": false,
+          "note": "Nur Blue-Eyes White Dragon als Normalmonster vorhanden. Verhindert diese Runde Aktivierungen spezialbeschworener Monster auf dem Feld."
+        }
+      ]
+    },
+    {
+      "name": "Blue-Eyes · Lode (ohne Normalbeschwörung)",
+      "priority": 1,
+      "goal": "Blue-Eyes White Dragon + Lode; Drillbeam gesucht, muss für Gegnerzug noch gesetzt werden.",
+      "test_hand": [
+        56506740,
+        14558127,
+        14558127,
+        14558127,
+        12580477
+      ],
+      "requires": [
+        29095457,
+        56506740,
+        89631139
+      ],
+      "steps": [
+        {
+          "code": 56506740,
+          "do": "E",
+          "pick": [
+            29095457
+          ],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 56506740,
+          "do": "E",
+          "pick": [
+            89631139
+          ],
+          "cost": [],
+          "optional": false,
+          "note": "Nur Blue-Eyes White Dragon als Normalmonster vorhanden. Verhindert diese Runde Aktivierungen spezialbeschworener Monster auf dem Feld."
+        }
+      ]
+    },
+    {
+      "name": "Blue-Eyes · Roar + Ancients → Spirit Dragon",
+      "priority": 4,
+      "goal": "Spirit Dragon mit GY-Negation; Ancients beschwört Jet Dragon in der End Phase, solange im Deck.",
+      "test_hand": [
+        17725109,
+        71039903,
+        14558127,
+        14558127,
+        12580477
+      ],
+      "requires": [
+        17725109,
+        30576089,
+        59822133,
+        71039903,
+        89631139
+      ],
+      "steps": [
+        {
+          "code": 17725109,
+          "do": "E",
+          "pick": [
+            89631139
+          ],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 71039903,
+          "do": "N",
+          "pick": [],
+          "cost": [],
+          "optional": false
+        },
+        {
+          "code": 59822133,
+          "do": "S",
+          "pick": [],
+          "cost": [
+            71039903,
+            89631139
+          ],
+          "optional": false
+        },
+        {
+          "code": 71039903,
+          "do": "E",
+          "pick": [
+            30576089
+          ],
+          "cost": [],
+          "optional": false,
+          "when": "end"
+        }
+      ]
+    }
+  ]
+}
