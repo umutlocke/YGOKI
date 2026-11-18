@@ -129,6 +129,33 @@ def solver():
             f"{result['rollouts']} Probe-Zügen in {result['seconds']} s")
 
 
+def deck_optimize():
+    """Deck-Optimierung: eine Runde mit wenigen Händen/Duellen, Bericht und Vorschlag müssen entstehen."""
+    import argparse
+    import shutil
+    import tempfile
+    import deck_optimierung
+    decks = sorted((WORK / "decks").glob("*.ydk"))
+    out = Path(tempfile.mkdtemp(prefix="ygoki-opt-test-"))
+    try:
+        args = argparse.Namespace(deck=str(decks[0]), runden=1, raus=1, rein=2, haende=2, rollouts=6, sekunden=8,
+                                  duell_kandidaten=1, bloecke=1, anzahl_gegner=1, gegner=[str(decks[-1])],
+                                  kandidat=[], mindestens=0.03, format=None, bis=None, seed=3, workers=2,
+                                  out=str(out))
+        optimizer = deck_optimierung.Optimizer(args)
+        optimizer.run()
+        if not (out / "Bericht.md").is_file() or not (out / "Vorschlag.ydk").is_file():
+            raise ValueError("Deck-Optimierung hat keinen Bericht geschrieben.")
+        tests = optimizer.rounds_tried()
+        if not tests or tests[0]["duelle"] is None:
+            raise ValueError("Deck-Optimierung hat keinen Tausch in Duellen geprüft.")
+        test = tests[0]
+        return (f"{decks[0].stem}: {test['raus']} → {test['rein']} geprüft, Board {test['board_vorher']:.1f} → "
+                f"{test['board_nachher']:.1f}, {test['duelle']['games']} Duellpaare")
+    finally:
+        shutil.rmtree(out, ignore_errors=True)
+
+
 def handtrap_guard():
     """Bekannte Handtraps müssen als Handtrap erkannt werden (sonst würden sie beschworen oder gesetzt)."""
     from kartenrollen import text_role
@@ -143,7 +170,54 @@ def handtrap_guard():
              if engine.cards.get(code) and text_role(engine.cards.get(code)) != "Handtrap"]
     if wrong:
         raise ValueError("Nicht als Handtrap erkannt: " + ", ".join(wrong))
-    return f"{len(known)} bekannte Handtraps richtig erkannt"
+    from kartenrollen import learned_role
+    ash = engine.cards.get(14558127)
+    fake = {"rows": {14558127: {"verlaengert": 25, "startet_zuege": 1, "in_starthand": 10}}, "combo_starters": {}}
+    if ash and learned_role(14558127, ash, fake)[0] != "Handtrap":
+        raise ValueError("Trainingsdaten überschreiben die Handtrap-Rolle von Ash Blossom.")
+    from kartenrollen import text_role as role_of
+    expected = {73628505: "Starter", 48130397: "Boardbreaker", 18144506: "Boardbreaker", 24224830: "Interrupt",
+                89631139: "Brick", 44362883: "Starter",
+                17947697: "Extender", 42141493: "Handtrap"}
+    roles_wrong = [f"{engine.cards.get(code).name}: {role_of(engine.cards.get(code))} statt {role}"
+                   for code, role in expected.items()
+                   if engine.cards.get(code) and role_of(engine.cards.get(code)) != role]
+    if roles_wrong:
+        raise ValueError("Rollen falsch erkannt: " + "; ".join(roles_wrong))
+    return (f"{len(known)} bekannte Handtraps richtig erkannt, Trainingsdaten überschreiben die Rolle nicht, "
+            "Starter/Boardbreaker/Interrupt/Brick stimmen")
+
+
+def tcg_releases():
+    """Karten, die Project Ignis noch als OCG führt, aber laut tcg_freigaben.json im TCG erschienen sind."""
+    import tcg_status
+    from deck_check import read_sources
+    entries = tcg_status.load()
+    database, _ = read_sources()
+    released = [code for code, entry in entries.items() if tcg_status.released(entry) and database.get(code)]
+    wrong = [entries[code]["name"] for code in released if not database.get(code).ot & 0x2]
+    if wrong:
+        raise ValueError("TCG-Freigabe nicht übernommen: " + ", ".join(wrong[:5]))
+    return f"{len(released)} Karten als TCG-legal korrigiert (Stand der Liste: {tcg_releases_date()})"
+
+
+def tcg_releases_date():
+    import tcg_status
+    try:
+        return json.loads(tcg_status.FILE.read_text(encoding="utf-8")).get("stand", "?")
+    except (OSError, ValueError):
+        return "keine Liste"
+
+
+def card_knowledge():
+    """Ganze Kartendatenbank nach PSCT zerlegen und gegen die Skripte prüfen (baut work/kartenwissen neu)."""
+    import kartenwissen
+    result = kartenwissen.run()
+    ash = kartenwissen.knowledge(14558127)
+    first = ash["effects"][0] if ash and ash["effects"] else {}
+    if first.get("art") != "quick" or "abwerfen" not in first.get("kosten", []) or first.get("opt") != "hart":
+        raise ValueError(f"Ash Blossom falsch zerlegt: {first}")
+    return f"{result['karten']} Karten zerlegt, {result['befunde']} mit Befund (siehe kartenwissen/Pruefung.md)"
 
 
 def route_test():
@@ -332,6 +406,7 @@ def bridge():
         tournaments = call("ycs_runs")
         deck = call("decks")[0]
         call("solver_status", {"deck": {"source": deck["source"], "name": deck["name"]}})
+        call("optimize_status", {"deck": {"source": deck["source"], "name": deck["name"]}})
         return (f"{len(call('decks'))} Decks, {len(runs)} Trainingsläufe, {len(tournaments)} Turniere, "
                 f"Warteschlange {len(queue['jobs'])} Aufträge, {state['message']}")
     finally:
@@ -345,7 +420,10 @@ def main():
     step("Kurztraining mit Prüfrunde, Judge und Headjudge", training)
     step("YCS-Simulation (32 Spieler, Swiss, Top Cut, Bo3)", tournament)
     step("Combo-Solver (1 Starthand, 40 Probe-Züge)", solver)
-    step("Handtrap-Erkennung (Ash, Mulcharmy, Shifter …)", handtrap_guard)
+    step("Deck-Optimierung (1 Runde, Probelauf)", deck_optimize)
+    step("Kartenrollen (Handtraps, Starter, Boardbreaker …)", handtrap_guard)
+    step("TCG-Freigaben (Karten, die Project Ignis noch als OCG führt)", tcg_releases)
+    step("Kartenwissen (ganze Datenbank nach PSCT, Abgleich mit Skripten)", card_knowledge)
     step("Routen-Test (jede Route einmal)", route_test)
     step("Obsidian-Export (Probelauf in Temp-Ordner)", obsidian)
     step("C#/XAML-Vertrag (statisch, ohne WPF-Build)", ui_contract)

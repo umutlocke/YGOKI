@@ -1,0 +1,4 @@
+{
+  "hinweis": "Hier legst du Rollen selbst fest, wenn die automatische Erkennung danebenliegt. Schlüssel = Kartencode (Passcode oder Vorschau-Code), Wert = Starter, Extender, Handtrap, Interrupt, Boardbreaker, Brick oder Engine. Diese Angabe gilt vor Kartentext und Training.",
+  "karten": {}
+}

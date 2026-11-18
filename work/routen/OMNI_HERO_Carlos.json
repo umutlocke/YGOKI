@@ -1,0 +1,745 @@
+{
+ "deck": "OMNI - HERO",
+ "quelle": "Carlos Tamontes (YouTube-Transkripte, von Umut 18.11.2026), gegen Kartentexte geprüft",
+ "routes": [
+  {
+   "name": "OMNI · A Hero Lives (1 Karte, beide Engines)",
+   "priority": 3,
+   "goal": "Thunder Giant-Schleife, Miracle Fusion gesetzt, Dark City → Dreadmaster → Dreadnought Master, Cosmo-Lock-Teile auf der Hand",
+   "quelle": "Carlos Tamontes (YouTube-Transkripte, von Umut 18.11.2026), gegen Kartentexte geprüft",
+   "hand": [
+    8949584
+   ],
+   "steps": [
+    {
+     "code": 8949584,
+     "do": "E",
+     "note": "A Hero Lives beschwört Stratos",
+     "pick": [
+      40044918
+     ]
+    },
+    {
+     "code": 40044918,
+     "do": "E",
+     "note": "Stratos sucht Miracle Ejector",
+     "pick": [
+      30875635
+     ]
+    },
+    {
+     "code": 30875635,
+     "do": "E",
+     "note": "Ejector schickt Aqua Dolphin aus dem Deck und beschwört sich",
+     "cost": [
+      17955766
+     ]
+    },
+    {
+     "code": 30875635,
+     "do": "E",
+     "note": "Ejector sucht EN Shuffle",
+     "pick": [
+      10186633
+     ]
+    },
+    {
+     "code": 10186633,
+     "do": "E",
+     "note": "EN Shuffle: Ejector zurück ins Deck, Spirit of Neos aus dem Deck",
+     "cost": [
+      30875635
+     ],
+     "pick": [
+      13256226
+     ]
+    },
+    {
+     "code": 13256226,
+     "do": "E",
+     "note": "Spirit of Neos sucht Polymerization",
+     "pick": [
+      24094654
+     ]
+    },
+    {
+     "code": 13256226,
+     "do": "E",
+     "note": "Spirit of Neos mischt sich zurück, beschwört Neos",
+     "pick": [
+      89943723
+     ]
+    },
+    {
+     "code": 24094654,
+     "do": "E",
+     "note": "Polymerization: Neos + Stratos → Flame Wingman - Infernal Rage",
+     "pick": [
+      93347961
+     ],
+     "cost": [
+      89943723,
+      40044918
+     ]
+    },
+    {
+     "code": 93347961,
+     "do": "E",
+     "note": "Infernal Rage sucht Favorite Contact",
+     "pick": [
+      75047173
+     ]
+    },
+    {
+     "code": 93347961,
+     "do": "E",
+     "note": "Infernal Rage tributet sich → Sunrise",
+     "pick": [
+      22908820
+     ]
+    },
+    {
+     "code": 22908820,
+     "do": "E",
+     "note": "Sunrise sucht Miracle Fusion",
+     "pick": [
+      45906428
+     ]
+    },
+    {
+     "code": 45906428,
+     "do": "E",
+     "note": "Miracle Fusion: Infernal Rage + Neos verbannen → Thunder Giant",
+     "pick": [
+      19222426
+     ],
+     "cost": [
+      93347961,
+      89943723
+     ]
+    },
+    {
+     "code": 19222426,
+     "do": "E",
+     "note": "Thunder Giant tributet sich, belebt Stratos",
+     "pick": [
+      40044918
+     ]
+    },
+    {
+     "code": 40044918,
+     "do": "E",
+     "note": "Stratos sucht Destiny HERO - Doom Overlord",
+     "pick": [
+      62542673
+     ]
+    },
+    {
+     "code": 1948619,
+     "do": "S",
+     "note": "Wonder Driver aus Stratos + Sunrise",
+     "cost": [
+      40044918,
+      22908820
+     ],
+     "optional": true
+    },
+    {
+     "code": 62542673,
+     "do": "N",
+     "note": "Doom Overlord normal (in die Zone, auf die Wonder Driver zeigt)"
+    },
+    {
+     "code": 1948619,
+     "do": "E",
+     "note": "Wonder Driver setzt Miracle Fusion aus dem Friedhof",
+     "pick": [
+      45906428
+     ],
+     "optional": true
+    },
+    {
+     "code": 62542673,
+     "do": "E",
+     "note": "Doom Overlord schickt Malicious, sucht Dark City at Midnight (ab jetzt nur DARK-HERO-Spezialbeschwörungen)",
+     "cost": [
+      9411399
+     ],
+     "pick": [
+      4663194
+     ]
+    },
+    {
+     "code": 4663194,
+     "do": "E",
+     "note": "Dark City at Midnight aktivieren"
+    },
+    {
+     "code": 4663194,
+     "do": "E",
+     "note": "Dark City sucht Dreadnought Servant",
+     "pick": [
+      98931282
+     ]
+    },
+    {
+     "code": 9411399,
+     "do": "E",
+     "note": "Malicious verbannt sich, beschwört Malicious aus dem Deck",
+     "pick": [
+      9411399
+     ],
+     "optional": true
+    },
+    {
+     "code": 19324993,
+     "do": "S",
+     "note": "Infernal Devicer aus Doom Overlord + Malicious",
+     "cost": [
+      62542673,
+      9411399
+     ],
+     "optional": true
+    },
+    {
+     "code": 19324993,
+     "do": "E",
+     "note": "Infernal Devicer zeigt Nebula Neos, sucht Grand Mole + Dark Panther",
+     "pick": [
+      40080312,
+      80344569,
+      43237273
+     ],
+     "optional": true
+    },
+    {
+     "code": 98931282,
+     "do": "E",
+     "note": "Dreadnought Servant beschwört sich, zerstört Dark City, sucht Polymerization",
+     "pick": [
+      4663194,
+      24094654
+     ],
+     "optional": true
+    },
+    {
+     "code": 4663194,
+     "do": "E",
+     "note": "Dark City (zerstört) beschwört Dreadmaster aus dem Deck",
+     "pick": [
+      40591390
+     ],
+     "optional": true
+    },
+    {
+     "code": 40591390,
+     "do": "E",
+     "note": "Dreadmaster belebt bis zu 2 Destiny HEROs",
+     "pick": [
+      9411399,
+      62542673
+     ],
+     "optional": true
+    },
+    {
+     "code": 54641720,
+     "do": "S",
+     "note": "Dreadnought Master durch Tribut von Dreadmaster",
+     "cost": [
+      40591390
+     ],
+     "optional": true
+    },
+    {
+     "code": 54641720,
+     "do": "E",
+     "note": "Dreadnought Master sucht Destro-Dogma + D - Force",
+     "pick": [
+      25158975,
+      6186304
+     ],
+     "optional": true
+    }
+   ]
+  },
+  {
+   "name": "OMNI · Miracle Ejector + Polymerization",
+   "priority": 2.8,
+   "goal": "wie A Hero Lives, Einstieg über Ejector → EN Shuffle → Stratos → Neos",
+   "quelle": "Carlos Tamontes (YouTube-Transkripte, von Umut 18.11.2026), gegen Kartentexte geprüft",
+   "hand": [
+    30875635,
+    24094654
+   ],
+   "steps": [
+    {
+     "code": 30875635,
+     "do": "E",
+     "note": "Ejector schickt Aqua Dolphin und beschwört sich",
+     "cost": [
+      17955766
+     ]
+    },
+    {
+     "code": 30875635,
+     "do": "E",
+     "note": "Ejector sucht EN Shuffle",
+     "pick": [
+      10186633
+     ]
+    },
+    {
+     "code": 10186633,
+     "do": "E",
+     "note": "EN Shuffle: Ejector zurück, Stratos aus dem Deck",
+     "cost": [
+      30875635
+     ],
+     "pick": [
+      40044918
+     ]
+    },
+    {
+     "code": 40044918,
+     "do": "E",
+     "note": "Stratos sucht Neos",
+     "pick": [
+      89943723
+     ]
+    },
+    {
+     "code": 24094654,
+     "do": "E",
+     "note": "Polymerization: Neos (Hand) + Stratos → Infernal Rage",
+     "pick": [
+      93347961
+     ],
+     "cost": [
+      89943723,
+      40044918
+     ]
+    },
+    {
+     "code": 93347961,
+     "do": "E",
+     "note": "Infernal Rage sucht Favorite Contact",
+     "pick": [
+      75047173
+     ]
+    },
+    {
+     "code": 93347961,
+     "do": "E",
+     "note": "Infernal Rage tributet sich → Sunrise",
+     "pick": [
+      22908820
+     ]
+    },
+    {
+     "code": 22908820,
+     "do": "E",
+     "note": "Sunrise sucht Miracle Fusion",
+     "pick": [
+      45906428
+     ]
+    },
+    {
+     "code": 45906428,
+     "do": "E",
+     "note": "Miracle Fusion: Infernal Rage + Neos verbannen → Thunder Giant",
+     "pick": [
+      19222426
+     ],
+     "cost": [
+      93347961,
+      89943723
+     ]
+    },
+    {
+     "code": 19222426,
+     "do": "E",
+     "note": "Thunder Giant tributet sich, belebt Stratos",
+     "pick": [
+      40044918
+     ]
+    },
+    {
+     "code": 40044918,
+     "do": "E",
+     "note": "Stratos sucht Doom Overlord",
+     "pick": [
+      62542673
+     ]
+    },
+    {
+     "code": 1948619,
+     "do": "S",
+     "note": "Wonder Driver aus Stratos + Sunrise",
+     "cost": [
+      40044918,
+      22908820
+     ],
+     "optional": true
+    },
+    {
+     "code": 62542673,
+     "do": "N",
+     "note": "Doom Overlord normal (in die Zone, auf die Wonder Driver zeigt)"
+    },
+    {
+     "code": 1948619,
+     "do": "E",
+     "note": "Wonder Driver setzt Miracle Fusion aus dem Friedhof",
+     "pick": [
+      45906428
+     ],
+     "optional": true
+    },
+    {
+     "code": 62542673,
+     "do": "E",
+     "note": "Doom Overlord schickt Malicious, sucht Dark City at Midnight (ab jetzt nur DARK-HERO-Spezialbeschwörungen)",
+     "cost": [
+      9411399
+     ],
+     "pick": [
+      4663194
+     ]
+    },
+    {
+     "code": 4663194,
+     "do": "E",
+     "note": "Dark City at Midnight aktivieren"
+    },
+    {
+     "code": 4663194,
+     "do": "E",
+     "note": "Dark City sucht Dreadnought Servant",
+     "pick": [
+      98931282
+     ]
+    },
+    {
+     "code": 9411399,
+     "do": "E",
+     "note": "Malicious verbannt sich, beschwört Malicious aus dem Deck",
+     "pick": [
+      9411399
+     ],
+     "optional": true
+    },
+    {
+     "code": 19324993,
+     "do": "S",
+     "note": "Infernal Devicer aus Doom Overlord + Malicious",
+     "cost": [
+      62542673,
+      9411399
+     ],
+     "optional": true
+    },
+    {
+     "code": 19324993,
+     "do": "E",
+     "note": "Infernal Devicer zeigt Nebula Neos, sucht Grand Mole + Dark Panther",
+     "pick": [
+      40080312,
+      80344569,
+      43237273
+     ],
+     "optional": true
+    },
+    {
+     "code": 98931282,
+     "do": "E",
+     "note": "Dreadnought Servant beschwört sich, zerstört Dark City, sucht Polymerization",
+     "pick": [
+      4663194,
+      24094654
+     ],
+     "optional": true
+    },
+    {
+     "code": 4663194,
+     "do": "E",
+     "note": "Dark City (zerstört) beschwört Dreadmaster aus dem Deck",
+     "pick": [
+      40591390
+     ],
+     "optional": true
+    },
+    {
+     "code": 40591390,
+     "do": "E",
+     "note": "Dreadmaster belebt bis zu 2 Destiny HEROs",
+     "pick": [
+      9411399,
+      62542673
+     ],
+     "optional": true
+    },
+    {
+     "code": 54641720,
+     "do": "S",
+     "note": "Dreadnought Master durch Tribut von Dreadmaster",
+     "cost": [
+      40591390
+     ],
+     "optional": true
+    },
+    {
+     "code": 54641720,
+     "do": "E",
+     "note": "Dreadnought Master sucht Destro-Dogma + D - Force",
+     "pick": [
+      25158975,
+      6186304
+     ],
+     "optional": true
+    }
+   ]
+  },
+  {
+   "name": "OMNI · Terraforming / Dark City (1 Karte)",
+   "priority": 2.6,
+   "goal": "Destiny-HERO-Teil zuerst, dann über Cross Crusader → Stratos in die E-HERO-Linie",
+   "quelle": "Carlos Tamontes (YouTube-Transkripte, von Umut 18.11.2026), gegen Kartentexte geprüft",
+   "hand": [
+    73628505
+   ],
+   "steps": [
+    {
+     "code": 73628505,
+     "do": "E",
+     "note": "Terraforming sucht Dark City at Midnight",
+     "pick": [
+      4663194
+     ]
+    },
+    {
+     "code": 4663194,
+     "do": "E",
+     "note": "Dark City at Midnight aktivieren"
+    },
+    {
+     "code": 4663194,
+     "do": "E",
+     "note": "Dark City sucht Dreadnought Servant",
+     "pick": [
+      98931282
+     ]
+    },
+    {
+     "code": 98931282,
+     "do": "E",
+     "note": "Servant beschwört sich, zerstört Dark City, sucht Polymerization",
+     "pick": [
+      4663194,
+      24094654
+     ]
+    },
+    {
+     "code": 4663194,
+     "do": "E",
+     "note": "Dark City (zerstört) beschwört Dreadmaster aus dem Deck",
+     "pick": [
+      40591390
+     ]
+    },
+    {
+     "code": 54641720,
+     "do": "S",
+     "note": "Dreadnought Master durch Tribut von Dreadmaster",
+     "cost": [
+      40591390
+     ]
+    },
+    {
+     "code": 54641720,
+     "do": "E",
+     "note": "Dreadnought Master sucht Doom Overlord + Malicious",
+     "pick": [
+      62542673,
+      9411399
+     ]
+    },
+    {
+     "code": 58004362,
+     "do": "S",
+     "note": "Cross Crusader aus Dreadnought Master + Servant",
+     "cost": [
+      54641720,
+      98931282
+     ]
+    },
+    {
+     "code": 58004362,
+     "do": "E",
+     "note": "Cross Crusader belebt Dreadmaster",
+     "pick": [
+      40591390
+     ]
+    },
+    {
+     "code": 58004362,
+     "do": "E",
+     "note": "Cross Crusader tributet Dreadmaster, sucht Stratos",
+     "cost": [
+      40591390
+     ],
+     "pick": [
+      40044918
+     ]
+    },
+    {
+     "code": 40044918,
+     "do": "N",
+     "note": "Stratos normal"
+    },
+    {
+     "code": 40044918,
+     "do": "E",
+     "note": "Stratos sucht Miracle Ejector",
+     "pick": [
+      30875635
+     ]
+    },
+    {
+     "code": 30875635,
+     "do": "E",
+     "note": "Ejector schickt Aqua Dolphin aus dem Deck und beschwört sich",
+     "cost": [
+      17955766
+     ]
+    },
+    {
+     "code": 30875635,
+     "do": "E",
+     "note": "Ejector sucht EN Shuffle",
+     "pick": [
+      10186633
+     ]
+    },
+    {
+     "code": 10186633,
+     "do": "E",
+     "note": "EN Shuffle: Ejector zurück ins Deck, Spirit of Neos aus dem Deck",
+     "cost": [
+      30875635
+     ],
+     "pick": [
+      13256226
+     ]
+    },
+    {
+     "code": 13256226,
+     "do": "E",
+     "note": "Spirit of Neos sucht Polymerization",
+     "pick": [
+      24094654
+     ]
+    },
+    {
+     "code": 13256226,
+     "do": "E",
+     "note": "Spirit of Neos mischt sich zurück, beschwört Neos",
+     "pick": [
+      89943723
+     ]
+    },
+    {
+     "code": 24094654,
+     "do": "E",
+     "note": "Polymerization: Neos + Stratos → Flame Wingman - Infernal Rage",
+     "pick": [
+      93347961
+     ],
+     "cost": [
+      89943723,
+      40044918
+     ]
+    },
+    {
+     "code": 93347961,
+     "do": "E",
+     "note": "Infernal Rage sucht Favorite Contact",
+     "pick": [
+      75047173
+     ]
+    },
+    {
+     "code": 93347961,
+     "do": "E",
+     "note": "Infernal Rage tributet sich → Sunrise",
+     "pick": [
+      22908820
+     ]
+    },
+    {
+     "code": 22908820,
+     "do": "E",
+     "note": "Sunrise sucht Miracle Fusion",
+     "pick": [
+      45906428
+     ]
+    },
+    {
+     "code": 45906428,
+     "do": "E",
+     "note": "Miracle Fusion: Infernal Rage + Neos verbannen → Thunder Giant",
+     "pick": [
+      19222426
+     ],
+     "cost": [
+      93347961,
+      89943723
+     ]
+    },
+    {
+     "code": 19222426,
+     "do": "E",
+     "note": "Thunder Giant tributet sich, belebt Stratos",
+     "pick": [
+      40044918
+     ]
+    },
+    {
+     "code": 40044918,
+     "do": "E",
+     "note": "Stratos sucht Masked HERO Dusk Crow",
+     "pick": [
+      10808715
+     ]
+    },
+    {
+     "code": 1948619,
+     "do": "S",
+     "note": "Wonder Driver aus Stratos + Cross Crusader",
+     "cost": [
+      40044918,
+      58004362
+     ],
+     "optional": true
+    },
+    {
+     "code": 10808715,
+     "do": "E",
+     "note": "Dusk Crow verbannt Cross Crusader und beschwört sich",
+     "cost": [
+      58004362
+     ],
+     "optional": true
+    },
+    {
+     "code": 10808715,
+     "do": "E",
+     "note": "Dusk Crow sucht Masked HERO Fountain",
+     "pick": [
+      66206748
+     ],
+     "optional": true
+    }
+   ]
+  }
+ ]
+}

@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 
 namespace YgoKi
@@ -24,6 +25,7 @@ namespace YgoKi
         private readonly Dictionary<string, object[]> watchPiles = new Dictionary<string, object[]>();
         private readonly Dictionary<string, ContentControl> fieldSlots = new Dictionary<string, ContentControl>();
         private readonly Dictionary<string, TextBlock> fieldMarks = new Dictionary<string, TextBlock>();
+        private readonly Dictionary<string, Border> fieldFlash = new Dictionary<string, Border>();
         private static readonly string[] PileKinds = { "Deck", "Extra", "Grave", "Banished" };
         private static readonly string[] PileLabels = { "Deck", "Extra Deck", "Friedhof", "Verbannt" };
         private bool watchRunning, watchPaused, watchPolling, watchWaiting;
@@ -77,6 +79,8 @@ namespace YgoKi
             watchPiles.Clear();
             MarkPhase(0);
             foreach (var key in fieldSlots.Keys.ToArray()) SetZone(key, null, false, null);
+            Text("WatchAction").Text = "Noch keine Aktion";
+            Text("WatchAction").Foreground = (Brush)window.FindResource("Muted");
             foreach (string side in new[] { "Top", "Bottom" })
             {
                 for (int index = 0; index < PileKinds.Length; index++) SetPile(side, PileKinds[index], PileLabels[index], null);
@@ -235,6 +239,7 @@ namespace YgoKi
                 }
             }
             for (int place = 0; place < 2; place++) SetZone("XE" + place, extra[place], true, owner[place]);
+            AnimateActions(frame.Array("actions"));
             var log = Find<ListBox>("WatchLog");
             foreach (object entry in frame.Array("events"))
             {
@@ -253,6 +258,89 @@ namespace YgoKi
                     ? "WatchPhaseActive" : "WatchPhaseChip");
                 if (chip.Style != style) chip.Style = style;
             }
+        }
+
+        private static Color ActionColor(string kind)
+        {
+            switch (kind)
+            {
+                case "summon": return Color.FromRgb(0xF2, 0xC1, 0x4E);    // Normalbeschwörung: gold
+                case "spsummon": return Color.FromRgb(0xFF, 0x8A, 0x3D);  // Spezialbeschwörung: orange
+                case "flip": return Color.FromRgb(0xE8, 0xD4, 0x8A);
+                case "activate": return Color.FromRgb(0x4E, 0xA8, 0xFF);  // Aktivierung/Kette: blau
+                case "set": return Color.FromRgb(0x9A, 0xA7, 0xBD);       // Setzen: grau
+                case "attack": return Color.FromRgb(0xFF, 0x54, 0x70);    // Angriff: rot
+                case "target": return Color.FromRgb(0xFF, 0xB3, 0xC0);
+                case "destroy": return Color.FromRgb(0xB0, 0x30, 0x40);   // Zerstört: dunkelrot
+                default: return Color.FromRgb(0xAB, 0xB6, 0xCC);
+            }
+        }
+
+        private string ActionKey(Dictionary<string, object> action)
+        {
+            if (action.Get("player") == null || action.Get("loc") == null || action.Get("seq") == null) return null;
+            int player = Convert.ToInt32(action["player"]);
+            int location = Convert.ToInt32(action["loc"]);
+            int sequence = Convert.ToInt32(action["seq"]);
+            string side = player == 0 ? "Bottom" : "Top";
+            if (location == 4)
+            {
+                if (sequence >= 5) return "XE" + (player == 0 ? sequence - 5 : 1 - (sequence - 5));
+                return side + "M" + sequence;
+            }
+            if (location == 8 && sequence <= 5) return side + "S" + sequence;
+            return null;
+        }
+
+        private void AnimateActions(object[] actions)
+        {
+            if (actions == null || actions.Length == 0) return;
+            string text = null;
+            var color = Colors.White;
+            foreach (object item in actions)
+            {
+                var action = Json.Object(item);
+                string kind = action.Text("kind");
+                string key = ActionKey(action);
+                if (key != null && fieldFlash.ContainsKey(key)) Flash(key, ActionColor(kind));
+                if (!String.IsNullOrEmpty(action.Text("text")))
+                {
+                    text = action.Text("text");
+                    color = ActionColor(kind);
+                }
+            }
+            if (text != null) ShowAction(text, color);
+        }
+
+        private void Flash(string key, Color color)
+        {
+            var flash = fieldFlash[key];
+            flash.BorderBrush = new SolidColorBrush(color);
+            flash.Background = new SolidColorBrush(Color.FromArgb(0x55, color.R, color.G, color.B));
+            var fade = new DoubleAnimation(1.0, 0.0, new Duration(TimeSpan.FromMilliseconds(1300)))
+            {
+                BeginTime = TimeSpan.FromMilliseconds(150)
+            };
+            flash.BeginAnimation(UIElement.OpacityProperty, fade);
+            var cell = flash.Parent as Grid;
+            var scale = cell == null ? null : cell.RenderTransform as ScaleTransform;
+            if (scale != null)
+            {
+                var pulse = new DoubleAnimation(1.07, 1.0, new Duration(TimeSpan.FromMilliseconds(420)));
+                scale.BeginAnimation(ScaleTransform.ScaleXProperty, pulse);
+                scale.BeginAnimation(ScaleTransform.ScaleYProperty, pulse);
+            }
+        }
+
+        private void ShowAction(string text, Color color)
+        {
+            var label = Text("WatchAction");
+            label.Text = text;
+            label.Foreground = new SolidColorBrush(color);
+            var bar = Find<Border>("WatchActionBar");
+            bar.BorderBrush = new SolidColorBrush(color);
+            var appear = new DoubleAnimation(0.25, 1.0, new Duration(TimeSpan.FromMilliseconds(260)));
+            bar.BeginAnimation(UIElement.OpacityProperty, appear);
         }
 
         private void BuildField()
@@ -303,6 +391,16 @@ namespace YgoKi
             cell.Children.Add(mark);
             var slot = new ContentControl { ContentTemplate = (DataTemplate)window.FindResource("WatchTile") };
             cell.Children.Add(slot);
+            // Leuchtrahmen für Animationen, liegt über der Karte und fängt keine Klicks ab
+            var flash = new Border
+            {
+                CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(3), Opacity = 0,
+                IsHitTestVisible = false
+            };
+            cell.Children.Add(flash);
+            cell.RenderTransformOrigin = new Point(0.5, 0.5);
+            cell.RenderTransform = new ScaleTransform(1, 1);
+            fieldFlash[side + zone] = flash;
             cell.MouseLeftButtonDown += WatchPicture;
             Grid.SetRow(cell, row);
             Grid.SetColumn(cell, column);
@@ -472,6 +570,10 @@ namespace YgoKi
             }
             Expect(fieldSlots.Count == 24 && Button("WatchBottomExtra").IsEnabled && watchPiles.ContainsKey("TopBanished"),
                 "Das Spielfeld (Zonen, Extra Deck, Verbannt) ist unvollständig.");
+            AnimateActions(new object[] { Json.Fields("kind", "spsummon", "player", 0, "loc", 4, "seq", 5,
+                "text", "Prüfung: Spezialbeschwörung") });
+            Expect(fieldFlash.Count == 24 && Text("WatchAction").Text == "Prüfung: Spezialbeschwörung",
+                "Die Aktionsanzeige (Animationen) funktioniert nicht.");
             Expect(WatchPhases.Count(name => Text("WatchPhase" + name).Style ==
                 (Style)window.FindResource("WatchPhaseActive")) == 1, "Die aktive Phase ist nicht markiert.");
             var pile = CreateWatchPile("Deck A", "Deck", watchPiles["BottomDeck"]);

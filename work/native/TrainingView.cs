@@ -45,7 +45,7 @@ namespace YgoKi
     {
         private readonly DispatcherTimer trainTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         private bool trainPolling, trainVisible;
-        private string trainFolder, solverLines, webReport;
+        private string trainFolder, solverLines, webReport, optimizeReport;
         private int qwenTicks;
 
         private void SetupTraining()
@@ -97,10 +97,13 @@ namespace YgoKi
             OnClick("TrainFolder", () => OpenPath(trainFolder));
             OnClickAsync("SolverStart", StartSolver);
             OnClick("SolverOpen", () => OpenPath(solverLines));
+            OnClickAsync("OptimizeStart", StartOptimize);
+            OnClick("OptimizeOpen", () => OpenPath(optimizeReport));
             Combo("TrainDeck").SelectionChanged += async delegate
             {
                 await Guard(RefreshSolver);
                 await Guard(RefreshWeb);
+                await Guard(RefreshOptimize);
             };
             Find<ListBox>("TrainRuns").SelectionChanged += async delegate
             {
@@ -131,6 +134,7 @@ namespace YgoKi
             await Guard(RefreshQueue);
             await Guard(RefreshSolver);
             await Guard(RefreshWeb);
+            await Guard(RefreshOptimize);
             await Guard(async () =>
             {
                 if (String.IsNullOrEmpty(Field("ObsidianVault").Text))
@@ -144,7 +148,7 @@ namespace YgoKi
             await PollTraining();
             await RefreshQueue();
             if (++qwenTicks % 5 == 0) await RefreshQwen();
-            if (qwenTicks % 3 == 0) { await RefreshSolver(); await RefreshWeb(); }
+            if (qwenTicks % 3 == 0) { await RefreshSolver(); await RefreshWeb(); await RefreshOptimize(); }
         }
 
         private async Task RefreshQwen()
@@ -299,6 +303,32 @@ namespace YgoKi
             await bridge.Call("solver_start", Json.Fields("deck", deck.Data, "hands", hands));
             Status("Combo-Solver für " + deck.Name + " gestartet. Er läuft auch weiter, wenn du die App schließt.");
             await RefreshSolver();
+        }
+
+        private async Task StartOptimize()
+        {
+            var deck = Combo("TrainDeck").SelectedItem as DeckRef;
+            int rounds;
+            if (deck == null) throw new InvalidOperationException("Bitte ein Deck wählen.");
+            if (!Int32.TryParse(Field("OptimizeRounds").Text, out rounds) || rounds < 1 || rounds > 30)
+                throw new InvalidOperationException("Tausche: bitte eine Zahl zwischen 1 und 30.");
+            var names = new List<object>();
+            foreach (var part in (Field("OptimizeCandidates").Text ?? "").Split(';'))
+                if (part.Trim().Length > 0) names.Add(part.Trim());
+            await bridge.Call("optimize_start", Json.Fields("deck", deck.Data, "rounds", rounds, "candidates", names));
+            Status("Deck-Optimierung für " + deck.Name + " gestartet. Sie läuft auch weiter, wenn du die App schließt.");
+            await RefreshOptimize();
+        }
+
+        private async Task RefreshOptimize()
+        {
+            var deck = Combo("TrainDeck").SelectedItem as DeckRef;
+            if (deck == null) return;
+            var value = Json.Object(await bridge.Call("optimize_status", Json.Fields("deck", deck.Data)));
+            Find<TextBlock>("OptimizeState").Text = value.Text("message") ?? "";
+            optimizeReport = value.Text("report");
+            Button("OptimizeOpen").IsEnabled = optimizeReport != null;
+            Button("OptimizeStart").IsEnabled = !(value.Get("running") is bool && (bool)value.Get("running"));
         }
 
         private async Task RefreshSolver()

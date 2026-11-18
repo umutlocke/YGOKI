@@ -22,6 +22,9 @@ __pycache__/
 !/work/routen/
 /work/routen/*
 !/work/routen/*.json
+!/work/tcg_freigaben.json
+!/work/kartenrollen_manuell.json
+!/work/karten_ausschluss.json
 !/work/testdecks/
 /work/testdecks/*
 !/work/testdecks/*.ydk

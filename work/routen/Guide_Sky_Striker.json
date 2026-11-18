@@ -1,0 +1,68 @@
+{
+ "deck": "Sky Striker",
+ "quelle": "Master-Guide 2026 (Umut, 18.11.2026), von Claude gegen Kartentexte geprüft",
+ "routes": [
+  {
+   "name": "Guide (korrigiert) · Engage + Raye → Kagari → Shizuku",
+   "priority": 2,
+   "goal": "Shizuku + Multirole, Engage zurück, Spells für die End Phase",
+   "quelle": "Master-Guide 2026 (Umut, 18.11.2026), von Claude gegen Kartentexte geprüft",
+   "hand": [
+    63166095,
+    26077387
+   ],
+   "steps": [
+    {
+     "code": 63166095,
+     "do": "E",
+     "note": "Engage sucht Multirole",
+     "pick": [
+      24010609
+     ]
+    },
+    {
+     "code": 24010609,
+     "do": "E",
+     "note": "Multirole aktivieren"
+    },
+    {
+     "code": 26077387,
+     "do": "N",
+     "note": "Raye normal"
+    },
+    {
+     "code": 26077387,
+     "do": "E",
+     "note": "Raye tributet sich für Kagari (Guide: Hayate/Camellia – Camellia braucht 2 Monster)",
+     "pick": [
+      63288573
+     ]
+    },
+    {
+     "code": 63288573,
+     "do": "E",
+     "note": "Kagari holt Engage zurück",
+     "pick": [
+      63166095
+     ]
+    },
+    {
+     "code": 63166095,
+     "do": "E",
+     "note": "Engage erneut (keine Monster in der Main Monster Zone)",
+     "pick": [
+      98338152
+     ]
+    },
+    {
+     "code": 90673288,
+     "do": "S",
+     "note": "Shizuku aus Kagari",
+     "cost": [
+      63288573
+     ]
+    }
+   ]
+  }
+ ]
+}

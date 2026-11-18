@@ -56,6 +56,10 @@ def dispatch(editor, action, data):
         return training_jobs.runs(training_jobs.TOURNAMENTS)
     if action == "solver_start":
         return training_jobs.solver_start(editor.deck_path(data["deck"]["source"], data["deck"]["name"]), data)
+    if action == "optimize_start":
+        return training_jobs.optimize_start(editor.deck_path(data["deck"]["source"], data["deck"]["name"]), data)
+    if action == "optimize_status":
+        return training_jobs.optimize_status(editor.deck_path(data["deck"]["source"], data["deck"]["name"]))
     if action == "solver_status":
         return training_jobs.solver_status(editor.deck_path(data["deck"]["source"], data["deck"]["name"]))
     if action == "deck_trained":

@@ -1,0 +1,64 @@
+{
+ "deck": "Magistus Fairy Tail",
+ "quelle": "Master-Guide 2026 (Umut, 18.11.2026), von Claude gegen Kartentexte geprüft",
+ "routes": [
+  {
+   "name": "Guide · Spenta → Zoroa + Artemis",
+   "priority": 2,
+   "goal": "Zoroa mit Artemis ausgerüstet, Spenta zurück, Rilliona gesucht, Rang 4",
+   "quelle": "Master-Guide 2026 (Umut, 18.11.2026), von Claude gegen Kartentexte geprüft",
+   "hand": [
+    42544773
+   ],
+   "steps": [
+    {
+     "code": 42544773,
+     "do": "E",
+     "note": "Spenta abwerfen, sucht Zoroa",
+     "pick": [
+      36099130
+     ]
+    },
+    {
+     "code": 36099130,
+     "do": "N",
+     "note": "Zoroa normal"
+    },
+    {
+     "code": 36099130,
+     "do": "E",
+     "note": "Zoroa rüstet sich mit Artemis aus dem Extra Deck aus",
+     "pick": [
+      34755994
+     ]
+    },
+    {
+     "code": 36099130,
+     "do": "E",
+     "note": "Zoroa beschwört Spenta aus dem Friedhof",
+     "pick": [
+      42544773
+     ]
+    },
+    {
+     "code": 34755994,
+     "do": "E",
+     "note": "Artemis (ausgerüstet) sucht Rilliona (Guide nennt Fairy Tail - Luna – ist kein Magistus)",
+     "pick": [
+      72498838
+     ]
+    },
+    {
+     "code": 8660395,
+     "do": "S",
+     "note": "Ninaruru aus Zoroa + Spenta",
+     "cost": [
+      36099130,
+      42544773
+     ],
+     "optional": true
+    }
+   ]
+  }
+ ]
+}

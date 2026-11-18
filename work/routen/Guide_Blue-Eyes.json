@@ -1,0 +1,98 @@
+{
+ "deck": "Blue-Eyes",
+ "quelle": "Master-Guide 2026 (Umut, 18.11.2026), von Claude gegen Kartentexte geprüft",
+ "routes": [
+  {
+   "name": "Guide · Sage → Maiden → Spirit → Blue-Eyes Spirit Dragon",
+   "priority": 2.5,
+   "goal": "Blue-Eyes Spirit Dragon + True Light + gesetzte Majesty",
+   "quelle": "Master-Guide 2026 (Umut, 18.11.2026), von Claude gegen Kartentexte geprüft",
+   "hand": [
+    8240199
+   ],
+   "steps": [
+    {
+     "code": 8240199,
+     "do": "N",
+     "note": "Sage normal"
+    },
+    {
+     "code": 8240199,
+     "do": "E",
+     "note": "Sage sucht Maiden of White",
+     "pick": [
+      17947697
+     ]
+    },
+    {
+     "code": 17947697,
+     "do": "E",
+     "note": "Maiden von der Hand in den Friedhof, legt True Light aus dem Deck",
+     "pick": [
+      62089826
+     ]
+    },
+    {
+     "code": 62089826,
+     "do": "E",
+     "note": "True Light setzt Majesty of the White Dragons",
+     "pick": [
+      43219114
+     ]
+    },
+    {
+     "code": 42097666,
+     "do": "S",
+     "note": "Spirit with Eyes of Blue aus Sage",
+     "cost": [
+      8240199
+     ]
+    },
+    {
+     "code": 42097666,
+     "do": "E",
+     "note": "Spirit nimmt Mausoleum of White",
+     "pick": [
+      24382602
+     ]
+    },
+    {
+     "code": 24382602,
+     "do": "E",
+     "note": "Mausoleum aktivieren"
+    },
+    {
+     "code": 24382602,
+     "do": "E",
+     "note": "Mausoleum sendet Blue-Eyes White Dragon aus dem Deck",
+     "cost": [
+      89631139
+     ],
+     "optional": true
+    },
+    {
+     "code": 42097666,
+     "do": "E",
+     "note": "Spirit tributet sich, beschwört Blue-Eyes White Dragon aus dem Friedhof",
+     "pick": [
+      89631139
+     ]
+    },
+    {
+     "code": 17947697,
+     "do": "E",
+     "note": "Maiden kommt aus dem Friedhof zurück"
+    },
+    {
+     "code": 59822133,
+     "do": "S",
+     "note": "Synchro: Blue-Eyes White Dragon + Maiden",
+     "cost": [
+      89631139,
+      17947697
+     ]
+    }
+   ]
+  }
+ ]
+}

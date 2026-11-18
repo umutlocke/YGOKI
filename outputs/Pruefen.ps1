@@ -18,6 +18,18 @@ try {
     Get-ChildItem -LiteralPath (Join-Path $repo 'work') -Filter '*.py' | ForEach-Object {
         Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $app 'work') -Force
     }
+    # TCG-Freigaben: neuere Liste gewinnt (das wöchentliche Kartenupdate aktualisiert sie im App-Ordner)
+    $tcgSource = Join-Path $repo 'work\tcg_freigaben.json'
+    $tcgTarget = Join-Path $app 'work\tcg_freigaben.json'
+    if ((Test-Path -LiteralPath $tcgSource) -and (-not (Test-Path -LiteralPath $tcgTarget) -or
+            (Get-Item -LiteralPath $tcgTarget).LastWriteTime -lt (Get-Item -LiteralPath $tcgSource).LastWriteTime)) {
+        Copy-Item -LiteralPath $tcgSource -Destination $tcgTarget -Force
+    }
+    # Eigene Kartenrollen: nur kopieren, wenn im App-Ordner noch keine Datei liegt (dort bearbeitest du sie)
+    $rolesTarget = Join-Path $app 'work\kartenrollen_manuell.json'
+    if (-not (Test-Path -LiteralPath $rolesTarget)) {
+        Copy-Item -LiteralPath (Join-Path $repo 'work\kartenrollen_manuell.json') -Destination $rolesTarget -ErrorAction SilentlyContinue
+    }
     # Prüfdecks für den App-Selbsttest (unabhängig von den eigenen Decks in work\decks)
     New-Item -ItemType Directory -Force -Path (Join-Path $app 'work\testdecks') | Out-Null
     Get-ChildItem -LiteralPath (Join-Path $repo 'work\testdecks') -Filter '*.ydk' -ErrorAction SilentlyContinue | ForEach-Object {

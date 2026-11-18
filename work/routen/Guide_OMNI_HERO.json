@@ -1,0 +1,94 @@
+{
+ "deck": "OMNI - HERO",
+ "quelle": "Master-Guide 2026 (Umut, 18.11.2026), von Claude gegen Kartentexte geprüft",
+ "routes": [
+  {
+   "name": "Guide · A Hero Lives → Stratos → Faris → Vyon",
+   "priority": 2.5,
+   "goal": "Faris-Vyon-Engine aus einer Karte, Polymerization gesucht",
+   "quelle": "Master-Guide 2026 (Umut, 18.11.2026), von Claude gegen Kartentexte geprüft",
+   "hand": [
+    8949584,
+    9411399
+   ],
+   "steps": [
+    {
+     "code": 8949584,
+     "do": "E",
+     "note": "A Hero Lives beschwört Stratos",
+     "pick": [
+      40044918
+     ]
+    },
+    {
+     "code": 40044918,
+     "do": "E",
+     "note": "Stratos sucht Faris",
+     "pick": [
+      18094166
+     ]
+    },
+    {
+     "code": 18094166,
+     "do": "E",
+     "note": "Faris beschwört sich, wirft Malicious ab",
+     "cost": [
+      9411399
+     ]
+    },
+    {
+     "code": 18094166,
+     "do": "E",
+     "note": "Faris legt Increase in die Z/F-Zone",
+     "pick": [
+      22865492
+     ]
+    },
+    {
+     "code": 22865492,
+     "do": "E",
+     "note": "Increase tributet Stratos und beschwört sich",
+     "cost": [
+      40044918
+     ]
+    },
+    {
+     "code": 22865492,
+     "do": "E",
+     "note": "Increase beschwört Vyon",
+     "pick": [
+      27780618
+     ]
+    },
+    {
+     "code": 27780618,
+     "do": "E",
+     "note": "Vyon sendet Shadow Mist",
+     "cost": [
+      50720316
+     ]
+    },
+    {
+     "code": 50720316,
+     "do": "E",
+     "note": "Shadow Mist sucht Plasma",
+     "pick": [
+      83965310
+     ],
+     "optional": true
+    },
+    {
+     "code": 27780618,
+     "do": "E",
+     "note": "Vyon verbannt Stratos, sucht Polymerization",
+     "cost": [
+      40044918
+     ],
+     "pick": [
+      24094654
+     ]
+    }
+   ]
+  }
+ ]
+}

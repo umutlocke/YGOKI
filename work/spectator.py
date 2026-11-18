@@ -39,6 +39,7 @@ class Spectator(DuelObserver):
         self.strategies = strategies
         self.events = []
         self.history = []        # every event of the duel, for the saved log
+        self.actions = []        # what the app animates: {kind, player, loc, seq, text}
 
     def on_start(self, duel):
         self.duel = duel
@@ -54,18 +55,42 @@ class Spectator(DuelObserver):
         elif kind == Msg.DRAW:
             self.events.append(f"{names[event.player]} zieht {len(event.codes)} Karte(n).")
         elif kind in (Msg.SUMMONING, Msg.SPSUMMONING, Msg.FLIPSUMMONING):
-            self.events.append(f"Beschwörung · {self.duel.engine.cards.name(event.code)}")
+            label = {Msg.SUMMONING: "Normalbeschwörung", Msg.SPSUMMONING: "Spezialbeschwörung",
+                     Msg.FLIPSUMMONING: "Flippbeschwörung"}[kind]
+            name = self.duel.engine.cards.name(event.code)
+            self.events.append(f"{label} · {name}")
+            self.act({Msg.SUMMONING: "summon", Msg.SPSUMMONING: "spsummon", Msg.FLIPSUMMONING: "flip"}[kind],
+                     event.location, f"{label}: {name}")
         elif kind == Msg.CHAINING:
-            self.events.append(f"Kette {event.chain_count} · {names[event.controller]} aktiviert "
-                               f"{self.duel.engine.cards.name(event.code)}.")
+            name = self.duel.engine.cards.name(event.code)
+            where = {2: " von der Hand", 0x10: " aus dem Friedhof", 0x20: " aus dem Verbannt-Stapel"}.get(
+                event.location.location, "")
+            self.events.append(f"Kette {event.chain_count} · {names[event.controller]} aktiviert {name}{where}.")
+            self.act("activate", event.location, f"Kette {event.chain_count} · {names[event.controller]}: {name}{where}",
+                     chain=event.chain_count)
         elif kind == Msg.SET:
             self.events.append(f"{names[event.location.controller]} setzt eine Karte.")
+            self.act("set", event.location, f"{names[event.location.controller]} setzt eine Karte")
         elif kind == Msg.ATTACK:
             self.events.append(f"{names[event.attacker.controller]} greift"
                                f"{' direkt' if event.direct else ''} an.")
+            attacker = self.duel.view_card(None, event.attacker.controller, event.attacker.location,
+                                           event.attacker.sequence)
+            name = self.duel.engine.cards.name(attacker.code) if attacker and attacker.code else "Monster"
+            self.act("attack", event.attacker, f"Angriff: {name}" + (" (direkt)" if event.direct else ""))
+            if not event.direct:
+                self.act("target", event.target, "")
+        elif kind == Msg.MOVE and event.reason & 0x1 and event.previous.location & 0xC:
+            name = self.duel.engine.cards.name(event.code) if event.code else "Karte"
+            self.events.append(f"Zerstört · {name}")
+            self.act("destroy", event.previous, f"Zerstört: {name}")
         elif kind in (Msg.DAMAGE, Msg.RECOVER, Msg.PAY_LPCOST):
             sign = "+" if kind == Msg.RECOVER else "−"
             self.events.append(f"{names[event.player]} · {sign}{event.amount} LP")
+
+    def act(self, kind, location, text, **extra):
+        self.actions.append({"kind": kind, "player": location.controller, "loc": location.location,
+                             "seq": location.sequence, "text": text, **extra})
 
     def zone(self, team, location, count):
         slots = list(self.duel.view_location(None, team, location))
@@ -110,8 +135,9 @@ class Spectator(DuelObserver):
             })
         frame = {"turn": duel.turn, "active": duel.turn_player, "phase_id": duel.phase,
                  "phase": PHASES.get(duel.phase, "Start"), "players": players,
-                 "events": self.events}
+                 "events": self.events, "actions": self.actions}
         self.events = []
+        self.actions = []
         return frame
 
     def on_prompt(self, team, prompt, retry):

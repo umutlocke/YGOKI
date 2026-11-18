@@ -1,0 +1,77 @@
+{
+ "deck": "Unchained",
+ "quelle": "Master-Guide 2026 (Umut, 18.11.2026), von Claude gegen Kartentexte geprüft",
+ "routes": [
+  {
+   "name": "Guide · Prison + Escape → Aruha → Yama",
+   "priority": 2,
+   "goal": "Yama-Suche, Chamber gesetzt, Rakea normal",
+   "quelle": "Master-Guide 2026 (Umut, 18.11.2026), von Claude gegen Kartentexte geprüft",
+   "hand": [
+    27412542,
+    53417695
+   ],
+   "steps": [
+    {
+     "code": 27412542,
+     "do": "E",
+     "note": "Prison sucht Aruha",
+     "pick": [
+      26236560
+     ]
+    },
+    {
+     "code": 53417695,
+     "do": "Z",
+     "note": "Escape setzen"
+    },
+    {
+     "code": 26236560,
+     "do": "E",
+     "note": "Aruha zerstört die gesetzte Escape und beschwört sich",
+     "pick": [
+      53417695
+     ]
+    },
+    {
+     "code": 53417695,
+     "do": "E",
+     "note": "Escape beschwört Sharvara aus dem Deck",
+     "pick": [
+      41165831
+     ]
+    },
+    {
+     "code": 24269961,
+     "do": "S",
+     "note": "Yama aus Aruha + Sharvara",
+     "cost": [
+      26236560,
+      41165831
+     ]
+    },
+    {
+     "code": 24269961,
+     "do": "E",
+     "note": "Yama sucht Rakea",
+     "pick": [
+      53624265
+     ]
+    },
+    {
+     "code": 41165831,
+     "do": "E",
+     "note": "Sharvara setzt Abominable Chamber",
+     "pick": [
+      80801743
+     ]
+    },
+    {
+     "code": 53624265,
+     "do": "N",
+     "note": "Rakea normal"
+    }
+   ]
+  }
+ ]
+}

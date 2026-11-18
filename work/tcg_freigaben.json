@@ -1,0 +1,166 @@
+{
+ "stand": "2026-11-18",
+ "quelle": "YGOPRODeck API (misc_info.tcg_date); Karten, die Project Ignis noch als OCG führt",
+ "karten": {
+  "1710647": {
+   "name": "Yoa the Plague Ashtra",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  },
+  "2906939": {
+   "name": "Ashtrashen - Gate to the Worlds Beyond",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  },
+  "4063756": {
+   "name": "Mediclius the Extraordinary Power Patron",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  },
+  "4663194": {
+   "name": "Dark City at Midnight",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  },
+  "4993187": {
+   "name": "W:P Fancy Ball",
+   "tcg_date": "2026-09-03",
+   "ocg_date": "2026-02-28"
+  },
+  "7293697": {
+   "name": "Perfect Toon World",
+   "tcg_date": "2026-11-12",
+   "ocg_date": "2026-05-30"
+  },
+  "13243124": {
+   "name": "Favorite HERO Flame Wingman",
+   "tcg_date": "2026-09-04",
+   "ocg_date": "2026-02-28"
+  },
+  "17020474": {
+   "name": "Ashtraja Susanoo",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  },
+  "25158975": {
+   "name": "Destiny HERO - Destro-Dogma",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  },
+  "36270527": {
+   "name": "Ars Magna the Finite and the Infinite",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  },
+  "37279096": {
+   "name": "Ars Magna \"Citrinitas\"",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  },
+  "37839434": {
+   "name": "Ashtra's Domain",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  },
+  "38114652": {
+   "name": "Mikumari the Banisher Ashtra",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  },
+  "38331244": {
+   "name": "Akasuna the Battle Ashtra",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  },
+  "40237839": {
+   "name": "Winged Kuriboh Sabatiel LV10",
+   "tcg_date": "2026-09-04",
+   "ocg_date": "2026-02-28"
+  },
+  "43419178": {
+   "name": "Ashtraya Mikumari-no-Mikoto",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  },
+  "53481938": {
+   "name": "Rokket Barrage",
+   "tcg_date": "2026-11-12",
+   "ocg_date": "2026-03-20"
+  },
+  "54641720": {
+   "name": "Destiny HERO - Dreadnought Master",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  },
+  "55363218": {
+   "name": "Cartoon Shade",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  },
+  "62368221": {
+   "name": "Ars Magna the Corruption and the Purification",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  },
+  "62542673": {
+   "name": "Destiny HERO - Doom Overlord",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  },
+  "64455720": {
+   "name": "Ashtra's Web",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  },
+  "65325949": {
+   "name": "Kuzuha the Hex Ashtra",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  },
+  "65541655": {
+   "name": "Red Nova Dragon - Burning Soul",
+   "tcg_date": "2026-11-12",
+   "ocg_date": "2026-03-20"
+  },
+  "71808988": {
+   "name": "Blue-Eyes Toon Ultimate Dragon",
+   "tcg_date": "2026-11-12",
+   "ocg_date": "2026-05-30"
+  },
+  "87758525": {
+   "name": "Favorite HERO Shining Flare Wingman",
+   "tcg_date": "2026-09-04",
+   "ocg_date": "2026-02-28"
+  },
+  "89875646": {
+   "name": "Triple Borrel Launch",
+   "tcg_date": "2026-11-12",
+   "ocg_date": "2026-03-20"
+  },
+  "90728287": {
+   "name": "Ars Magna \"Philosophorum\"",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  },
+  "90875418": {
+   "name": "Theorealized Medius",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  },
+  "91444835": {
+   "name": "Ashtra's Howl",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  },
+  "98931282": {
+   "name": "Destiny HERO - Dreadnought Servant",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  },
+  "99753860": {
+   "name": "Ars Magna the Division and the Union",
+   "tcg_date": "2026-10-08",
+   "ocg_date": "2026-07-18"
+  }
+ }
+}

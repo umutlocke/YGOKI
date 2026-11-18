@@ -182,12 +182,30 @@ class Export:
 
     def cleanup(self):
         """Remove generated notes whose run no longer exists (only inside YGOKI/, only generated files)."""
-        for folder in ("Decks", "Trainings", "Turniere", "Bilder"):
+        for folder in ("Decks", "Trainings", "Turniere", "Bilder", "Kartenwissen"):
+            if not (self.root / folder).exists():
+                continue
             for path in (self.root / folder).iterdir():
                 if path.resolve() in self.written or not path.is_file():
                     continue
                 if path.suffix == ".svg" or GENERATED in path.read_text(encoding="utf-8", errors="ignore"):
                     path.unlink()
+
+
+def knowledge_notes(export):
+    """Kartenwissen (work/kartenwissen): database check + one note per deck with every card's effects."""
+    folder = WORK / "kartenwissen"
+    if not (folder / "Pruefung.md").exists():
+        return []
+    head = _yaml({"typ": "kartenwissen", "tags": ["ygoki/kartenwissen"]}) + "\n" + GENERATED + "\n\n"
+    export.write("Kartenwissen/Kartendatenbank-Prüfung.md",
+                 head + (folder / "Pruefung.md").read_text(encoding="utf-8"))
+    names = []
+    for path in sorted((folder / "Decks").glob("*.md")):
+        export.write(f"Kartenwissen/Kartenwissen {safe(path.stem)}.md",
+                     head + f"Zurück zum Deck: [[{safe(path.stem)}]]\n\n" + path.read_text(encoding="utf-8"))
+        names.append(path.stem)
+    return names
 
 
 def training_runs():
@@ -389,6 +407,22 @@ def _deck_feedback(item, deck):
     return feedback, sentences
 
 
+_CARDS = []
+
+
+def _card_data():
+    """Card database for the role texts (loaded once per export)."""
+    if not _CARDS:
+        try:
+            from deck_check import read_sources
+            from preview_cards import REGISTRY, catalog_with_previews, read_preview
+            base, _ = read_sources()
+            _CARDS.append(catalog_with_previews(base, [read_preview(p) for p in REGISTRY.glob("*.json")]))
+        except Exception:   # noqa: BLE001 - without card data the roles come from training only
+            _CARDS.append({})
+    return _CARDS[0]
+
+
 def solver_runs(deck):
     """Finished combo-solver runs of a deck (oldest first)."""
     found = []
@@ -467,15 +501,20 @@ def deck_notes(export, trainings, tournaments):
             for code, row in know["rows"].items():
                 if row.get("bereich") != "Main":
                     continue
-                role, _, reason, exchangeable, core = kartenrollen.learned_role(code, None, know)
+                role, _, reason, exchangeable, core = kartenrollen.learned_role(code, _card_data().get(code), know)
                 label = row["karte"] + (f" ({reason})" if reason else "")
                 groups["austauschbar" if exchangeable else role].append(label)
                 if core:
                     groups["Kernkarte"].append(row["karte"])
             lines += ["## Kartenrollen (aus dem Training)", ""]
-            for role, title in (("Starter", "Starter (eröffnen den Zug)"), ("Extender", "Extender (verlängern Kombos)"),
-                                ("Handtrap", "Handtraps (im Zug des Gegners)"), ("Kernkarte", "Kernkarten (behalten)"),
-                                ("austauschbar", "Austauschbar"), ("Sonstige", "Ohne eindeutige Rolle")):
+            for role, title in (("Starter", "Starter (eröffnen den Zug, 1 oder 1,5 Karten)"),
+                                ("Extender", "Extender (Körper gratis oder billig)"),
+                                ("Handtrap", "Handtraps (im Zug des Gegners)"),
+                                ("Interrupt", "Interrupts (unterbrechen vom Feld)"),
+                                ("Boardbreaker", "Boardbreaker (räumen ein Board ab)"),
+                                ("Brick", "Bricks (Engine, aber allein tot auf der Hand)"),
+                                ("Engine", "Engine (Teil des Decks ohne eigene Rolle)"),
+                                ("Kernkarte", "Kernkarten (behalten)"), ("austauschbar", "Austauschbar")):
                 if groups.get(role):
                     lines.append(f"- **{title}:** " + ", ".join(groups[role]))
             lines += ["", "Im Deckeditor der App stehen dieselben Rollen in der Spalte „Rolle“, die Vorschläge unter "
@@ -746,6 +785,7 @@ def export_all(with_qwen=False):
     trainings = [training_note(export, folder, record) for folder, record in training_runs()]
     tournaments = [tournament_note(export, folder, record) for folder, record in tournament_runs()]
     decks = deck_notes(export, trainings, tournaments)
+    knowledge = knowledge_notes(export)
     lines = [_yaml({"typ": "uebersicht", "aktualisiert": datetime.now().isoformat(timespec="minutes"),
                     "tags": ["ygoki"]}), GENERATED, "", "# YGOKI · Übersicht", "",
              f"Stand {datetime.now():%d.%m.%Y %H:%M} · {len(decks)} Decks · {len(trainings)} Trainings · "
@@ -760,6 +800,10 @@ def export_all(with_qwen=False):
     lines += ["", "## Turniere", ""]
     lines += [f"- [[{t['note']}]] · Sieger: {t['winner']['winner_deck'] if t['winner'] else '–'}"
               for t in reversed(tournaments)]
+    if knowledge:
+        lines += ["", "## Kartenwissen", "", "- [[Kartendatenbank-Prüfung]] · alle Karten nach PSCT zerlegt und "
+                  "gegen die Skripte geprüft",
+                  *[f"- [[Kartenwissen {safe(name)}]]" for name in knowledge]]
     lines += ["", "## Mit Dataview (optional)", "", "```dataview", "TABLE beste_note, freigegeben, trainings, turniere",
               'FROM #ygoki/deck', "SORT beste_note DESC", "```"]
     export.write("Start.md", "\n".join(lines) + "\n")

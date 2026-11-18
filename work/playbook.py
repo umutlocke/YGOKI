@@ -276,14 +276,21 @@ class PlaybookPolicy(RandomPolicy):
                 best = (score, route, position, step)
         return best
 
-    def _taken(self, group, code, end_phase=False):
-        """Remember what to choose while the action resolves (picks/costs of the matching route step)."""
+    def _taken(self, group, code, end_phase=False, merge=False):
+        """Remember what to choose while the action resolves (picks/costs of the matching route step).
+
+        merge=True (chain links): several own effects can be on one chain and resolve later in reverse order,
+        so the picks/costs of every link are kept instead of the last link overwriting the earlier ones."""
         found = self._route_step(group, code, end_phase) if self.routes else None
         if found:
             _, route, _, step = found
-            self.picks, self.costs = list(step["pick"]), list(step["cost"])
+            picks, costs = list(step["pick"]), list(step["cost"])
+            if merge:
+                picks = picks + [c for c in self.picks if c not in picks]
+                costs = costs + [c for c in self.costs if c not in costs]
+            self.picks, self.costs = picks, costs
             self.avoid = {s["code"] for s in route["steps"]} | {c for s in route["steps"] for c in s["pick"]}
-        else:
+        elif not merge:
             self.picks, self.costs, self.avoid = [], [], set()
 
     def _route_finished(self):
@@ -405,7 +412,7 @@ class PlaybookPolicy(RandomPolicy):
         if theirs:
             self.chained_opp[code] += 1
         else:
-            self._taken("E", code, end_phase)
+            self._taken("E", code, end_phase, merge=True)
             self.steps.append(("K", code))
             if end_phase:
                 self._log_routes_end()
@@ -543,7 +550,7 @@ class PlaybookPolicy(RandomPolicy):
             else:
                 yes = rng.random() < book.yes
             if yes and own and code:
-                self._taken("E", code, end_phase)
+                self._taken("E", code, end_phase, merge=True)
                 self.steps.append(("K", code))
                 if end_phase:
                     self._log_routes_end()

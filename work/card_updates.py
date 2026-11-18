@@ -126,6 +126,20 @@ def main():
         record = refresh(args.max_probes)
     except (OSError, ValueError, RuntimeError) as error:
         record = {"error": str(error)}
+    try:   # TCG-Freigaben: Karten, die Project Ignis noch als "nur OCG" führt (siehe tcg_status.py)
+        import tcg_status
+        from deck_check import read_sources
+        database, _ = read_sources()
+        codes = tcg_status.ocg_only_codes(database, tcg_status.deck_codes())
+        found, total = tcg_status.check(codes) if codes else (0, len(tcg_status.load()))
+        record["tcg_freigaben"] = {"geprueft": len(codes), "neu": found, "gesamt": total}
+    except Exception as error:   # noqa: BLE001 - ohne Internet bleibt die bisherige Liste gültig
+        record["tcg_freigaben"] = {"error": str(error)}
+    try:   # Kartenwissen neu aufbauen (neue Karten, neue Texte)
+        import kartenwissen
+        record["kartenwissen"] = kartenwissen.run()
+    except Exception as error:   # noqa: BLE001
+        record["kartenwissen"] = {"error": str(error)}
     report = log_dir / f"{stamp}.json"
     report.write_text(json.dumps(record, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"Kartenupdate: {report}")

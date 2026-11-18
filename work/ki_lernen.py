@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from deck_check import WORK  # noqa: E402  (also puts ygo-agent on sys.path)
 from kartenrollen import text_role  # noqa: E402
+import kartenwissen  # noqa: E402
 from bewertung import gauntlet_lines, rating, route_lines, route_summary, wilson_lower  # noqa: E402
 from playbook import Playbook, PlaybookPolicy, adjust, crossover, mutate, remember  # noqa: E402
 import kombos  # noqa: E402
@@ -43,6 +44,7 @@ import web_wissen  # noqa: E402
 from obsidian_export import quiet_export  # noqa: E402
 
 RUNS = WORK / "ki-lernen"
+RATING_SYSTEM = "gauntlet-2026-11"   # stored with released playbooks; only equal systems are compared
 PLAYBOOKS = WORK / "playbooks"
 DECISION_LIMIT = 20_000
 
@@ -420,8 +422,8 @@ class Trainer:
             won, lost = self.card_wins.get(code, (0, 0))
             card = self.engine.cards.get(code)
             cards.append({"code": code, "karte": self.names[code],
-                          "rolle": text_role(card) if card else "Sonstige",
-                          "text": ((getattr(card, "text", "") or "").replace("\n", " "))[:160],
+                          "rolle": text_role(card) if card else "Engine",
+                          "effekte": kartenwissen.summary(kartenwissen.analyse(card), 260) if card else "",
                           "prioritaet": round(best.weights[code], 2),
                           "kettenquote_gegnerzug": round(best.chain_opp[code], 2),
                           "eingesetzt_in_siegen": won, "eingesetzt_in_niederlagen": lost})
@@ -432,7 +434,7 @@ class Trainer:
         answer = self.qwen.ask(
             "Trainer-Coach", "Du verbesserst das Playbook eines Yu-Gi-Oh!-Decks. 'prioritaet' bestimmt, welche "
             "Karte zuerst gespielt bzw. behalten wird, 'kettenquote_gegnerzug' wie oft eine Karte im Zug des Gegners "
-            "gekettet wird (Handtraps). 'rolle' und 'text' zeigen, was die Karte tut. Handtraps werden nie beschworen "
+            "gekettet wird (Handtraps). 'rolle' und 'effekte' zeigen, was die Karte tut (nach PSCT zerlegt: Art, Zone, Bedingung, Kosten, Ziel, Wirkung, Einmal pro Zug). Handtraps werden nie beschworen "
             "(das verhindert die Engine), sie brauchen eine passende Kettenquote. Starter brauchen hohe Priorität. "
             "Schlage höchstens 6 Änderungen vor, die sich aus Kartentext und den Einsatzzahlen in Siegen und "
             "Niederlagen begründen lassen. Die Engine testet jede Änderung in neuen Duellen.",
@@ -702,8 +704,21 @@ class Trainer:
         save(self.folder / "Playbook-Champion.json", champion)
         if self.record.get("released") and not self.folder.name.startswith("_"):
             PLAYBOOKS.mkdir(parents=True, exist_ok=True)
-            save(PLAYBOOKS / f"{self.playbook_key}.json", {"deck": self.deck.name, "rating": last["rating"],
-                                                        "run": str(self.folder), "playbook": champion})
+            target = PLAYBOOKS / f"{self.playbook_key}.json"
+            previous = None
+            try:
+                stored = json.loads(target.read_text(encoding="utf-8"))
+                # only ratings measured the same way (gauntlet rating) are comparable; older files are replaced
+                if stored.get("bewertung") == RATING_SYSTEM:
+                    previous = stored.get("rating")
+            except (OSError, ValueError):
+                pass
+            # a later, weaker run never replaces a better released champion of the same deck list
+            if previous is None or last["rating"] >= previous:
+                save(target, {"deck": self.deck.name, "rating": last["rating"], "run": str(self.folder),
+                              "bewertung": RATING_SYSTEM, "playbook": champion})
+            else:
+                self.record["champion_kept"] = {"rating": previous, "reason": "früherer Champion war besser"}
         main_rows = [row for row in rows if row["in_starthand"] >= 5]
         strong = sorted((r for r in main_rows if r["differenz_zur_gesamtquote"] is not None),
                         key=lambda r: -r["differenz_zur_gesamtquote"])[:6]

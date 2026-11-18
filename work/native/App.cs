@@ -546,7 +546,9 @@ namespace YgoKi
             int size = Convert.ToInt32(result["size"]);
             Func<string, int> count = key => ratio.ContainsKey(key) ? Convert.ToInt32(ratio[key]) : 0;
             Text("RoleSummary").Text = count("Starter") + " Starter · " + count("Extender") + " Extender · " +
-                count("Handtrap") + " Handtraps · mind. 1 Starter in der Starthand: " +
+                count("Handtrap") + " Handtraps · " + count("Interrupt") + " Interrupts · " +
+                count("Boardbreaker") + " Boardbreaker · " + count("Brick") + " Bricks · " + count("Engine") + " Engine" +
+                "\nmind. 1 Starter in der Starthand: " +
                 Percent(AtLeastOne(count("Starter"), size, 5)) + " (5 Karten) / " + Percent(AtLeastOne(count("Starter"), size, 6)) +
                 " (6 Karten)" + (result.Text("source") != null ? "\nRollen gelernt aus " + result.Text("source") :
                 "\nRollen nach Kartentext – nach einem KI-Training dieses Decks werden sie genauer.");

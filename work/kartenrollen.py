@@ -50,30 +50,138 @@ def starters_needed(deck_size, target=0.85, draws=5):
 # Roles from card text
 # --------------------------------------------------------------------------------------------------------
 
-def text_role(card):
+ROLES = ("Starter", "Extender", "Handtrap", "Interrupt", "Boardbreaker", "Brick", "Engine", "Extra Deck")
+ROLE_HELP = {
+    "Starter": "eröffnet den Zug allein (1 Karte) oder mit einer Abwurf-/Kostenkarte (1,5)",
+    "Extender": "Körper, die gratis oder billig aufs Feld kommen und Kombos verlängern",
+    "Handtrap": "wird im Zug des Gegners von der Hand eingesetzt",
+    "Interrupt": "unterbricht den Gegner vom Feld aus (Fallen, Schnellzauber, Quick Effects)",
+    "Boardbreaker": "räumt ein fertiges gegnerisches Board ab",
+    "Brick": "Engine-Karte, die allein auf der Hand nichts tut",
+    "Engine": "Teil des Decks ohne eigene Eröffnung oder Unterbrechung",
+    "Extra Deck": "Extra Deck"}
+TYPE_QUICKPLAY = 0x10000
+MANUAL = WORK / "kartenrollen_manuell.json"
+GENERIC_BREAKERS = [18144506,   # Harpie's Feather Duster
+                    12580477,   # Raigeki
+                    54693926,   # Dark Ruler No More
+                    15693423,   # Evenly Matched
+                    14532163,   # Lightning Storm
+                    24299458,   # Forbidden Droplet
+                    48130397,   # Super Polymerization
+                    53129443]   # Dark Hole
+_BREAKER = re.compile(r"(destroy|banish|return) all .{0,50}(your opponent controls|on the field|your opponent's field)"
+                      r"|negate the effects of all face-up monsters your opponent"
+                      r"|using monsters from either field|to your opponent's field[^.]{0,30}by tributing")
+_INTERRUPT = re.compile(r"negate|destroy|banish|return .{0,60}to the (hand|deck)|change .{0,40}face-down|"
+                        r"your opponent cannot|take control")
+# Sätze, deren Suche/Beschwörung NICHT zum Eröffnen taugt (Friedhof-, Material-, Zerstörungs-Auslöser ...)
+_LATE = re.compile(r"^(if|when) this card is (sent|destroyed|banished|used|detached|returned|tributed)|"
+                   r"^if this card is in your (gy|graveyard|banishment)|^during (your opponent's|the end) |"
+                   r"^during your opponent's turn|^if this card in your possession|^once per turn, during the end")
+_DECK = re.compile(r"add (1|one|up to \d) .{0,80}from your deck to your hand|"
+                   r"special summon (1|one|up to \d|\d) .{0,80}from your deck|"
+                   r"send (1|one) .{0,60}from your deck to the gy|banish (1|one) .{0,50}from your deck|"
+                   r"fusion summon .{0,120}using .{0,60}\bdeck\b")
+_COST = re.compile(r"(discard|discarding|send|tribute|banish) (1|one|this|a|up to)[^;.]{0,70}(;|\) by)")
+
+
+_MANUAL_CACHE = [None, {}]
+
+
+def _manual():
+    """Rollen, die du selbst festgelegt hast: work/kartenrollen_manuell.json {"karten": {"Code": "Rolle"}}."""
+    try:
+        stamp = MANUAL.stat().st_mtime
+    except OSError:
+        return {}
+    if _MANUAL_CACHE[0] != stamp:
+        try:
+            data = json.loads(MANUAL.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            data = {}
+        _MANUAL_CACHE[:] = [stamp, {int(code): role for code, role in (data.get("karten") or {}).items()
+                                    if str(code).isdigit() and role in ROLES}]
+    return _MANUAL_CACHE[1]
+
+
+_HAND_COST = ("discard this card", "send this card from your hand", "banish this card from your hand")
+
+
+def _hand_quick(text):
+    """A hand cost and the Quick-Effect timing in the SAME effect (Ash: yes; Maiden of White: the hand effect is
+    an ignition effect, the Quick Effect belongs to another effect of the card)."""
+    for effect in re.split(r"(?<=[.])\s+(?=(?:if|when|during|once|you can|while|each time|this card)\b)", text):
+        if any(cost in effect for cost in _HAND_COST) and "quick effect" in effect \
+                and ("opponent" in effect or "negate" in effect or "is activated" in effect
+                     or "is normal or special summoned" in effect):
+            return True
+    return False
+
+
+def classify(card):
+    """(role, reason) of a card from its text. Order: Handtrap, Boardbreaker, Starter, Extender, Interrupt,
+    Brick, Engine. Effects that only apply after this card was negated are ignored (e.g. Illusion)."""
     if card is None:
-        return "Sonstige"
+        return "Engine", ""
     if card.is_extra_deck:
-        return "Extra Deck"
+        return "Extra Deck", ""
+    manual = _manual()
+    manual = manual.get(card.code) or manual.get(card.alias)
+    if manual:
+        return manual, "von dir festgelegt"
     text = (card.text or "").lower()
+    head = re.split(r"if the activation of this card|if this card's activation", text)[0]
     monster, spell, trap = card.type & TYPE_MONSTER, card.type & TYPE_SPELL, card.type & TYPE_TRAP
+    quickplay = bool(spell and card.type & TYPE_QUICKPLAY)
+    level = abs(card.level or 0) & 0xFF
     if card.code in GENERIC_HANDTRAPS or card.alias in GENERIC_HANDTRAPS:
-        return "Handtrap"
-    if monster and ("discard this card" in text or "send this card from your hand" in text
-                    or "banish this card from your hand" in text) and "quick effect" in text \
-            and ("opponent" in text or "negate" in text or "is activated" in text):
-        return "Handtrap"
+        return "Handtrap", "bekannte Handtrap"
+    if card.code in GENERIC_BREAKERS or card.alias in GENERIC_BREAKERS:
+        return "Boardbreaker", "bekannter Boardbreaker"
+    if monster and _hand_quick(text):
+        return "Handtrap", "Quick Effect von der Hand"
     if trap and "activate this card from your hand" in text:
-        return "Handtrap"
-    searches = bool(re.search(r"add (1|one|up to \d) .{0,80}from your deck to your hand", text))
-    deck_summon = bool(re.search(r"special summon (1|one) .{0,80}from your deck", text))
-    deck_send = bool(re.search(r"send (1|one) .{0,60}from your deck to the gy", text))
-    if (monster or spell) and (searches or deck_summon or deck_send):
-        return "Starter"
-    if monster and re.search(r"special summon this card( \(from your (hand|gy)\))?", text) and \
-            ("from your hand" in text or "from your gy" in text or "you can special summon this card" in text):
-        return "Extender"
-    return "Sonstige"
+        return "Handtrap", "Falle, die von der Hand aktiviert werden kann"
+    if _BREAKER.search(head) and not (monster and "if this card is normal or special summoned" in head
+                                       and "fusion summon" in head):
+        return "Boardbreaker", "räumt gegnerische Karten ab"
+    sentences = [part.strip() for part in re.split(r"(?<=[.!])\s+|\n+|●", head) if part.strip()]
+    from_deck = any(_DECK.search(part) and not _LATE.search(part) for part in sentences)
+    summon_play = monster and bool(re.search(r"if this card is (normal or special|normal) summoned[^.]{0,40}:"
+                                             r"[^.]{0,120}(fusion summon|special summon)", head))
+    self_summon = bool(re.search(r"special summon this card( \(from your (hand|gy)\)| from your (hand|gy))", head)
+                       or re.search(r"special summoned \(from your hand\)", head)
+                       or "you can special summon this card" in head)
+    reveal = "reveal this card in your hand" in head
+    hand_summon = bool(re.search(r"special summon (1|one) .{0,80}from your hand", head))
+    opp_quick = "quick effect" in head and ("opponent" in head or "negate" in head)
+    cost = bool(_COST.search(head)) or "by discarding" in head
+    if spell and from_deck:
+        return "Starter", "Suchzauber: holt eine Karte aus dem Deck"
+    if monster and (from_deck or summon_play) and (level <= 4 or self_summon or reveal):
+        kind = "1,5-Karten-Starter (braucht eine Kosten-/Abwurfkarte)" if cost else "1-Karten-Starter"
+        return "Starter", kind + (", unterbricht auch" if opp_quick else "")
+    if monster and (self_summon or reveal or hand_summon):
+        return "Extender", "kommt selbst oder holt einen Körper aufs Feld" + (
+            "; unterbricht auch (Quick Effect)" if opp_quick else "")
+    if spell and hand_summon:
+        return "Extender", "beschwört einen Körper von der Hand"
+    if (trap or quickplay) and _INTERRUPT.search(head):
+        return "Interrupt", "Falle/Schnellzauber gegen den Gegner"
+    if monster and opp_quick:
+        return "Interrupt", "Quick Effect gegen den Gegner"
+    if monster and level >= 5 and not self_summon:
+        if re.search(r"banish this card from your (gy|graveyard)|if this card is in your (gy|graveyard)|"
+                     r"if this card is (sent|discarded) (from your hand )?to the (gy|graveyard)", head):
+            return "Engine", "wirkt aus dem Friedhof (taugt als Abwurf/Kosten)"
+        return "Brick", "Stufe 5+ ohne eigene Beschwörung"
+    return "Engine", ""
+
+
+def text_role(card):
+    """Role from the card text (and kartenrollen_manuell.json)."""
+    return classify(card)[0]
 
 
 # --------------------------------------------------------------------------------------------------------
@@ -162,12 +270,13 @@ def _num(row, key, default=0.0):
 
 def learned_role(code, card, know):
     """(role, source, reason, exchangeable, core) for one card."""
-    base = text_role(card)
+    base, text_reason = classify(card)
+    source = "manuell" if text_reason == "von dir festgelegt" else "Kartentext"
     if base == "Extra Deck" or not know:
-        return base, "Kartentext", "", False, False
+        return base, source, text_reason, False, False
     row = know["rows"].get(code)
     if not row:
-        return base, "Kartentext", "nicht im trainierten Deck", False, False
+        return base, source, text_reason, False, False
     used = _num(row, "spiele_mit_einsatz")
     uses = _num(row, "einsaetze_gesamt")
     chained = _num(row, "gekettet_im_gegnerzug")
@@ -177,25 +286,30 @@ def learned_role(code, card, know):
     dead = _num(row, "tot_auf_der_hand")
     diff = _num(row, "differenz_zur_gesamtquote")
     priority = _num(row, "prioritaet")
-    role, reason = base, ""
-    if chained >= 3 and chained >= 0.5 * max(uses, 1):
-        role, reason = "Handtrap", f"{int(chained)}× im Zug des Gegners gekettet"
-    elif opened >= 3 and opened >= 0.5 * (opened + max(extends, 0)):
-        role, reason = "Starter", f"eröffnet {opened / (opened + max(extends, 0)):.0%} der Züge, in denen sie gespielt wird"
-    elif know["combo_starters"].get(code, 0) >= 3 and base != "Handtrap":
-        role, reason = "Starter", "startet erkannte Kombos"
-    elif extends >= 3 and extends >= 0.6 * (extends + max(opened, 0)):
-        role, reason = "Extender", f"kommt in {extends / (extends + max(opened, 0)):.0%} ihrer Züge mitten in einer Kombo"
-    exchangeable = in_hand >= 5 and (dead / in_hand >= 0.6 or (diff <= -0.05 and priority < 0))
+    role, reason = base, text_reason
+    if base in ("Engine", "Brick") and source != "manuell":
+        # Nur Karten ohne klare Rolle im Kartentext lernen ihre Rolle aus dem Training.
+        if opened >= 3 and opened >= 0.5 * (opened + max(extends, 0)):
+            role, reason = "Starter", f"eröffnet {opened / (opened + max(extends, 0)):.0%} der Züge, in denen sie gespielt wird"
+        elif know["combo_starters"].get(code, 0) >= 3:
+            role, reason = "Starter", "startet erkannte Kombos"
+        elif extends >= 3 and extends >= 0.6 * (extends + max(opened, 0)):
+            role, reason = "Extender", f"kommt in {extends / (extends + max(opened, 0)):.0%} ihrer Züge mitten in einer Kombo"
+        elif in_hand >= 5 and dead / in_hand >= 0.6:
+            role, reason = "Brick", f"{int(dead)} von {int(in_hand)} Starthänden ungenutzt"
+    if base == "Handtrap" and chained:
+        reason = (reason + "; " if reason else "") + f"{int(chained)}× im Zug des Gegners gekettet"
+    reactive = role in ("Handtrap", "Interrupt", "Boardbreaker")   # liegen beim Anfangen oft "tot" auf der Hand
+    exchangeable = in_hand >= 5 and ((not reactive and dead / in_hand >= 0.6) or (diff <= -0.05 and priority < 0))
     core = not exchangeable and in_hand >= 5 and diff >= 0.02 and priority > 0
     if exchangeable:
         why = []
-        if dead / max(in_hand, 1) >= 0.6:
+        if not reactive and dead / max(in_hand, 1) >= 0.6:
             why.append(f"{int(dead)} von {int(in_hand)} Starthänden ungenutzt")
         if diff <= -0.05:
             why.append(f"Siegquote mit der Karte {diff:+.0%} unter dem Schnitt")
         reason = (reason + "; " if reason else "") + ", ".join(why)
-    return role, "gelernt", reason, exchangeable, core
+    return role, (source if role == base else "gelernt"), reason, exchangeable, core
 
 
 def roles_for(main_codes, extra_codes, cards):
@@ -235,7 +349,8 @@ def suggestions(main_codes, extra_codes, cards, limits, default_limit, locked, c
     target_ext = (max(4, round(size * 0.12)), max(8, round(size * 0.25)))
     out = [f"Verteilung ({'aus Training ' + info['source'] if info['source'] else 'nach Kartentext'}): "
            f"{starters} Starter, {by_role['Extender']} Extender, {by_role['Handtrap']} Handtraps, "
-           f"{by_role['Sonstige']} Sonstige bei {size} Karten. Chance auf mindestens einen Starter: "
+           f"{by_role['Interrupt']} Interrupts, {by_role['Boardbreaker']} Boardbreaker, {by_role['Brick']} Bricks, "
+           f"{by_role['Engine']} Engine bei {size} Karten. Chance auf mindestens einen Starter: "
            f"{_pct(at_least_one(starters, size, 5))} mit 5 Karten, {_pct(at_least_one(starters, size, 6))} mit 6. "
            f"Gesund sind etwa {need}+ Starter (85 % mit 5 Karten), {target_ext[0]}–{target_ext[1]} Extender und "
            f"{target_hand[0]}–{target_hand[1]} Handtraps."]
@@ -250,7 +365,7 @@ def suggestions(main_codes, extra_codes, cards, limits, default_limit, locked, c
                       key=lambda code: roles[str(code)]["role"] in ("Starter", "Handtrap"))
     cuts = [cards.get(code).name for code in exchange if cards.get(code)]
     cut_text = (f" Platz dafür: {', '.join(cuts[:3])} (laut Training austauschbar)." if cuts else
-                " Tausche dafür eine Karte der Rolle „Sonstige“ aus.")
+                " Tausche dafür einen Brick oder eine Engine-Karte aus, die du selten brauchst.")
 
     # Starter and extender maxing.
     for role, low in (("Starter", need), ("Extender", target_ext[0])):

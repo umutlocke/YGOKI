@@ -18,6 +18,19 @@ from ygo_agent.core.constants import (
     SCOPE_OCG, SCOPE_PRERELEASE, SCOPE_TCG, TYPE_EFFECT, TYPE_PENDULUM, TYPE_SKILL, TYPE_SPELL, TYPE_TRAP,
 )
 from duel_formats import select_format
+import tcg_status  # noqa: E402
+
+# Project Ignis führt manche Karten noch als "nur OCG", obwohl sie im TCG erschienen sind. Jede geladene
+# Kartendatenbank bekommt deshalb die TCG-Freigaben aus work/tcg_freigaben.json (siehe tcg_status.py).
+if not getattr(CardDatabase, "_ygoki_tcg", False):
+    _card_database_init = CardDatabase.__init__
+
+    def _card_database_with_tcg(self, paths):
+        _card_database_init(self, paths)
+        tcg_status.apply(self)
+
+    CardDatabase.__init__ = _card_database_with_tcg
+    CardDatabase._ygoki_tcg = True
 
 # Omega artwork alias and PHNX print passcodes mapped to the IDs in this snapshot.
 PASSCODE_ALIASES = {

@@ -304,3 +304,54 @@ def solver_status(deck_path):
         info.update(state="fehler", message="Der Solver wurde abgebrochen. " + (last[0] if last else ""))
     return info
 
+
+
+# -- Deck-Optimierung --------------------------------------------------------------------------------------
+OPTIMIZE = WORK / "deckoptimierung"
+
+
+def optimize_start(deck_path, data):
+    deck_path = Path(deck_path).resolve()
+    if not deck_path.is_file():
+        raise ValueError("Deckdatei nicht gefunden.")
+    if optimize_status(deck_path).get("running"):
+        raise ValueError("Für dieses Deck läuft die Optimierung bereits.")
+    rounds = int(data.get("rounds", 6))
+    if not 1 <= rounds <= 30:
+        raise ValueError("Runden: bitte eine Zahl zwischen 1 und 30.")
+    OPTIMIZE.mkdir(parents=True, exist_ok=True)
+    folder = OPTIMIZE / f"{deck_path.stem}-{datetime.now():%Y%m%d-%H%M%S}"
+    folder.mkdir()
+    args = [str(PYTHON), "-B", "-X", "utf8", str(WORK / "deck_optimierung.py"), "--deck", str(deck_path),
+            "--runden", str(rounds), "--out", str(folder)]
+    for name in data.get("candidates") or []:
+        args += ["--kandidat", str(name)]
+    return _launch(args, folder, "Optimierung.log")
+
+
+def optimize_status(deck_path):
+    """Latest optimization of a deck: progress, accepted swaps and the report."""
+    stem = Path(deck_path).stem
+    folders = sorted((f for f in OPTIMIZE.glob(f"{stem}-*") if f.is_dir() and f.name[len(stem) + 1:][:1].isdigit()),
+                     key=lambda f: f.name) if OPTIMIZE.exists() else []
+    if not folders:
+        return {"state": "keiner", "message": "Noch keine Optimierung für dieses Deck."}
+    folder = folders[-1]
+    pid = int((folder / "pid.txt").read_text(encoding="utf-8").strip() or 0) if (folder / "pid.txt").exists() else 0
+    record = _read(folder / "Ergebnis.json") or {}
+    report = folder / "Bericht.md"
+    info = {"folder": str(folder), "report": str(report) if report.exists() else None,
+            "proposal": str(folder / "Vorschlag.ydk") if (folder / "Vorschlag.ydk").exists() else None,
+            "running": False}
+    changes = record.get("aenderungen") or []
+    swaps = "; ".join(f"{c['raus']} → {c['rein']}" for c in changes) or "keine"
+    if record.get("fertig"):
+        info.update(state="fertig", message=f"Fertig: {len(changes)} Tausch(e) empfohlen ({swaps}).")
+    elif _alive(pid):
+        last = (record.get("log") or (_read(folder / "Status.json") or {}).get("log") or ["startet …"])[-1]
+        info.update(state="läuft", running=True, message=f"Läuft · bisher übernommen: {swaps} · {last}")
+    else:
+        log = folder / "Optimierung.log"
+        last = log.read_text(encoding="utf-8", errors="replace").strip().splitlines()[-1:] if log.exists() else []
+        info.update(state="fehler", message="Die Optimierung wurde abgebrochen. " + (last[0] if last else ""))
+    return info

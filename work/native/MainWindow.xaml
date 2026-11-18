@@ -368,6 +368,12 @@
               <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Margin="0,0,0,5">
                 <ItemsControl x:Name="WatchTopHand" ItemTemplate="{StaticResource WatchHandCard}" ItemsPanel="{StaticResource HandSlots}"/>
               </ScrollViewer>
+              <!-- Was gerade passiert (Beschwörung, Aktivierung, Angriff ...), mit kurzer Einblendung -->
+              <Border x:Name="WatchActionBar" CornerRadius="5" Padding="10,5" Margin="0,4,0,2" Background="#1B2335"
+                      BorderBrush="{StaticResource Line}" BorderThickness="1">
+                <TextBlock x:Name="WatchAction" Text="Noch keine Aktion" FontSize="14" FontWeight="SemiBold"
+                           TextWrapping="Wrap" Foreground="{StaticResource Muted}"/>
+              </Border>
               <!-- Spielfeld nach Master Rule: wird in SpectatorView.cs aufgebaut (BuildField) -->
               <Grid x:Name="WatchField" Margin="0,2,0,2"/>
               <WrapPanel Margin="0,7,0,5">
@@ -439,6 +445,18 @@
             <WrapPanel>
               <Button x:Name="SolverStart" Content="Solver starten"/>
               <Button x:Name="SolverOpen" Content="Linien öffnen" IsEnabled="False"/>
+            </WrapPanel>
+            <TextBlock Text="Deck-Optimierung" Style="{StaticResource SectionTitle}" Margin="0,22,0,6"/>
+            <TextBlock Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,6" LineHeight="19"
+                       Text="Die KI testet Kartentausche (z. B. Brick raus, passender Starter rein) erst im Combo-Solver und dann in Duellen gegen den Gauntlet. Messbar bessere Tausche übernimmt sie und sucht weiter, bis nichts mehr hilft. Dein Deck bleibt unverändert; du bekommst einen Bericht mit Begründungen und eine Vorschlagsliste."/>
+            <TextBlock Text="Höchstens so viele Tausche" Style="{StaticResource LabelText}"/>
+            <TextBox x:Name="OptimizeRounds" Text="6" Margin="0,0,0,6" AutomationProperties.Name="Höchstzahl der Tausche"/>
+            <TextBlock Text="Karten, die getestet werden sollen (optional, mit ; getrennt)" Style="{StaticResource LabelText}"/>
+            <TextBox x:Name="OptimizeCandidates" Text="" Margin="0,0,0,6" AutomationProperties.Name="Eigene Kartenvorschläge"/>
+            <TextBlock x:Name="OptimizeState" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,6"/>
+            <WrapPanel>
+              <Button x:Name="OptimizeStart" Content="Optimierung starten"/>
+              <Button x:Name="OptimizeOpen" Content="Bericht öffnen" IsEnabled="False"/>
             </WrapPanel>
             <TextBlock Text="Warteschlange" Style="{StaticResource SectionTitle}" Margin="0,22,0,6"/>
             <TextBlock x:Name="QueueState" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,6"

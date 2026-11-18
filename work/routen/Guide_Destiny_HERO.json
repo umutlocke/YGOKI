@@ -1,0 +1,113 @@
+{
+ "deck": "Destiny HERO",
+ "quelle": "Master-Guide 2026 (Umut, 18.11.2026), von Claude gegen Kartentexte geprüft",
+ "routes": [
+  {
+   "name": "Guide · Faris + Malicious → Destroyer Phoenix Enforcer",
+   "priority": 2,
+   "goal": "Destroyer Phoenix Enforcer + Cross Crusader, Plasma/Denier im Zugriff",
+   "quelle": "Master-Guide 2026 (Umut, 18.11.2026), von Claude gegen Kartentexte geprüft",
+   "hand": [
+    18094166,
+    9411399
+   ],
+   "steps": [
+    {
+     "code": 18094166,
+     "do": "E",
+     "note": "Faris beschwört sich, wirft Malicious ab (Guide: beliebiger HERO – Malicious nötig für Cross Crusader)",
+     "cost": [
+      9411399
+     ]
+    },
+    {
+     "code": 18094166,
+     "do": "E",
+     "note": "Faris legt Increase in die Z/F-Zone",
+     "pick": [
+      22865492
+     ]
+    },
+    {
+     "code": 22865492,
+     "do": "E",
+     "note": "Increase tributet Faris und beschwört sich",
+     "cost": [
+      18094166
+     ]
+    },
+    {
+     "code": 22865492,
+     "do": "E",
+     "note": "Increase beschwört Vyon aus dem Deck",
+     "pick": [
+      27780618
+     ]
+    },
+    {
+     "code": 27780618,
+     "do": "E",
+     "note": "Vyon sendet Shadow Mist (Senden = Kosten-Auswahl)",
+     "cost": [
+      50720316
+     ]
+    },
+    {
+     "code": 50720316,
+     "do": "E",
+     "note": "Shadow Mist sucht Denier",
+     "pick": [
+      16605586
+     ],
+     "optional": true
+    },
+    {
+     "code": 27780618,
+     "do": "E",
+     "note": "Vyon verbannt Faris, sucht Polymerization",
+     "cost": [
+      18094166
+     ],
+     "pick": [
+      27847700
+     ]
+    },
+    {
+     "code": 58004362,
+     "do": "S",
+     "note": "Cross Crusader aus Increase + Vyon",
+     "cost": [
+      22865492,
+      27780618
+     ]
+    },
+    {
+     "code": 58004362,
+     "do": "E",
+     "note": "Cross Crusader belebt Malicious",
+     "pick": [
+      9411399
+     ]
+    },
+    {
+     "code": 16605586,
+     "do": "N",
+     "note": "Denier normal",
+     "optional": true
+    },
+    {
+     "code": 27847700,
+     "do": "E",
+     "note": "Poly: Malicious + Denier → Destroyer Phoenix Enforcer",
+     "pick": [
+      60461804
+     ],
+     "cost": [
+      9411399,
+      16605586
+     ]
+    }
+   ]
+  }
+ ]
+}

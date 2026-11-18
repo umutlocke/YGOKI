@@ -135,6 +135,26 @@ Jeder Schritt nennt die Karte (`code`), die Art (`do`: `N` Normal, `S` Spezial, 
 
 Wie oft jede Route begonnen und bis zum Endboard gespielt wurde, steht im Bericht und in Obsidian unter **Geschriebene Routen**. Eine niedrige Quote heißt meist: Der Gegner hat unterbrochen (Ash, Imperm), oder die Hand passte nicht. Neue Routen legst du als weitere JSON-Datei in `work\routen` ab. Die Prüfung übernimmt Routen aus dem Projekt nur, wenn sie neuer sind als die im App-Ordner.
 
+## Kartenrollen
+
+Jede Karte im Main Deck bekommt eine Rolle:
+
+| Rolle | Bedeutung |
+|---|---|
+| Starter | eröffnet den Zug allein (1 Karte) oder mit einer Kosten-/Abwurfkarte (1,5) |
+| Extender | Körper, die gratis oder billig aufs Feld kommen |
+| Handtrap | wird im Zug des Gegners von der Hand eingesetzt |
+| Interrupt | unterbricht vom Feld aus (Fallen, Schnellzauber, Quick Effects), z. B. Silhouhatte Trick |
+| Boardbreaker | räumt ein fertiges Board ab, z. B. Super Polymerization, Harpie's Feather Duster |
+| Brick | Engine-Karte, die allein auf der Hand nichts tut |
+| Engine | Teil des Decks ohne eigene Eröffnung oder Unterbrechung |
+
+Die Rolle kommt zuerst aus deiner eigenen Liste `work\kartenrollen_manuell.json` (im App-Ordner), dann aus dem Kartentext. Trainingsdaten dürfen nur Karten ohne klare Rolle (Engine/Brick) nachschärfen, eine Handtrap bleibt also immer Handtrap. Liegt die Erkennung bei einer Karte daneben, trag sie in die eigene Liste ein, z. B. `"karten": {"101403078": "Engine"}`. Die Datei wird bei der Prüfung nicht überschrieben.
+
+## TCG-Status der Karten
+
+Project Ignis führt manche Karten noch als „nur OCG“, obwohl sie längst im TCG erschienen sind (z. B. die Destiny HEROs aus Beyond the Brave). `work\tcg_freigaben.json` korrigiert das: Jede Karte dort gilt ab ihrem TCG-Termin überall als TCG-legal, im Deckeditor, in der TCG-Prüfung, im Training und in Turnieren. Das wöchentliche Kartenupdate (`outputs\Kartenupdate.ps1`) fragt dazu für alle Karten deiner Decks, die noch als OCG geführt werden, YGOPRODeck nach dem TCG-Termin. Von Hand geht es mit `python work\tcg_status.py` (braucht Internet). Ohne Internet bleibt einfach die letzte Liste gültig.
+
 ## Combos aus Videos und Guides übernehmen
 
 Für öffentliche Webseiten mit lesbarem Text kann die **Web-Analyse** oben die ersten beiden Schritte übernehmen. Transkripte, PDFs und Seiten hinter einer Anmeldung liest sie nicht; dafür bleibt der manuelle Weg:
@@ -169,6 +189,33 @@ Jedes Duell, das du in der App anschaust, wird unter `work\zuschauen\<Datum>-<De
 - `Ergebnis.json`: Decks, Strategien, Seed und Sieger
 
 Brichst du das Zuschauen ab, bleibt der Verlauf bis dahin gespeichert, nur ohne Replay. Für einen Claude-Review reicht es, mir den Ordnernamen zu nennen.
+
+## Kartenwissen (ganze Kartendatenbank)
+
+Beim Kartenupdate und im Selbsttest zerlegt YGOKI jede Karte der Datenbank nach PSCT: Bedingung vor dem Doppelpunkt, Kosten/Ziel zwischen ":" und ";", Auflösung nach ";", dazu Art des Effekts (Quick, Trigger, Ignition …), Zone, Timing-Wörter ("then", "and if you do", "also"), harte oder weiche Einmal-pro-Zug-Klauseln und die Warnung, wenn ein optionaler "When …: You can"-Effekt das Timing verpassen kann. Das Ergebnis wird mit dem Lua-Skript der Karte abgeglichen.
+
+- `work/kartenwissen/Pruefung.md` – alle Befunde (z. B. Tippfehler, fehlendes Anführungszeichen, Text und Skript passen nicht zusammen). Befunde sind Hinweise, kein Urteil.
+- `work/kartenwissen/Decks/<Deck>.md` – das Kartenwissen pro Deck.
+- Der Coach (Qwen) bekommt pro Karte eine kurze Effekt-Zusammenfassung im Feld `effekte`.
+- Der Obsidian-Export legt `YGOKI/Kartenwissen/` mit Prüfbericht und einer Notiz pro Deck an.
+
+## Animationen beim Zuschauen
+
+Beschwörungen, Aktivierungen, Setzen, Angriffe und Zerstörungen leuchten auf dem Spielfeld kurz in der betroffenen Zone auf (Farbe je nach Aktion). Über dem Feld steht in einer Zeile, was gerade passiert ist, z. B. „Spezialbeschwörung · …“ oder „Aktiviert … von der Hand“.
+
+## Deck-Optimierung (die KI verbessert die Liste)
+
+Im Training-Tab unter „Deck-Optimierung“ (oder mit `outputs/Deck-Optimierung.cmd --deck "..\work\decks\<Deck>.ydk"`) testet die KI Kartentausche, bis keiner mehr hilft:
+
+1. **Raus-Kandidaten:** Bricks, laut Training austauschbare Karten, dritte Kopien von Engine-Karten ohne eigene Eröffnung, überzählige Handtraps. Karten, die eine Route braucht, bleiben mindestens einmal drin.
+2. **Rein-Kandidaten:** weitere Kopien eigener Starter/Extender, passende Archetyp-Karten aus der Kartendatenbank (im Format legal), bewährte Handtraps/Boardbreaker und deine eigenen Vorschläge.
+3. **Vorauswahl:** Der Combo-Solver spielt dieselben Starthände mit Original und Variante (Ø-Board im ersten Zug).
+4. **Duelle:** Die besten Tausche spielen gepaarte Duelle gegen den Gauntlet (gleiche Seeds, beide Startpositionen).
+5. Ein Tausch wird nur übernommen, wenn er messbar besser ist (Siegquote mindestens +3 Prozentpunkte ohne deutlichen Ausreißer nach unten, oder gleiche Siegquote bei deutlich besserem Board). Dann beginnt die nächste Runde mit der neuen Liste. Findet eine Runde nichts Besseres, gilt das Deck für diese Suche als „perfektioniert“.
+
+Ergebnis in `work/deckoptimierung/<Deck>-<Zeit>/`: `Bericht.md` (jeder Tausch mit Begründung: warum die Karte raus soll, was die neue Karte laut Kartentext tut, und die Messwerte) und `Vorschlag.ydk`. **Dein Deck wird nie überschrieben** – übernimm den Vorschlag im Deckeditor, wenn er dich überzeugt.
+
+Das Nachttraining kann danach automatisch optimieren: `KI-Nachttraining.cmd --optimieren 0.35` nutzt 35 % der Zeit pro Deck für die Optimierung (Standard im Skript).
 
 ## Grenzen
 
