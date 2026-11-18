@@ -45,7 +45,7 @@ namespace YgoKi
     {
         private readonly DispatcherTimer trainTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         private bool trainPolling, trainVisible;
-        private string trainFolder;
+        private string trainFolder, solverLines;
         private int qwenTicks;
 
         private void SetupTraining()
@@ -92,6 +92,9 @@ namespace YgoKi
             OnClickAsync("TrainResume", () => TrainingAction("train_resume"));
             OnClick("TrainReport", () => OpenPath(SelectedRunValue("report")));
             OnClick("TrainFolder", () => OpenPath(trainFolder));
+            OnClickAsync("SolverStart", StartSolver);
+            OnClick("SolverOpen", () => OpenPath(solverLines));
+            Combo("TrainDeck").SelectionChanged += async delegate { await Guard(RefreshSolver); };
             Find<ListBox>("TrainRuns").SelectionChanged += async delegate
             {
                 var run = Find<ListBox>("TrainRuns").SelectedItem as TrainingRun;
@@ -119,6 +122,7 @@ namespace YgoKi
             await Guard(RefreshQwen);
             await Guard(LoadRuns);
             await Guard(RefreshQueue);
+            await Guard(RefreshSolver);
             await Guard(async () =>
             {
                 if (String.IsNullOrEmpty(Field("ObsidianVault").Text))
@@ -132,6 +136,7 @@ namespace YgoKi
             await PollTraining();
             await RefreshQueue();
             if (++qwenTicks % 5 == 0) await RefreshQwen();
+            if (qwenTicks % 3 == 0) await RefreshSolver();
         }
 
         private async Task RefreshQwen()
@@ -233,6 +238,29 @@ namespace YgoKi
             trainFolder = started.Text("folder");
             Status("Training für " + deck.Name + " gestartet. Es läuft auch weiter, wenn du die App schließt.");
             await LoadRuns();
+        }
+
+        private async Task StartSolver()
+        {
+            var deck = Combo("TrainDeck").SelectedItem as DeckRef;
+            int hands;
+            if (deck == null) throw new InvalidOperationException("Bitte ein Deck wählen.");
+            if (!Int32.TryParse(Field("SolverHands").Text, out hands) || hands < 1 || hands > 500)
+                throw new InvalidOperationException("Starthände: bitte eine Zahl zwischen 1 und 500.");
+            await bridge.Call("solver_start", Json.Fields("deck", deck.Data, "hands", hands));
+            Status("Combo-Solver für " + deck.Name + " gestartet. Er läuft auch weiter, wenn du die App schließt.");
+            await RefreshSolver();
+        }
+
+        private async Task RefreshSolver()
+        {
+            var deck = Combo("TrainDeck").SelectedItem as DeckRef;
+            if (deck == null) return;
+            var value = Json.Object(await bridge.Call("solver_status", Json.Fields("deck", deck.Data)));
+            Find<TextBlock>("SolverState").Text = value.Text("message") ?? "";
+            solverLines = value.Text("lines");
+            Button("SolverOpen").IsEnabled = solverLines != null;
+            Button("SolverStart").IsEnabled = !(value.Get("running") is bool && (bool)value.Get("running"));
         }
 
         private async Task TrainingAction(string method)

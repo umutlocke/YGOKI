@@ -48,6 +48,10 @@ def dispatch(editor, action, data):
         return training_jobs.tournament_start(field, data)
     if action == "ycs_runs":
         return training_jobs.runs(training_jobs.TOURNAMENTS)
+    if action == "solver_start":
+        return training_jobs.solver_start(editor.deck_path(data["deck"]["source"], data["deck"]["name"]), data)
+    if action == "solver_status":
+        return training_jobs.solver_status(editor.deck_path(data["deck"]["source"], data["deck"]["name"]))
     if action == "deck_trained":
         info = training_jobs.trained(editor.deck_path(data["source"], data["name"]))
         return {"rating": info and info["rating"], "released": bool(info and info["released"])}

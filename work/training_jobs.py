@@ -108,8 +108,8 @@ def resume(folder):
     return _launch(args, folder)
 
 
-def _launch(args, folder):
-    log = (folder / "Training.log").open("ab")
+def _launch(args, folder, log_name="Training.log"):
+    log = (folder / log_name).open("ab")
     env = {**os.environ, "XDG_CACHE_HOME": str(WORK / "cache")}
     process = subprocess.Popen(args, cwd=str(WORK.parent), stdout=log, stderr=subprocess.STDOUT,
                                stdin=subprocess.DEVNULL, env=env, creationflags=NO_WINDOW | DETACHED)
@@ -185,3 +185,54 @@ def trained(deck_path):
     _, inspected = load_deck(Path(deck_path))
     _, info = best_playbook(sha256(inspected.normalized.encode("utf-8")).hexdigest())
     return info
+
+
+# -- Combo-Solver ------------------------------------------------------------------------------------------
+SOLVER = WORK / "solver"
+
+
+def solver_start(deck_path, data):
+    deck_path = Path(deck_path).resolve()
+    if not deck_path.is_file():
+        raise ValueError("Deckdatei nicht gefunden.")
+    current = solver_status(deck_path)
+    if current.get("running"):
+        raise ValueError("Für dieses Deck läuft der Solver bereits.")
+    hands = int(data.get("hands", 30))
+    if not 1 <= hands <= 500:
+        raise ValueError("Starthände: bitte eine Zahl zwischen 1 und 500.")
+    SOLVER.mkdir(parents=True, exist_ok=True)
+    folder = SOLVER / f"{deck_path.stem}-{datetime.now():%Y%m%d-%H%M%S}"
+    folder.mkdir()
+    args = [str(PYTHON), "-B", "-X", "utf8", str(WORK / "combo_solver.py"), "--deck", str(deck_path),
+            "--hands", str(hands), "--rollouts", str(int(data.get("rollouts", 400))), "--out", str(folder)]
+    return _launch(args, folder, "Solver.log")
+
+
+def solver_status(deck_path):
+    """Latest solver run for a deck: progress, summary and the readable lines file."""
+    stem = Path(deck_path).stem
+    folders = sorted((f for f in SOLVER.glob(f"{stem}-*") if f.is_dir() and f.name[len(stem) + 1:][:1].isdigit()),
+                     key=lambda f: f.name) if SOLVER.exists() else []
+    if not folders:
+        return {"state": "keiner", "message": "Noch kein Solver-Lauf für dieses Deck."}
+    folder = folders[-1]
+    pid = int((folder / "pid.txt").read_text(encoding="utf-8").strip() or 0) if (folder / "pid.txt").exists() else 0
+    progress = _read(folder / "Status.json") or {}
+    record = _read(folder / "Ergebnis.json")
+    lines = folder / "Linien.md"
+    info = {"folder": str(folder), "lines": str(lines) if lines.exists() else None, "running": False}
+    if record and record.get("summary"):
+        summary = record["summary"]
+        info.update(state="fertig", message=(
+            f"Fertig: {len(record['hands'])} Starthände, Board im Schnitt {summary['base']:.1f} → "
+            f"{summary['best']:.1f}, bessere Linie bei {summary['improved_hands']} Händen."))
+    elif _alive(pid):
+        info.update(state="läuft", running=True, message=(
+            f"Läuft: {progress.get('done', 0)} von {progress.get('total', '?')} Starthänden fertig."))
+    else:
+        log = folder / "Solver.log"
+        last = log.read_text(encoding="utf-8", errors="replace").strip().splitlines()[-1:] if log.exists() else []
+        info.update(state="fehler", message="Der Solver wurde abgebrochen. " + (last[0] if last else ""))
+    return info
+

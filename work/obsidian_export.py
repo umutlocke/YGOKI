@@ -21,6 +21,9 @@ from pathlib import Path
 import re
 import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bewertung import gauntlet_lines, route_lines  # noqa: E402
+
 WORK = Path(__file__).resolve().parent
 APP = WORK.parent
 SETTINGS = WORK / "einstellungen.json"
@@ -231,15 +234,20 @@ def training_note(export, folder, record):
              f"{record.get('valid', 0)} gültige Duelle in {record.get('generation', 0)} Generationen "
              f"mit {record.get('players')} Spieler-KIs", "",
              export.image(f"{name} Elo", elo), "", export.image(f"{name} Noten", ratings), "",
-             "## Prüfrunden", "", "| Runde | Generation | Note | Stärke | Fortschritt | Zweitzug | Integrität | Judges | Zuschauer |",
-             "|---|---|---|---|---|---|---|---|---|"]
+             "## Prüfrunden", "",
+             "| Runde | Generation | Note | Gauntlet | Stärke | Fortschritt | Zweitzug | Integrität | Judges | Zuschauer |",
+             "|---|---|---|---|---|---|---|---|---|---|"]
     for exam in exams:
         parts = exam["parts"]
         grades = [r["note"] for r in exam.get("reviewers", [])]
-        lines.append(f"| {exam['round']} | {exam['generation']} | **{exam['rating']:.1f}** | {parts['staerke']:.1f} | "
+        field = f"{parts['gauntlet']:.1f}" if parts.get("gauntlet") is not None else "vorläufig"
+        lines.append(f"| {exam['round']} | {exam['generation']} | **{exam['rating']:.1f}** | {field} | {parts['staerke']:.1f} | "
                      f"{parts['fortschritt']:.1f} | {parts['zweitzug']:.1f} | {parts['integritaet']:.0f} | "
                      f"{'ohne Befund' if exam['judge']['clear'] else 'Befund'} | "
                      f"{sorted(grades)[len(grades) // 2] if grades else '–'} |")
+    if exams:
+        lines += ["", "## Gegen wen gemessen wurde", "", *gauntlet_lines(exams[-1]), ""]
+        lines += route_lines(exams[-1])
     if exams and exams[-1].get("reviewers"):
         lines += ["", "## Zuschauer-Reviewer (letzte Prüfrunde)", ""]
         lines += [f"> [!note] {r['role']} · {r['note']}/10\n> {r['kommentar']}\n" for r in exams[-1]["reviewers"]]
@@ -381,6 +389,20 @@ def _deck_feedback(item, deck):
     return feedback, sentences
 
 
+def solver_runs(deck):
+    """Finished combo-solver runs of a deck (oldest first)."""
+    found = []
+    root = WORK / "solver"
+    for path in sorted(root.glob("*/Ergebnis.json")) if root.exists() else []:
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if record.get("deck") == deck and record.get("summary"):
+            found.append((path.parent, record))
+    return sorted(found, key=lambda item: item[1].get("started", ""))
+
+
 def deck_notes(export, trainings, tournaments):
     by_deck = defaultdict(list)
     for item in trainings:
@@ -458,6 +480,42 @@ def deck_notes(export, trainings, tournaments):
                     lines.append(f"- **{title}:** " + ", ".join(groups[role]))
             lines += ["", "Im Deckeditor der App stehen dieselben Rollen in der Spalte „Rolle“, die Vorschläge unter "
                       "„Deck verbessern“.", ""]
+
+        # -- combo solver (work/solver) ---------------------------------------------------------------------
+        solved = solver_runs(deck)
+        if solved:
+            folder, record = solved[-1]
+            solver_summary = record["summary"]
+            lines += ["## Combo-Solver (erster Zug)", "",
+                      f"Letzter Lauf {record.get('started', '')[:16].replace('T', ' ')}: {len(record['hands'])} "
+                      f"Starthände. Board im Schnitt **{solver_summary['base']:.1f}** (Playbook) → "
+                      f"**{solver_summary['best']:.1f}** (Solver), bessere Linie bei "
+                      f"{solver_summary['improved_hands']} Händen.", ""]
+            top = sorted(record["hands"], key=lambda h: -h["score"])[:3]
+            for hand in top:
+                label = lambda code: names.get(code, str(code))  # noqa: E731
+                steps = [d["label"] for d in hand["line"] if d["label"] not in ("nicht ketten", "Standard", "Nein")]
+                lines += [f"- **{', '.join(label(c) for c in hand['hand'])}** → Board {hand['score']:.1f} "
+                          f"({hand['details']['interruptions']} Unterbrechungen)",
+                          "  - " + " → ".join(steps[:14]) + (" …" if len(steps) > 14 else "")]
+            lines += ["", f"- [Alle Linien öffnen]({(folder / 'Linien.md').as_uri()})", ""]
+
+        # -- written routes (work/routen) ------------------------------------------------------------------
+        if champion:
+            import routen
+            deck_routes = routen.for_codes(int(k) for k in champion["weights"])
+            if deck_routes:
+                label = lambda code: names.get(code, str(code))  # noqa: E731
+                lines += ["## Geschriebene Routen", "",
+                          "Feste Eröffnungen aus `work/routen/`. Die KIs bevorzugen sie stark und wählen bei Suchen "
+                          "und Beschwörungen die dort genannten Karten; was danach kommt, lernen sie selbst.", ""]
+                for route in deck_routes:
+                    lines.append(f"- **{route['name']}**" + (f" · Ziel: {route['goal']}" if route.get("goal") else ""))
+                    lines.append(f"  - {routen.describe(route, label)}")
+                exams = best_run["record"].get("exams") or []
+                if exams and exams[-1].get("routes"):
+                    lines += [""] + route_lines(exams[-1])[2:]
+                lines.append("")
 
         # -- combo memory ---------------------------------------------------------------------------------
         keys = {r["record"].get("deck_key") for r in runs if r["record"].get("deck_key")}

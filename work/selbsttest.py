@@ -78,7 +78,7 @@ def training():
     command = [sys.executable, "-B", "-X", "utf8", str(WORK / "ki_lernen.py"), "--deck", str(deck),
                "--players", "32", "--min-duels", "64", "--max-generations", "2", "--exam-every", "2",
                "--exam-blocks", "3", "--playoff-blocks", "2", "--workers", "2", "--seed", "11",
-               "--ohne-qwen", "--run-dir", str(folder)]
+               "--gauntlet", "1", "--ohne-qwen", "--run-dir", str(folder)]
     result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace",
                             timeout=1500)
     if result.returncode:
@@ -89,7 +89,9 @@ def training():
         raise ValueError("Bericht.html fehlt.")
     if not exam["judge"]["clear"]:
         raise ValueError(f"Judges melden Befunde: {exam['judge']}")
-    return (f"{record['valid']} Duelle, Note {exam['rating']:.1f}/10 (Kurztest), "
+    field = (f"Gauntlet gegen {', '.join(g['name'] for g in record.get('gauntlet', []))}"
+             if record.get("gauntlet") else "noch kein anderes Deck trainiert (Note vorläufig)")
+    return (f"{record['valid']} Duelle, Note {exam['rating']:.1f}/10 (Kurztest), {field}, "
             f"{exam['judge']['headjudge_reproduced']} Replays exakt nachgespielt, Prozesse parallel")
 
 
@@ -110,6 +112,21 @@ def tournament():
         raise ValueError("Kein Sieger oder kein Bericht.")
     return (f"{record['matches']} Bo3-Matches, {record['duels']} Duelle in {record['seconds']} s, "
             f"meiste Top-Cut-Plätze: {record['decks'][0]['deck'] if record['decks'] else '-'}, {record['invalid']} Engine-Befunde")
+
+
+def solver():
+    """Combo-Solver on one hand of the first deck, in this process (no pool)."""
+    import combo_solver
+    from playbook import Playbook
+    deck_path = sorted((WORK / "decks").glob("*.ydk"))[0]
+    combo_solver._init_worker(str(deck_path))
+    deck = combo_solver._DECK
+    book = Playbook.neutral(sorted(set(deck.main + deck.extra))).to_json()
+    result = combo_solver.solve((book, 12345, None, 40, 60))
+    if result["score"] + 1e-9 < result["base_score"] or not result["line"]:
+        raise ValueError("Solver hat keine Linie geliefert.")
+    return (f"{deck_path.stem}: Board {result['base_score']:.1f} → {result['score']:.1f} mit "
+            f"{result['rollouts']} Probe-Zügen in {result['seconds']} s")
 
 
 def obsidian():
@@ -158,6 +175,8 @@ def bridge():
         state = call("qwen_status")
         queue = call("queue_overview")
         tournaments = call("ycs_runs")
+        deck = call("decks")[0]
+        call("solver_status", {"deck": {"source": deck["source"], "name": deck["name"]}})
         return (f"{len(call('decks'))} Decks, {len(runs)} Trainingsläufe, {len(tournaments)} Turniere, "
                 f"Warteschlange {len(queue['jobs'])} Aufträge, {state['message']}")
     finally:
@@ -170,6 +189,7 @@ def main():
     step("Engine, Decks und lernende Spieler-KIs (je 3 Duelle)", decks)
     step("Kurztraining mit Prüfrunde, Judge und Headjudge", training)
     step("YCS-Simulation (32 Spieler, Swiss, Top Cut, Bo3)", tournament)
+    step("Combo-Solver (1 Starthand, 40 Probe-Züge)", solver)
     step("Obsidian-Export (Probelauf in Temp-Ordner)", obsidian)
     step("Lokale Qwen-Anbindung", qwen)
     step("App-Bridge (Training, Qwen-Status)", bridge)

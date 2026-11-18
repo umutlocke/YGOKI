@@ -431,6 +431,16 @@
               <Button x:Name="TrainStart" Content="Training starten" Style="{StaticResource PrimaryButton}"/>
               <Button x:Name="TrainQueue" Content="Zur Warteschlange"/>
             </StackPanel>
+            <TextBlock Text="Combo-Solver (erster Zug)" Style="{StaticResource SectionTitle}" Margin="0,22,0,6"/>
+            <TextBlock Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,6" LineHeight="19"
+                       Text="Spielt für Starthände des gewählten Decks den ersten Zug immer wieder neu und sucht die Linie mit dem stärksten Endboard (Negationen, Quick Effects, Fallen, Handtraps). Der Gegner unterbricht dabei noch nicht."/>
+            <TextBlock Text="Starthände" Style="{StaticResource LabelText}"/>
+            <TextBox x:Name="SolverHands" Text="30" Margin="0,0,0,6" AutomationProperties.Name="Anzahl Starthände für den Solver"/>
+            <TextBlock x:Name="SolverState" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,6"/>
+            <WrapPanel>
+              <Button x:Name="SolverStart" Content="Solver starten"/>
+              <Button x:Name="SolverOpen" Content="Linien öffnen" IsEnabled="False"/>
+            </WrapPanel>
             <TextBlock Text="Warteschlange" Style="{StaticResource SectionTitle}" Margin="0,22,0,6"/>
             <TextBlock x:Name="QueueState" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,6"
                        Text="Aufträge laufen automatisch nacheinander, auch wenn die App geschlossen ist."/>

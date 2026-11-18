@@ -56,7 +56,8 @@ def text_role(card):
     monster, spell, trap = card.type & TYPE_MONSTER, card.type & TYPE_SPELL, card.type & TYPE_TRAP
     if card.code in GENERIC_HANDTRAPS or card.alias in GENERIC_HANDTRAPS:
         return "Handtrap"
-    if monster and ("discard this card" in text or "from your hand" in text) and "quick effect" in text \
+    if monster and ("discard this card" in text or "send this card from your hand" in text
+                    or "banish this card from your hand" in text) and "quick effect" in text \
             and ("opponent" in text or "negate" in text or "is activated" in text):
         return "Handtrap"
     if trap and "activate this card from your hand" in text:

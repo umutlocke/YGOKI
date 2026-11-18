@@ -7,6 +7,9 @@
 
 /work/*
 !/work/*.py
+!/work/routen/
+/work/routen/*
+!/work/routen/*.json
 !/work/native/
 /work/native/*
 !/work/native/App.cs

@@ -22,16 +22,23 @@ Das Training läuft auch weiter, wenn du die App schließt. Beim nächsten Öffn
 
 ## Die Note (0 bis 10)
 
-Die Note wird gemessen, nicht geschätzt (`work/bewertung.py`):
+Die Note wird gemessen, nicht geschätzt (`work/bewertung.py`). Seit November 2026 gilt eine strengere Skala: Siege gegen einfache Bots reichen nicht mehr für eine hohe Note.
 
-| Teil | Gewicht | Gemessen |
-|---|---|---|
-| Stärke | 40 % | Siegquote gegen den Referenz-Bot |
-| Fortschritt | 30 % | Siegquote gegen das neutrale Start-Playbook |
-| Zweitzug | 20 % | Siegquote gegen den Referenz-Bot als zweiter Spieler |
-| Integrität | 10 % | Alle Prüfduelle gültig und Replays exakt reproduzierbar |
+**Mit Gauntlet** (es gibt schon trainierte Champions anderer Decks in `work\decks`):
 
-Die Siegquoten gehen mit der Untergrenze eines 95-%-Konfidenzintervalls ein. Ein Glückstreffer mit wenigen Spielen reicht also nicht für eine 9.
+| Teil | Gewicht | Gemessen | volle Punkte ab |
+|---|---|---|---|
+| Gauntlet | 45 % | Siegquote gegen die Champions der anderen Decks (bis zu 4, jeweils mit ihrem Deck) | 60 % |
+| Zweitzug | 15 % | Siegquote gegen den Gauntlet als zweiter Spieler | 50 % |
+| Stärke | 15 % | Siegquote gegen den Referenz-Bot | 92 % |
+| Fortschritt | 15 % | Siegquote gegen das neutrale Start-Playbook | 70 % |
+| Integrität | 10 % | Alle Prüfduelle gültig und Replays exakt reproduzierbar | |
+
+**Ohne Gauntlet** (noch kein anderes Deck trainiert) zählen nur Referenz-Bot, Start-Playbook und Zweitzug. Die Note ist dann **vorläufig und auf 7/10 begrenzt**. Trainiere deshalb zuerst mehrere Decks. Danach misst jede Prüfrunde auch gegen deren Champions. In Obsidian und im Bericht steht unter „Gegen wen gemessen wurde“, gegen welche Decks gespielt wurde und wie jedes Matchup ausging. Mit `--gauntlet 0` schaltest du den Gauntlet ab, mit `--gauntlet 6` nimmst du mehr Gegner.
+
+Die Siegquoten gehen mit der Untergrenze eines 95-%-Konfidenzintervalls ein. Ein Glückstreffer mit wenigen Spielen reicht also nicht für eine 9. Für eine 9/10 muss ein Deck ungefähr 70 % seiner Duelle gegen die anderen trainierten Decks gewinnen.
+
+Ältere Trainings wurden noch mit der alten, zu leichten Skala bewertet. Ihre 10/10 sind deshalb nicht mit neuen Noten vergleichbar. Ein neues Training des Decks zeigt die ehrliche Note.
 
 **Freigabe:** mindestens 1.000 gültige Trainingsduelle, zwei Prüfrunden in Folge mit mindestens 9/10, die Judges ohne Befund und, wenn Qwen läuft, die Zuschauer-Reviewer im Median bei mindestens 7/10. Dann wird das Playbook gespeichert (`work\playbooks`). Deckvergleich und Zuschauen verwenden es automatisch für dieses Deck.
 
@@ -59,10 +66,48 @@ outputs\KI-Training.cmd   --deck "..\work\decks\HERO.ydk" --players 32
 
 Alle Optionen zeigt `work\upstream\python-win32\python.exe work\ki_lernen.py --help`.
 
+## Kartenverständnis: Handtraps und Routen
+
+**Handtraps** erkennt die KI am Kartentext (Ash, Ogre, Imperm, Veiler, Fuwalos, Maxx "C", Droll und Co.):
+- Sie werden nie als Monster beschworen oder gesetzt.
+- Im eigenen Zug kommen sie nur als Antwort auf eine gegnerische Aktivierung, Imperm/Veiler-artige Karten auch in deiner Main Phase 1 auf ein gegnerisches Monster.
+- Karten wie Ash, Ogre oder Imperm, die auf eine Aktivierung antworten, werden im gegnerischen Zug nur angekettet, wenn das letzte Kettenglied vom Gegner stammt. Pro Kette setzt die KI höchstens eine eigene Handtrap ein.
+- Andere Karten feuert sie im gegnerischen Zug nur selten in eine leere Kette, in der End Phase fast nie.
+
+**Routen** (`work\routen\*.json`) sind feste Eröffnungen, die du selbst schreibst, zum Beispiel aus einer Deckanleitung. Für Winter Raven / White Forest liegen die Linien aus deiner `Winter_Raven.txt` bereit: A1 Deep Forest → Mart, A2 Mart ohne Deep Forest, A3 Purifire allein, A4 Deep Forest → Purifire, B Silvy allein und C Silvy + Deep Forest. Eine Route gilt für jedes Deck, das alle ihre Pflichtkarten enthält.
+
+Jeder Schritt nennt die Karte (`code`), die Art (`do`: `N` Normal, `S` Spezial, `E` Effekt oder Aktivierung, leer = egal), was bei Suchen und Beschwörungen gewählt wird (`pick`), was als Kosten genommen wird (`cost`), `"when": "end"` für End-Phase-Effekte und `"optional": true` für Schritte, die ausfallen dürfen. Die KI bevorzugt den nächsten Schritt einer begonnenen Route stark, kettet die Trigger der Routenkarten immer und gibt Routenkarten nicht als Kosten ab. Ist eine Route fertig, spielt sie nur noch weiter, wenn ein Zug im Training deutlich besser bewertet wurde. Wie stark sie den Routen folgt und wann sie aufhört, lernt sie selbst (`route_bonus`, `route_stop`).
+
+Wie oft jede Route begonnen und bis zum Endboard gespielt wurde, steht im Bericht und in Obsidian unter **Geschriebene Routen**. Eine niedrige Quote heißt meist: Der Gegner hat unterbrochen (Ash, Imperm), oder die Hand passte nicht. Neue Routen legst du als weitere JSON-Datei in `work\routen` ab. Die Prüfung übernimmt Routen aus dem Projekt nur, wenn sie neuer sind als die im App-Ordner.
+
+## Combo-Solver (erster Zug)
+
+Der Solver sucht für Starthände die Linie mit dem stärksten Endboard. Die Engine ist deterministisch: Gleicher Seed und gleiche Antworten ergeben immer dasselbe Duell. Der Solver spielt deshalb den ersten Zug mit dem gelernten Playbook des Decks, probiert an jeder eigenen Entscheidung die Alternativen aus (andere Beschwörung, anderes Suchziel, ketten oder nicht) und lässt das Playbook danach weiterspielen. Ist das Board zu Beginn des gegnerischen Zugs besser, wird die neue Linie übernommen. Hilft keine einzelne Änderung mehr, startet er mit einer anderen Spielweise neu, bis das Budget verbraucht ist (Standard: 400 Probe-Züge pro Hand).
+
+**Bewertung des Endboards:** Negation auf dem Feld 3 Punkte, andere Quick Effects 2, gesetzte Falle oder Schnellzauber 2 bis 4, Handtrap auf der Hand 2,5, jedes Monster 1 plus ATK/3000, sonstige Handkarte 0,5, Quick Effects aus dem Friedhof 1. Der Gegner unterbricht dabei noch nicht. Die Suche gegen Handtraps ist der nächste Schritt.
+
+**Starten:** im Reiter **KI-Training** das Deck wählen, unter **Combo-Solver** die Zahl der Starthände eintragen und **Solver starten**. Er läuft im Hintergrund weiter, auch wenn die App geschlossen ist. **Linien öffnen** zeigt das Ergebnis. Mit `outputs\Combo-Solver.cmd` geht es auch per Kommandozeile, dort kannst du mit `--hand "Deep Forest;Ash Blossom;Silvy;Droll;Fuwalos"` feste Starthände vorgeben (Kartennamen oder Teile davon, durch Semikolon getrennt).
+
+**Ergebnisse** (`work\solver\<Deck>-<Zeit>\`):
+- `Linien.md`: pro Hand die beste Linie Schritt für Schritt, das Endboard und der Vergleich zum Playbook
+- `Routen-Vorschlag.json`: die verbesserten Linien im Routen-Format. Prüf sie und kopiere die guten nach `work\routen`. Automatisch übernommen wird nichts.
+- `Ergebnis.json`: alle Daten. In Obsidian steht in der Deck-Notiz der Abschnitt **Combo-Solver** mit den drei besten Händen.
+
+**Grenzen:** Die Bewertung ist eine Faustregel nach Kartentext. Ob eine Karte wirklich eine Unterbrechung ist, erkennt sie nur ungefähr. Der Solver ändert immer einen Schritt auf einmal, er findet also gute, aber nicht garantiert die besten Linien.
+
+## Zuschauen speichern
+
+Jedes Duell, das du in der App anschaust, wird unter `work\zuschauen\<Datum>-<Deck>-vs-<Deck>\` gespeichert:
+- `Verlauf.txt`: alle Ereignisse lesbar (Züge, Phasen, Beschwörungen, Ketten, LP)
+- `Replay.yrpX`: das Replay zum Öffnen in EDOPro
+- `Ergebnis.json`: Decks, Strategien, Seed und Sieger
+
+Brichst du das Zuschauen ab, bleibt der Verlauf bis dahin gespeichert, nur ohne Replay. Für einen Claude-Review reicht es, mir den Ordnernamen zu nennen.
+
 ## Grenzen
 
-- Die Playbooks lernen Prioritäten und Tendenzen, aber keine kompletten Kombo-Routen. Für echte Kombos wäre der nächste Schritt eine Qwen-Spielerrolle an Schlüsselentscheidungen. Die ist aber deutlich langsamer.
-- Der Referenz-Bot ist einfach. Eine 9/10 heißt deshalb: deutlich und stabil besser als einfaches Spiel und als der eigene Startstand. Turnierniveau bedeutet sie nicht.
+- Die Playbooks lernen Prioritäten, Tendenzen und Kombos. Wirklich gezielte Linien spielen sie nur, wo es eine geschriebene Route gibt. Für Decks ohne Route bleibt das Spiel gröber.
+- Das Kartenverständnis kommt aus Kartentext-Mustern. Ungewöhnlich formulierte Handtraps können durchrutschen.
 - WindBot (die Deck-KI von EDOPro) ist noch nicht eingebunden. Im Projekt fehlt der Quellcode, und WindBot braucht einen eigenen Duellserver.
 
 # Turnier (YCS-Simulation)

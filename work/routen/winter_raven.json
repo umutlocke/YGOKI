@@ -1,0 +1,373 @@
+{
+  "deck": "Winter Raven / White Forest",
+  "quelle": "Winter_Raven.txt (Umut, Stand 14.11.2026), Abschnitt 4",
+  "karten": {
+    "Deep Forest": 101403059,
+    "Mart": 101403010,
+    "Purifire": 101403009,
+    "Anu": 101403011,
+    "Raven Spoils": 101403012,
+    "Illusion": 101403078,
+    "Splendor": 101403077,
+    "Silvy": 98385955,
+    "Witch": 4398189,
+    "Azamina-Elzette": 38648860,
+    "Rciela": 77313225
+  },
+  "routes": [
+    {
+      "name": "C · Silvy + Deep Forest (Hybrid)",
+      "priority": 3,
+      "goal": "Rciela + Raven Spoils, Deep Forest, Illusion gesetzt",
+      "steps": [
+        {
+          "do": "N",
+          "code": 98385955,
+          "note": "Silvy normal"
+        },
+        {
+          "do": "E",
+          "code": 98385955,
+          "pick": [
+            4398189
+          ],
+          "note": "Silvy sucht Witch"
+        },
+        {
+          "do": "E",
+          "code": 4398189,
+          "pick": [
+            38648860
+          ],
+          "note": "Witch sucht Azamina-Elzette"
+        },
+        {
+          "code": 38648860,
+          "note": "Azamina-Elzette beschwört sich selbst"
+        },
+        {
+          "do": "S",
+          "code": 77313225,
+          "cost": [
+            98385955,
+            38648860
+          ],
+          "note": "Silvy + Azamina-Elzette zu Rciela"
+        },
+        {
+          "do": "E",
+          "code": 77313225,
+          "cost": [
+            4398189
+          ],
+          "optional": true,
+          "note": "Rciela sendet Witch, sucht"
+        },
+        {
+          "do": "E",
+          "code": 38648860,
+          "pick": [
+            3496543
+          ],
+          "optional": true,
+          "note": "Azamina-Elzette sucht Sinful Spoils WF"
+        },
+        {
+          "do": "E",
+          "code": 101403059,
+          "pick": [
+            101403009
+          ],
+          "note": "Deep Forest sucht Purifire"
+        },
+        {
+          "do": "S",
+          "code": 101403009,
+          "note": "Purifire beschwört sich (spart Normal)"
+        },
+        {
+          "do": "E",
+          "code": 101403009,
+          "pick": [
+            101403012
+          ],
+          "note": "Purifire sucht Raven Spoils"
+        },
+        {
+          "do": "S",
+          "code": 101403012,
+          "cost": [
+            101403009
+          ],
+          "note": "Purifire unters Deck für Raven Spoils"
+        },
+        {
+          "do": "E",
+          "code": 101403059,
+          "when": "end",
+          "pick": [
+            101403078
+          ],
+          "note": "End Phase: Illusion setzen"
+        }
+      ]
+    },
+    {
+      "name": "B · Silvy allein (White Forest)",
+      "priority": 2.5,
+      "goal": "Rciela, Sinful Spoils of the White Forest gesucht",
+      "steps": [
+        {
+          "do": "N",
+          "code": 98385955,
+          "note": "Silvy normal"
+        },
+        {
+          "do": "E",
+          "code": 98385955,
+          "pick": [
+            4398189
+          ],
+          "note": "Silvy sucht Witch"
+        },
+        {
+          "do": "E",
+          "code": 4398189,
+          "pick": [
+            38648860
+          ],
+          "note": "Witch sucht Azamina-Elzette"
+        },
+        {
+          "code": 38648860,
+          "note": "Azamina-Elzette beschwört sich selbst"
+        },
+        {
+          "do": "S",
+          "code": 77313225,
+          "cost": [
+            98385955,
+            38648860
+          ],
+          "note": "Silvy + Azamina-Elzette zu Rciela"
+        },
+        {
+          "do": "E",
+          "code": 77313225,
+          "cost": [
+            4398189
+          ],
+          "optional": true,
+          "note": "Rciela sendet Witch, sucht"
+        },
+        {
+          "do": "E",
+          "code": 38648860,
+          "pick": [
+            3496543
+          ],
+          "optional": true,
+          "note": "Azamina-Elzette sucht Sinful Spoils WF"
+        }
+      ]
+    },
+    {
+      "name": "A1 · Deep Forest → Mart (Standard)",
+      "priority": 2,
+      "goal": "Anu + Raven Spoils, Deep Forest, Mart offen, Illusion gesetzt",
+      "steps": [
+        {
+          "do": "E",
+          "code": 101403059,
+          "pick": [
+            101403010
+          ],
+          "note": "Deep Forest sucht Mart"
+        },
+        {
+          "do": "N",
+          "code": 101403010,
+          "note": "Mart normal"
+        },
+        {
+          "do": "E",
+          "code": 101403010,
+          "pick": [
+            101403009,
+            101403011
+          ],
+          "note": "Mart in die Backrow, Purifire + Anu aus dem Deck"
+        },
+        {
+          "do": "E",
+          "code": 101403009,
+          "pick": [
+            101403012
+          ],
+          "note": "Purifire sucht Raven Spoils"
+        },
+        {
+          "do": "S",
+          "code": 101403012,
+          "cost": [
+            101403009
+          ],
+          "note": "Purifire unters Deck für Raven Spoils"
+        },
+        {
+          "do": "E",
+          "code": 101403059,
+          "when": "end",
+          "pick": [
+            101403078
+          ],
+          "note": "End Phase: Illusion setzen"
+        }
+      ]
+    },
+    {
+      "name": "A2 · Mart ohne Deep Forest",
+      "priority": 1.5,
+      "goal": "Anu + Raven Spoils, Deep Forest, Mart offen, Illusion gesetzt",
+      "steps": [
+        {
+          "do": "N",
+          "code": 101403010,
+          "note": "Mart normal"
+        },
+        {
+          "do": "E",
+          "code": 101403010,
+          "pick": [
+            101403009,
+            101403011
+          ],
+          "note": "Purifire + Anu aus dem Deck"
+        },
+        {
+          "do": "E",
+          "code": 101403009,
+          "pick": [
+            101403059
+          ],
+          "note": "Purifire sucht Deep Forest"
+        },
+        {
+          "do": "E",
+          "code": 101403059,
+          "pick": [
+            101403012
+          ],
+          "note": "Deep Forest sucht Raven Spoils"
+        },
+        {
+          "do": "S",
+          "code": 101403012,
+          "cost": [
+            101403009
+          ],
+          "note": "Raven Spoils beschwören"
+        },
+        {
+          "do": "E",
+          "code": 101403059,
+          "when": "end",
+          "pick": [
+            101403078
+          ],
+          "note": "End Phase: Illusion setzen"
+        }
+      ]
+    },
+    {
+      "name": "A4 · Deep Forest → Purifire (Ein-Karten-Linie, spart Normal)",
+      "priority": 1.2,
+      "goal": "Raven Spoils, Deep Forest, Illusion gesetzt",
+      "steps": [
+        {
+          "do": "E",
+          "code": 101403059,
+          "pick": [
+            101403009
+          ],
+          "note": "Deep Forest sucht Purifire"
+        },
+        {
+          "do": "S",
+          "code": 101403009,
+          "note": "Purifire beschwört sich"
+        },
+        {
+          "do": "E",
+          "code": 101403009,
+          "pick": [
+            101403012
+          ],
+          "note": "Purifire sucht Raven Spoils"
+        },
+        {
+          "do": "S",
+          "code": 101403012,
+          "cost": [
+            101403009
+          ],
+          "note": "Raven Spoils beschwören"
+        },
+        {
+          "do": "E",
+          "code": 101403059,
+          "when": "end",
+          "pick": [
+            101403078
+          ],
+          "note": "End Phase: Illusion setzen"
+        }
+      ]
+    },
+    {
+      "name": "A3 · Purifire allein",
+      "priority": 1,
+      "goal": "Raven Spoils, Deep Forest, Illusion gesetzt",
+      "steps": [
+        {
+          "do": "N",
+          "code": 101403009,
+          "note": "Purifire normal"
+        },
+        {
+          "do": "E",
+          "code": 101403009,
+          "pick": [
+            101403059
+          ],
+          "note": "Purifire sucht Deep Forest"
+        },
+        {
+          "do": "E",
+          "code": 101403059,
+          "pick": [
+            101403012
+          ],
+          "note": "Deep Forest sucht Raven Spoils"
+        },
+        {
+          "do": "S",
+          "code": 101403012,
+          "cost": [
+            101403009
+          ],
+          "note": "Raven Spoils beschwören"
+        },
+        {
+          "do": "E",
+          "code": 101403059,
+          "when": "end",
+          "pick": [
+            101403078
+          ],
+          "note": "End Phase: Illusion setzen"
+        }
+      ]
+    }
+  ]
+}

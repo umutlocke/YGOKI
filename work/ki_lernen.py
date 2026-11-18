@@ -35,7 +35,7 @@ import traceback
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from deck_check import WORK  # noqa: E402  (also puts ygo-agent on sys.path)
-from bewertung import rating, wilson_lower  # noqa: E402
+from bewertung import gauntlet_lines, rating, route_lines, route_summary, wilson_lower  # noqa: E402
 from playbook import Playbook, PlaybookPolicy, adjust, crossover, mutate, remember  # noqa: E402
 import kombos  # noqa: E402
 from obsidian_export import quiet_export  # noqa: E402
@@ -49,14 +49,21 @@ DECISION_LIMIT = 20_000
 # --------------------------------------------------------------------------------------------------------
 _ENGINE = None
 _DECK = None
+_DECKS = None    # [own deck, gauntlet deck 1, ...]
 
 
-def _init_worker(deck_path):
-    global _ENGINE, _DECK
+def _init_worker(deck_path, gauntlet_paths=()):
+    global _ENGINE, _DECK, _DECKS
     os.environ.setdefault("XDG_CACHE_HOME", str(WORK / "cache"))
-    from qwen_training import load_deck
-    _ENGINE, inspected = load_deck(Path(deck_path))
-    _DECK = inspected.deck
+    if gauntlet_paths:
+        from ycs import load_field
+        _ENGINE, inspected = load_field([deck_path, *gauntlet_paths])
+        _DECKS = [item.deck for item in inspected]
+    else:
+        from qwen_training import load_deck
+        _ENGINE, single = load_deck(Path(deck_path))
+        _DECKS = [single.deck]
+    _DECK = _DECKS[0]
 
 
 def _policy(spec, seed):
@@ -67,16 +74,18 @@ def _policy(spec, seed):
 
 
 def play_duel(task):
-    """task = (spec_a, spec_b, seed, first, keep_replay). spec is a playbook dict or "REF"."""
+    """task = (spec_a, spec_b, seed, first, keep_replay[, opponent]). spec is a playbook dict or "REF".
+    opponent = index of B's deck in the gauntlet (0 = mirror with the trained deck)."""
     from windows_duel import check_result
     from ygo_agent.arena.duel import DuelConfig
     from ygo_agent.arena.runner import run_match
     from ygo_agent.arena.seats import PolicySeat
-    spec_a, spec_b, seed, first, keep = task
+    spec_a, spec_b, seed, first, keep = task[:5]
+    opponent = task[5] if len(task) > 5 else 0
     policies = (_policy(spec_a, seed * 2 + 1), _policy(spec_b, seed * 2 + 2))
     try:
         seats = (PolicySeat("A", policies[0]), PolicySeat("B", policies[1]))
-        game, = run_match(_ENGINE, DuelConfig(rules="mr5", max_retries=0), (_DECK, _DECK), seats,
+        game, = run_match(_ENGINE, DuelConfig(rules="mr5", max_retries=0), (_DECK, _DECKS[opponent]), seats,
                           seed=seed, first=first).games
         check_result(game.result, _ENGINE.cards)
         if game.result.responses >= DECISION_LIMIT:
@@ -227,10 +236,50 @@ class Trainer:
             for book in self.population[1:]:
                 remember(book, remembered, weight=round(self.rng.uniform(0.3, 1.5), 2))
         self.record["combos_remembered_at_start"] = len(remembered)
+        self.gauntlet = self.find_gauntlet()
+        self.record["gauntlet"] = [{key: item[key] for key in ("name", "rating", "released", "key")}
+                                   for item in self.gauntlet]
         self.qwen = Qwen(not args.ohne_qwen, self.record.setdefault("qwen", []))
         self.record["model"] = self.qwen.model
         self.card_wins = defaultdict(lambda: [0, 0])   # code -> [used in won games, used in lost games]
         self.status("Training startet")
+
+    def find_gauntlet(self):
+        """Champions of other trained decks (best rating first). They are the honest test of a deck."""
+        if self.args.gauntlet <= 0:
+            return []
+        from deck_check import read_ydk
+        from playbook_store import best_playbook
+        found = []
+        own = Path(self.args.deck).resolve()
+        for path in sorted((WORK / "decks").glob("*.ydk")):
+            if path.resolve() == own:
+                continue
+            try:
+                inspected = read_ydk(path, self.engine.cards)
+            except (OSError, ValueError):
+                continue
+            key = sha256(inspected.normalized.encode("utf-8")).hexdigest()
+            if key == self.playbook_key:
+                continue
+            book, info = best_playbook(key)
+            if book:
+                found.append({"name": path.stem, "path": str(path), "playbook": book, "key": key,
+                              "rating": info.get("rating"), "released": info.get("released", False)})
+        found.sort(key=lambda item: -(item["rating"] or 0))
+        chosen = []
+        if found:
+            from ycs import load_field
+            for item in found:
+                try:   # a deck that is not legal in the preview format is skipped instead of breaking the run
+                    load_field([str(self.args.deck), item["path"]])
+                except (OSError, ValueError, RuntimeError) as error:
+                    print(f"Gauntlet: {item['name']} übersprungen ({str(error).splitlines()[0]})", flush=True)
+                    continue
+                chosen.append(item)
+                if len(chosen) >= self.args.gauntlet:
+                    break
+        return chosen
 
     # -- status for the app ---------------------------------------------------------------------------
     def status(self, message, state=None):
@@ -373,8 +422,19 @@ class Trainer:
         results = list(pool.map(play_duel, tasks, chunksize=2))
         half = len(results) // 2
         vs_ref, vs_start = results[:half], results[half:]
+        field_tasks = []
+        field_blocks = max(10, self.args.exam_blocks // 2)
+        for number, item in enumerate(self.gauntlet, start=1):
+            for block in range(field_blocks):
+                seed = rng.getrandbits(62)
+                for first in (0, 1):
+                    field_tasks.append((champ.to_json(), item["playbook"], seed, first, False, number))
+        vs_field = list(pool.map(play_duel, field_tasks, chunksize=2)) if field_tasks else []
+        for result, task in zip(vs_field, field_tasks):
+            result["opponent"] = self.gauntlet[task[5] - 1]["name"]
+        all_results = results + vs_field
         valid = [r for r in results if r["valid"]]
-        invalid = [r for r in results if not r["valid"]]
+        invalid = [r for r in all_results if not r["valid"]]
 
         def score(items, second_only=False):
             items = [r for r in items if r["valid"] and (not second_only or r["first"] == 1)]
@@ -394,8 +454,17 @@ class Trainer:
             except (ValueError, RuntimeError) as error:
                 mismatches.append({"replay": path.name, "error": str(error)})
         integrity = not invalid and not mismatches and reproduced > 0
-        total, parts = rating(score(vs_ref), score(vs_start), score(vs_ref, True), integrity)
-        judge = {"exam_duels": len(results), "invalid": len(invalid),
+        if vs_field:
+            total, parts = rating(score(vs_ref), score(vs_start), score(vs_field, True), integrity, score(vs_field))
+        else:
+            total, parts = rating(score(vs_ref), score(vs_start), score(vs_ref, True), integrity)
+        matchups = {}
+        for result in vs_field:
+            if result["valid"]:
+                entry = matchups.setdefault(result["opponent"], {"points": 0.0, "games": 0})
+                entry["points"] += points(result, 0)
+                entry["games"] += 1
+        judge = {"exam_duels": len(all_results), "invalid": len(invalid),
                  "findings": [r["error"] for r in invalid][:5], "headjudge_reproduced": reproduced,
                  "headjudge_mismatches": mismatches, "hint_only_differences": cosmetic, "clear": integrity}
         if invalid or mismatches:
@@ -407,9 +476,13 @@ class Trainer:
                 "rating": total, "parts": parts,
                 "vs_reference": dict(zip(("points", "games"), score(vs_ref))),
                 "vs_start": dict(zip(("points", "games"), score(vs_start))),
-                "second": dict(zip(("points", "games"), score(vs_ref, True))),
+                "second": dict(zip(("points", "games"), score(vs_field or vs_ref, True))),
+                "gauntlet": dict(zip(("points", "games"), score(vs_field))) if vs_field else None,
+                "gauntlet_matchups": matchups,
+                "provisional": not vs_field,
                 "judge": judge, "champion": champ.to_json()}
         exam["combos"] = self.learn_combos(valid, index)
+        exam["routes"] = route_summary([r for r in all_results if r["valid"]])
         exam["reviewers"] = self.reviewers(exam)
         self.record["exams"].append(exam)
         self._last_exam_games = [r for r in valid]
@@ -479,7 +552,9 @@ class Trainer:
     def run(self):
         reason = None
         pool_type = ProcessPoolExecutor if self.args.workers > 1 else SerialPool
-        with pool_type(self.args.workers, initializer=_init_worker, initargs=(str(self.args.deck),)) as pool:
+        gauntlet_paths = tuple(item["path"] for item in self.gauntlet)
+        with pool_type(self.args.workers, initializer=_init_worker,
+                       initargs=(str(self.args.deck), gauntlet_paths)) as pool:
             coach_changes = []
             while True:
                 if self.stop_requested():
@@ -640,6 +715,7 @@ def markdown(record, data, rows):
              *(f"- {name.capitalize()}: {value:.1f}/10" for name, value in last["parts"].items()), "",
              f"Gegen den Referenz-Bot: {last['vs_reference']['points']:.1f} von {last['vs_reference']['games']} Punkten. "
              f"Gegen das Start-Playbook: {last['vs_start']['points']:.1f} von {last['vs_start']['games']}.", "",
+             *gauntlet_lines(last), "", *route_lines(last),
              "## Judges", "",
              f"{last['judge']['invalid']} ungültige Prüfduelle, {last['judge']['headjudge_reproduced']} Replays "
              f"exakt nachgespielt, Befund: {'keiner' if last['judge']['clear'] else 'siehe Ergebnis.json'}.", "",
@@ -746,6 +822,8 @@ def main():
     parser.add_argument("--workers", type=int, default=max(1, min(12, (os.cpu_count() or 2) - 2)))
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--ohne-qwen", action="store_true", help="Ohne lokale Qwen-Rollen trainieren")
+    parser.add_argument("--gauntlet", type=int, default=4,
+                        help="Champions anderer Decks als Prüfgegner (0 = nur Referenzbots, Note dann max. 7)")
     parser.add_argument("--resume", type=Path)
     parser.add_argument("--out", type=Path, default=RUNS)
     parser.add_argument("--run-dir", type=Path, help="Ordner für diesen Lauf (setzt die App)")

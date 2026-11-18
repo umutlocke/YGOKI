@@ -1,7 +1,9 @@
 """Run one paced AI duel and publish spectator snapshots to the Windows app."""
 
+from datetime import datetime
 from hashlib import sha256
 import json
+import re
 from pathlib import Path
 import sys
 
@@ -35,6 +37,7 @@ class Spectator(DuelObserver):
     def __init__(self, strategies):
         self.strategies = strategies
         self.events = []
+        self.history = []        # every event of the duel, for the saved log
 
     def on_start(self, duel):
         self.duel = duel
@@ -79,6 +82,7 @@ class Spectator(DuelObserver):
 
     def frame(self):
         duel = self.duel
+        self.history.extend(self.events)
         players = []
         for side, field in enumerate(duel.field_state().players):
             players.append({
@@ -101,6 +105,33 @@ class Spectator(DuelObserver):
             send({"status": "running", **self.frame()})
             if sys.stdin.readline().strip() != "next":
                 raise EOFError("Zuschauen beendet.")
+
+
+SAVED = Path(__file__).resolve().parent / "zuschauen"
+
+
+def _safe(name):
+    return re.sub(r"[^A-Za-z0-9 ._-]+", "_", name).strip()[:40] or "Deck"
+
+
+def save_duel(decks, strategies, seed, observer, replay=None, winner=None, finished=True):
+    """Store a watched duel as replay (.yrpX, open with EDOPro) and readable log (Verlauf.txt)."""
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    folder = SAVED / f"{stamp}-{_safe(decks[0].name)}-vs-{_safe(decks[1].name)}"
+    folder.mkdir(parents=True, exist_ok=True)
+    events = observer.history + observer.events
+    head = [f"Duell: {decks[0].name} gegen {decks[1].name}", f"Datum: {datetime.now():%d.%m.%Y %H:%M}",
+            f"Seed: {seed}", f"Strategie {decks[0].name}: {strategies[0]}",
+            f"Strategie {decks[1].name}: {strategies[1]}",
+            "Ergebnis: " + (("Sieger " + winner) if winner else ("Unentschieden" if finished else "abgebrochen")), ""]
+    (folder / "Verlauf.txt").write_text("\n".join(head + events) + "\n", encoding="utf-8")
+    if replay:
+        (folder / "Replay.yrpX").write_bytes(replay)
+    (folder / "Ergebnis.json").write_text(json.dumps(
+        {"decks": [d.name for d in decks], "strategies": strategies, "seed": seed, "winner": winner,
+         "finished": finished, "events": len(events), "replay": bool(replay)}, ensure_ascii=False, indent=2),
+        encoding="utf-8")
+    return folder
 
 
 def run(data):
@@ -134,11 +165,29 @@ def run(data):
         check_result(game.result, engine.cards)
         if game.result.responses >= 20000:
             raise ValueError("Das Duell hat das Entscheidungslimit erreicht.")
+        winner = None if game.winner_seat is None else decks[game.winner_seat].name
+        observer.events.append(f"Ende · {'Sieger ' + winner if winner else 'Unentschieden'}")
+        try:
+            folder = save_duel(decks, strategies, seed, observer, getattr(game, "replay", None), winner)
+            note = f"Gespeichert: {folder}"
+        except OSError as error:
+            note = f"Speichern fehlgeschlagen: {error}"
+        observer.events.append(note)
         final.update(observer.frame())
-        final["winner"] = None if game.winner_seat is None else decks[game.winner_seat].name
+        final["winner"] = winner
+        final["saved"] = note
 
-    run_match(engine, DuelConfig(rules="mr5", max_retries=0), decks, seats, seed=seed,
-              first=0, observers=[observer], on_game=finish)
+    try:
+        run_match(engine, DuelConfig(rules="mr5", max_retries=0), decks, seats, seed=seed,
+                  first=0, observers=[observer], on_game=finish)
+    except EOFError:
+        # watching was stopped: keep what was seen so far
+        if observer.history or observer.events:
+            try:
+                save_duel(decks, strategies, seed, observer, finished=False)
+            except OSError:
+                pass
+        raise
     send({"status": "done", **final})
 
 
