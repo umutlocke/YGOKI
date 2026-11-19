@@ -22,12 +22,14 @@ from __future__ import annotations
 
 import argparse
 from concurrent.futures import ProcessPoolExecutor
+from dataclasses import replace
 from datetime import datetime
 from hashlib import sha256
 import json
 import os
 from pathlib import Path
 import random
+import re
 import sys
 import time
 
@@ -61,6 +63,24 @@ HINT_TEXT = {500: "Als Tribut", 501: "Abwerfen", 502: "Zerstören", 503: "Verban
 
 # -- board score -------------------------------------------------------------------------------------------
 _FEATURES = {}
+_OPT = {}
+# "Special Summon this card, but negate its effects" is a drawback of the summoned card, not an interruption
+_DRAWBACK = re.compile(r"but negate (its|their) effects|(with|but) (its|their) effects? (is |are )?negated|"
+                       r"(its|their) effects are negated")
+_ONCE = re.compile(r"once per turn|only use (this|each) effect|only activate 1")
+
+
+def _negates(text):
+    """True if the text can negate something of the opponent (drawback clauses removed)."""
+    return "negate" in _DRAWBACK.sub("", text)
+
+
+def _once_per_turn(cards, code):
+    """Cards with a once-per-turn clause interrupt only once, however many copies are on board or in hand."""
+    if code not in _OPT:
+        card = cards.get(code)
+        _OPT[code] = bool(_ONCE.search((getattr(card, "text", "") or "").lower()))
+    return _OPT[code]
 
 
 def _features(cards, code):
@@ -71,7 +91,7 @@ def _features(cards, code):
         kind = getattr(card, "type", 0) or 0
         quick = ("quick effect" in text or "during your opponent's" in text or "when your opponent" in text
                  or "during either player's" in text or bool(kind & TYPE_TRAP))
-        _FEATURES[code] = ("negate" in text, quick, bool(kind & TYPE_TRAP), bool(kind & TYPE_QUICKPLAY),
+        _FEATURES[code] = (_negates(text), quick, bool(kind & TYPE_TRAP), bool(kind & TYPE_QUICKPLAY),
                            bool(kind & TYPE_MONSTER),
                            quick and ("is in your gy" in text or "from your gy" in text or "banish this card from"
                                       in text))
@@ -83,8 +103,14 @@ def board_score(view):
     cards, team = view.cards, view.team
     score, interruptions, board = 0.0, 0, {"field": [], "set": [], "hand": [], "gy": []}
 
-    def disrupt(negates, quick):
+    used = set()   # codes with a once-per-turn effect that already count as an interruption
+
+    def disrupt(negates, quick, code=0):
         nonlocal interruptions
+        if (negates or quick) and code and _once_per_turn(cards, code):
+            if code in used:
+                return 0.0
+            used.add(code)
         if negates and quick:
             interruptions += 1
             return 3.0
@@ -96,20 +122,23 @@ def board_score(view):
     for card in view.location(team, LOCATION_MZONE):
         if card and card.code:
             negates, quick, _, _, _, _ = _features(cards, card.code)
-            score += 1.0 + (card.attack or 0) / 3000 + disrupt(negates, quick)
+            score += 1.0 + (card.attack or 0) / 3000 + disrupt(negates, quick, card.code)
             board["field"].append(card.code)
     for card in view.location(team, LOCATION_SZONE):
         if card and card.code:
             negates, quick, trap, quickplay, _, _ = _features(cards, card.code)
             if card.position & POS_FACEDOWN:
-                score += (1.0 + disrupt(negates, True)) if trap or quickplay else 0.3
+                score += (1.0 + disrupt(negates, True, card.code)) if trap or quickplay else 0.3
                 board["set"].append(card.code)
             else:
-                score += 1.0 + disrupt(negates, quick) * 0.75
+                score += 1.0 + disrupt(negates, quick, card.code) * 0.75
                 board["field"].append(card.code)
     for card in view.location(team, LOCATION_HAND):
         if card and card.code:
             handtrap = card_sense(view, card.code)[0]
+            if handtrap and _once_per_turn(cards, card.code):
+                handtrap = card.code not in used    # a second Ash in hand is no second interruption
+                used.add(card.code)
             score += 2.5 if handtrap else 0.5
             interruptions += handtrap
             board["hand"].append(card.code)
@@ -130,6 +159,35 @@ class Passive(RandomPolicy):
         if isinstance(p, (SelectEffectYn, SelectYesNo)):
             return p.respond(False)
         return super().__call__(p, view)
+
+
+# Hand traps the disrupting opponent holds (routen_test --stoerer): Ash, Infinite Impermanence, Nibiru, Veiler
+STOERER = (14558127, 10045474, 27204311, 97268402)
+
+
+class Stoerer(Passive):
+    """Opponent in the first turn with hand traps: answers the first legal chance with each of them. This is a
+    simple, aggressive opponent (no waiting for a better target); it measures how robust a line is."""
+
+    def __call__(self, p, view):
+        if isinstance(p, SelectChain):
+            for index, chain in enumerate(p.chains):
+                if chain.code in STOERER:
+                    return p.respond(index)
+            return p.respond(0 if p.forced and p.chains else None)
+        if isinstance(p, SelectEffectYn):
+            return p.respond(getattr(p.card, "code", 0) in STOERER)
+        if isinstance(p, SelectCard) and p.cards:
+            theirs = [i for i, card in enumerate(p.cards) if card.controller != view.team]
+            if theirs and len(theirs) >= p.min:
+                return p.respond(theirs[:max(p.min, 1)])
+        return super().__call__(p, view)
+
+
+def stoerer_deck(deck):
+    """Copy of the deck whose top five are the opponent's hand traps (three copies of each in the Main Deck)."""
+    main = [code for code in STOERER for _ in range(3)] + list(deck.main)[:max(0, 40 - 3 * len(STOERER))]
+    return replace(deck, main=main)
 
 
 def _card_label(cards, code):
@@ -287,14 +345,20 @@ def _init_worker(deck_path):
     _DECK = inspected.deck
 
 
-def play_turn(book_json, seed, stack, prefix, style=0):
+def play_turn(book_json, seed, stack, prefix, style=0, stoerer=False):
     """Play the first turn with `prefix` (answers for the first own decisions), then the playbook.
-    Returns score, details, the own decisions [{data, label, options, kind, phase}] and the opening hand."""
+    Returns score, details, the own decisions [{data, label, options, kind, phase}] and the opening hand.
+    stoerer=True: the opponent holds Ash, Imperm, Nibiru and Veiler and uses them (see Stoerer)."""
     book = Playbook.from_json(book_json)
     base = PlaybookPolicy(book, seed + 7919 * style)   # style: another way the playbook continues
-    opponent = Passive(seed + 1)
-    duel = Duel(_ENGINE, DuelConfig(rules="mr5", max_retries=0), (_DECK, _DECK), ("Solver", "Gegner"),
-                seed=seed, stack={0: list(stack)} if stack else None)
+    opponent = Stoerer(seed + 1) if stoerer else Passive(seed + 1)
+    stacks = {0: list(stack)} if stack else {}
+    other = _DECK
+    if stoerer:
+        other = stoerer_deck(_DECK)
+        stacks[1] = list(STOERER) + [other.main[3 * len(STOERER)]]
+    duel = Duel(_ENGINE, DuelConfig(rules="mr5", max_retries=0), (_DECK, other), ("Solver", "Gegner"),
+                seed=seed, stack=stacks or None)
     views = (SeatView(duel, 0), SeatView(duel, 1))
     decisions, hand = [], None
     try:

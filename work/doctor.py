@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parent.parent
 UPSTREAM = ROOT / "work" / "upstream"
 REVISIONEN = ROOT / "revisionen.json"
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
+PYTHON_DLL = re.compile(r"python3\d+\.dll", re.IGNORECASE)
 
 OK, FEHLER, HINWEIS = "OK", "FEHLER", "HINWEIS"
 
@@ -60,6 +61,15 @@ def check_quelle(root, eintrag):
 
     rows = []
     fehlt = [pfad for pfad in eintrag.get("pruefung", []) if not (ziel / pfad).exists()]
+    # Eine andere Python-Version (z. B. python312.dll statt python311.dll) läuft genauso; der Importtest
+    # weiter unten prüft, ob die Laufzeit wirklich funktioniert.
+    andere = [pfad for pfad in fehlt if PYTHON_DLL.fullmatch(pfad) and any(
+        PYTHON_DLL.fullmatch(datei.name) for datei in ziel.glob("python3*.dll"))]
+    if andere:
+        fehlt = [pfad for pfad in fehlt if pfad not in andere]
+        vorhanden = sorted(datei.name for datei in ziel.glob("python3*.dll") if PYTHON_DLL.fullmatch(datei.name))
+        rows.append((HINWEIS, f"{name}: andere Python-Version installiert ({', '.join(vorhanden)} statt "
+                              f"{', '.join(andere)}); entscheidend ist der Importtest."))
     if fehlt:
         rows.append((FEHLER, f"{name}: es fehlen {', '.join(fehlt)} in {eintrag['ziel']}."))
 
@@ -85,12 +95,14 @@ def check_ignis(root):
     basis = root / "work" / "upstream" / "IgnisUpdate"
     if not basis.is_dir():
         return []
-    config = basis / "config" / "configs.json"
+    # EDOPro liest configs.json und user_configs.json; eine der beiden reicht
+    config = next((basis / "config" / name for name in ("configs.json", "user_configs.json")
+                   if (basis / "config" / name).is_file()), basis / "config" / "configs.json")
     if config.is_file():
         try:
             data = json.loads(config.read_text(encoding="utf-8"))
         except ValueError:
-            return [(FEHLER, "IgnisUpdate/config/configs.json ist kein gültiges JSON.")]
+            return [(FEHLER, f"IgnisUpdate/config/{config.name} ist kein gültiges JSON.")]
         fehlt = []
         for repo in data.get("repos", []):
             if not repo.get("should_read", True):
@@ -99,8 +111,8 @@ def check_ignis(root):
             if not pfad.is_dir():
                 fehlt.append(str(repo.get("repo_path")))
         if fehlt:
-            return [(FEHLER, "IgnisUpdate/config/configs.json verweist auf fehlende Ordner: " + ", ".join(fehlt))]
-        return [(OK, "IgnisUpdate: config/configs.json verweist auf die Kartendaten und Skripte daneben.")]
+            return [(FEHLER, f"IgnisUpdate/config/{config.name} verweist auf fehlende Ordner: " + ", ".join(fehlt))]
+        return [(OK, f"IgnisUpdate: config/{config.name} verweist auf die Kartendaten und Skripte daneben.")]
 
     karten = list((basis / "expansions").glob("*.cdb"))
     if (basis / "cards.cdb").is_file():
@@ -108,7 +120,7 @@ def check_ignis(root):
     skripte = basis / "script" / "constant.lua"
     if karten and skripte.is_file():
         return [(OK, "IgnisUpdate: Karten und Skripte liegen direkt im Engine-Ordner.")]
-    return [(FEHLER, "IgnisUpdate: weder config/configs.json noch expansions/*.cdb mit script/constant.lua gefunden.")]
+    return [(FEHLER, "IgnisUpdate: weder config/configs.json bzw. user_configs.json noch expansions/*.cdb mit script/constant.lua gefunden.")]
 
 
 def check_import(root):

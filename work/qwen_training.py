@@ -206,9 +206,15 @@ def judge_panel(panel, seed):
     head = ask("Headjudge", "Prüfe, ob das Judge-Urteil belegt ist. "
                "Bei möglichen Abweichungen ohne vollständige Belege lautet das Urteil offen.",
                {**evidence, "judge": judge}, schema, seed + 1)
-    clear = (not panel["judge_cases"] and not panel["invalid"]
-             and judge.get("verdict") == head.get("verdict") == "keine_auffaelligkeit")
-    return {"judge": judge, "headjudge": head, "clear": clear}
+    # The rules are enforced by the engine. The judge decision is therefore made from the engine evidence:
+    # no irregular chain, no invalid duel and at least one completed chain was actually checked. The model's
+    # two verdicts stay as a second opinion ("qwen_einig"); before, an "offen" from the model (it saw no
+    # evidence in older runs) blocked every release even when the engine found nothing.
+    evidence_ok = bool((panel.get("chain_evidence") or {}).get("completed"))
+    clear = not panel["judge_cases"] and not panel["invalid"] and evidence_ok
+    agree = judge.get("verdict") == head.get("verdict") == "keine_auffaelligkeit"
+    return {"judge": judge, "headjudge": head, "clear": clear, "qwen_einig": agree,
+            "grundlage": "Engine-Belege" + ("" if evidence_ok else " fehlen (keine abgeschlossene Kette)")}
 
 
 def reviewers(panel, judges, seed):
@@ -247,6 +253,9 @@ def run(args):
         args.pilot = record["mode"] == "Pilot"
         print(f"Setze Prüfrunden nach {record['training']['valid']} gültigen Duellen fort.", flush=True)
         return assess(args, engine, deck, model, record, location)
+    if args.seed is None:   # a fixed default made every run repeat the same duels and the same verdicts
+        args.seed = random.SystemRandom().randrange(1, 2 ** 31)
+        print(f"Startwert dieses Laufs: {args.seed} (mit --seed {args.seed} wiederholbar)", flush=True)
     args.out.mkdir(parents=True, exist_ok=True)
     location = Path(mkdtemp(prefix="Qwen-", dir=args.out))
     (location / "Deck.ydk").write_text(inspected.normalized, encoding="utf-8")
@@ -360,7 +369,8 @@ def main():
     parser.add_argument("--pilot", action="store_true")
     parser.add_argument("--resume", type=Path, help="Gespeicherten Lauf nach dem Training fortsetzen.")
     parser.add_argument("--regrade", type=Path, help="Gespeicherte Replays mit zusätzlichen Kettenbelegen bewerten.")
-    parser.add_argument("--seed", type=int, default=17421)
+    parser.add_argument("--seed", type=int, default=None,
+                        help="fester Startwert zum Wiederholen eines Laufs; ohne Angabe ein neuer pro Lauf")
     parser.add_argument("--out", type=Path, default=WORK / "qwen-training")
     args = parser.parse_args()
     if not args.deck and not args.regrade:

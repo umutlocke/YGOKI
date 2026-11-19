@@ -24,6 +24,7 @@ from __future__ import annotations
 from functools import lru_cache
 import json
 from pathlib import Path
+import sys
 
 FOLDER = Path(__file__).resolve().parent / "routen"
 GROUPS = {"summon": "N", "special": "S", "activate": "E", "chain": "E", "sset": "Z", "mset": "M"}
@@ -37,22 +38,41 @@ def _step(raw):
             "option": int(raw["option"]) if raw.get("option") is not None else None}
 
 
+_WARNED = set()
+
+
+def _warn(path, text):
+    """Report a broken route file once per process (stderr, so JSON output on stdout stays clean)."""
+    key = (str(path), text)
+    if key not in _WARNED:
+        _WARNED.add(key)
+        print(f"Hinweis: Routen-Datei {Path(path).name}: {text}", file=sys.stderr, flush=True)
+
+
 def load_all(folder=None):
     routes = []
     for path in sorted(Path(folder or FOLDER).glob("*.json")):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        except (OSError, ValueError) as error:
+            _warn(path, f"nicht lesbar ({error})")
+            continue
+        if not isinstance(data, dict) or not isinstance(data.get("routes", []), list):
+            _warn(path, "erwartet ein Objekt mit einer Liste \"routes\"")
             continue
         for index, raw in enumerate(data.get("routes", [])):
-            steps = [_step(step) for step in raw.get("steps", [])]
-            if not steps:
-                continue
-            needs = {int(c) for c in raw.get("requires", [])} | {s["code"] for s in steps if not s["optional"]}
-            routes.append({"name": raw.get("name", f"Route {index + 1}"), "file": path.name,
-                           "deck": data.get("deck", path.stem), "steps": steps, "needs": sorted(needs),
-                           "priority": float(raw.get("priority", 0)), "goal": raw.get("goal", ""),
-                           "hand": [int(c) for c in raw.get("hand") or raw.get("test_hand") or []], "source": raw.get("quelle", "")})
+            try:   # one broken route (typo in a hand-written file) must not stop all other routes and decks
+                steps = [_step(step) for step in raw.get("steps", [])]
+                if not steps:
+                    continue
+                needs = {int(c) for c in raw.get("requires", [])} | {s["code"] for s in steps if not s["optional"]}
+                routes.append({"name": raw.get("name", f"Route {index + 1}"), "file": path.name,
+                               "deck": data.get("deck", path.stem), "steps": steps, "needs": sorted(needs),
+                               "priority": float(raw.get("priority", 0)), "goal": raw.get("goal", ""),
+                               "hand": [int(c) for c in raw.get("hand") or raw.get("test_hand") or []],
+                               "source": raw.get("quelle", "")})
+            except (AttributeError, KeyError, TypeError, ValueError) as error:
+                _warn(path, f"Route {index + 1} übersprungen ({type(error).__name__}: {error})")
     return routes
 
 

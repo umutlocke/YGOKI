@@ -49,12 +49,12 @@ def start_hand(route, deck, rng, others=frozenset()):
     return hand + fillers[:max(0, 5 - len(hand))]
 
 
-def test_route(route, book_json, deck, tries, rollouts, rng, others=frozenset()):
+def test_route(route, book_json, deck, tries, rollouts, rng, others=frozenset(), stoerer=False):
     results = []
     for attempt in range(tries):
         stack = start_hand(route, deck, rng, others)
         seed = rng.getrandbits(48)
-        score, details, line, hand = combo_solver.play_turn(book_json, seed, stack, [])
+        score, details, line, hand = combo_solver.play_turn(book_json, seed, stack, [], stoerer=stoerer)
         policy = combo_solver.LAST_POLICY
         position = routen.progress(route, policy._done(), policy.present)
         solved = combo_solver.solve((book_json, seed, stack, rollouts, 120)) if rollouts else None
@@ -74,6 +74,8 @@ def main(argv=None):
     parser.add_argument("--tries", type=int, default=3, help="Starthände pro Route")
     parser.add_argument("--rollouts", type=int, default=150, help="Solver-Vergleich (0 = aus)")
     parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--stoerer", action="store_true",
+                        help="Gegner hält Ash, Imperm, Nibiru und Veiler und setzt sie ein (Robustheit der Route)")
     args = parser.parse_args(argv)
 
     from playbook_store import best_playbook
@@ -89,16 +91,18 @@ def main(argv=None):
         print(f"Für {args.deck.stem} gibt es keine Route in work/routen (oder ihr fehlen Pflichtkarten im Deck).")
         return 1
     rng = random.Random(args.seed)
-    lines = [f"# Routen-Test: {args.deck.stem}", "", f"{datetime.now():%d.%m.%Y %H:%M} · {len(routes)} Routen · "
+    gegner = "Gegner mit Ash, Imperm, Nibiru, Veiler" if args.stoerer else "Gegner passiv"
+    lines = [f"# Routen-Test: {args.deck.stem}", "", f"{datetime.now():%d.%m.%Y %H:%M} · {gegner} · {len(routes)} Routen · "
              f"{args.tries} Starthände je Route · Vergleich mit Combo-Solver ({args.rollouts} Probe-Züge)", ""]
     summary = []
     starters = {r["steps"][0]["code"] for r in routes}
     for route in routes:
         others = starters - {route["steps"][0]["code"]} - set(route.get("hand") or [])
-        results = test_route(route, book_json, deck, args.tries, args.rollouts, rng, frozenset(others))
+        results = test_route(route, book_json, deck, args.tries, args.rollouts, rng, frozenset(others),
+                             args.stoerer)
         done = sum(r["finished"] for r in results)
         summary.append({"route": route["name"], "file": route["file"], "finished": done, "tries": len(results),
-                        "results": results})
+                        "stoerer": args.stoerer, "results": results})
         print(f"{route['name']}: {done}/{len(results)} bis zum Ende", flush=True)
         lines += [f"## {route['name']} ({route['file']})", "",
                   f"Bis zum Ende gespielt: **{done} von {len(results)}**" +
@@ -126,6 +130,7 @@ def main(argv=None):
               "eines Solver-Laufs.", ""]
     OUT.mkdir(parents=True, exist_ok=True)
     stamp = f"{datetime.now():%Y%m%d-%H%M%S}"
+    stamp += "-stoerer" if args.stoerer else ""
     report = OUT / f"{args.deck.stem}-{stamp}.md"
     report.write_text("\n".join(lines) + "\n", encoding="utf-8")
     (OUT / f"{args.deck.stem}-{stamp}.json").write_text(json.dumps(summary, ensure_ascii=False, indent=1,

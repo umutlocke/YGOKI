@@ -45,6 +45,8 @@ from obsidian_export import quiet_export  # noqa: E402
 
 RUNS = WORK / "ki-lernen"
 RATING_SYSTEM = "gauntlet-2026-11"   # stored with released playbooks; only equal systems are compared
+REVIEWER_ROLES = 3     # Zuschauer-Reviewer Trainingsablauf, Fortschritt, Stabilität
+REVIEW_MIN = 9.0       # every reviewer must give at least this for a release
 PLAYBOOKS = WORK / "playbooks"
 DECISION_LIMIT = 20_000
 
@@ -185,13 +187,27 @@ class Qwen:
         if not self.enabled:
             return None
         from qwen_local import ask
+        started = time.monotonic()
         try:
             answer = ask(role, instructions, evidence, schema, seed)
-            self.log.append({"role": role, "answer": answer})
+            self.log.append({"role": role, "answer": answer, "sekunden": round(time.monotonic() - started, 2)})
             return answer
         except ValueError as error:
-            self.log.append({"role": role, "error": str(error)})
+            self.log.append({"role": role, "error": str(error), "sekunden": round(time.monotonic() - started, 2)})
             return None
+
+    def timings(self):
+        """Seconds the model needed, per role: {role: {"aufrufe", "summe", "mittel", "max"}}."""
+        out = {}
+        for entry in self.log:
+            if "sekunden" in entry:
+                item = out.setdefault(entry["role"], {"aufrufe": 0, "summe": 0.0, "max": 0.0})
+                item["aufrufe"] += 1
+                item["summe"] = round(item["summe"] + entry["sekunden"], 1)
+                item["max"] = max(item["max"], entry["sekunden"])
+        for item in out.values():
+            item["mittel"] = round(item["summe"] / item["aufrufe"], 2)
+        return out
 
 
 def obj(**properties):
@@ -323,6 +339,7 @@ class Trainer:
             "message": message, "generation": self.record["generation"], "valid": self.record["valid"],
             "invalid": self.record["invalid"], "min_duels": self.args.min_duels, "target": self.args.target,
             "players": self.args.players, "qwen": bool(self.qwen.model), "pid": os.getpid(),
+            "qwen_zeiten": self.qwen.timings(),
             "ratings": [exam["rating"] for exam in exams], "best": max((e["rating"] for e in exams), default=None),
             "updated": datetime.now().isoformat(timespec="seconds")})
         print(f"[{datetime.now():%H:%M:%S}] {message}", flush=True)
@@ -456,7 +473,9 @@ class Trainer:
     def exam(self, pool):
         index = len(self.record["exams"]) + 1
         _, champ = self.champion(pool)
-        rng = random.Random(f"{self.args.seed}:pruefung:{index}")
+        # Every exam plays the same seeds: the ratings of two exams differ only because the champion differs,
+        # not because one exam drew easier hands (paired comparison, much less noise between exams).
+        rng = random.Random(f"{self.args.seed}:pruefung")
         tasks = []
         for opponent in ("REF", self.start_book):
             for block in range(self.args.exam_blocks):
@@ -587,8 +606,10 @@ class Trainer:
             if exam["rating"] < self.args.target or not exam["judge"]["clear"]:
                 return False
             if self.qwen.enabled:
+                # all three reviewer roles must have answered, each with at least REVIEW_MIN
+                # (a single 7 or a missing answer blocks the release; runs with --ohne-qwen skip this check)
                 grades = [review["note"] for review in exam["reviewers"]]
-                if not grades or statistics.median(grades) < 7:
+                if len(grades) < REVIEWER_ROLES or min(grades) < REVIEW_MIN:
                     return False
         return True
 
