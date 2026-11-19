@@ -1,4 +1,4 @@
-"""Selbsttest für YGOKI: Engine, Decks, lernende Spieler-KIs, Training, Judges, Qwen und App-Bridge.
+"""Selbsttest für YGOKI: Engine, Decks, lernende Spieler-KIs, Training, Judges, KI-Coach, Web-Analyse und App-Bridge.
 
 Aufruf (macht Pruefen.cmd automatisch): python selbsttest.py
 Jede Zeile beginnt mit OK, FEHLER oder HINWEIS. Der Exit-Code ist 0, wenn es keinen FEHLER gab."""
@@ -204,6 +204,117 @@ def qwen():
     return f"{model['name']} antwortet in {time.time() - started:.1f} s ({answer.get('note')}/10)"
 
 
+def web_analysis():
+    """Trockenlauf ohne Netz und ohne KI: HTML → Coach-Schema → Wissen → Routen."""
+    import tempfile
+    import web_analyse
+    import web_wissen
+    from qwen_training import load_deck
+
+    deck_path = sorted((WORK / "decks").glob("*.ydk"))[0]
+    engine, inspected = load_deck(deck_path)
+    codes = sorted(set(inspected.deck.main + inspected.deck.extra))
+    if len(codes) < 2:
+        raise ValueError("Das Testdeck braucht mindestens zwei Karten.")
+    first, second = codes[0], codes[1]
+    names = {code: engine.cards.name(code) for code in codes}
+    fragment = {
+        "zusammenfassung": "Trockenlauf der Web-Analyse.",
+        "strategie": ["Erst den Starter spielen, dann den Extender."],
+        "erstzug": [], "zweitzug": [], "regeln": ["Testregel für den Selbsttest."],
+        "handtraps": [],
+        "kartenrollen": [{"karte": names[first], "rolle": "Starter"}],
+        "kombos": [{
+            "name": "Web-Testlinie", "start": [names[first]],
+            "schritte": [{"karte": names[first], "aktion": "N"},
+                         {"karte": names[second], "aktion": "E"}],
+            "zielbrett": [names[second]]
+        }]
+    }
+    target = Path(tempfile.mkdtemp(prefix="ygoki-web-", dir=WORK))
+    old_folder, old_routes, old_fetch = web_wissen.FOLDER, web_wissen.ROUTES, web_analyse.fetch
+    web_wissen.FOLDER = target / "wissen"
+    web_wissen.ROUTES = target / "routen"
+    web_analyse.fetch = lambda url: {
+        "url": url, "titel": "Selbsttest", "text": "Testtext. " * 80,
+        "zeichen": 800, "typ": "text/html"
+    }
+
+    def ask(role, instructions, evidence, schema, seed, max_tokens=900):
+        if role != "Web-Analyst" or evidence["deck"] != inspected.deck.name:
+            raise ValueError("Der Web-Coach wurde mit falschen Daten aufgerufen.")
+        return json.loads(json.dumps(fragment))
+
+    try:
+        knowledge, knowledge_path, report_path, proposals = web_analyse.analyse(
+            deck_path, ["https://example.com/ygoki-selbsttest"], target / "run", ask, seed=4242)
+        if not knowledge["kombos"] or len(proposals["routes"]) != 1:
+            raise ValueError("Web-Analyse hat keine Kombos oder Routen erzeugt.")
+        if not knowledge_path.is_file() or not report_path.is_file():
+            raise ValueError("Web-Wissen oder Bericht fehlt.")
+        written = web_wissen.write_routes(deck_path, knowledge["kombos"])
+        if not Path(written["path"]).is_file():
+            raise ValueError("Web-Routen wurden nicht geschrieben.")
+        class Book:
+            def __init__(self):
+                self.weights = {code: 0.0 for code in codes}
+                self.chain_opp = {code: 0.6 for code in codes}
+
+        book = Book()
+        web_wissen.apply_prior(book, knowledge)
+        if not (book.weights[first] > 0 and book.weights[second] > 0):
+            raise ValueError("Web-Prioritäten wurden nicht ins Playbook übernommen.")
+        return (f"{len(knowledge['kombos'])} Kombo, {len(proposals['routes'])} Route, "
+                f"{len(knowledge['kartenrollen'])} Rolle, {len(knowledge['regeln'])} Regel · "
+                f"Wissen: {knowledge_path.name}")
+    finally:
+        web_wissen.FOLDER, web_wissen.ROUTES, web_analyse.fetch = old_folder, old_routes, old_fetch
+        shutil.rmtree(target, ignore_errors=True)
+
+
+def ui_contract():
+    """Statischer C#/XAML-Abgleich; ersetzt den WPF-Build auf Windows nicht."""
+    import re
+    import xml.etree.ElementTree as ET
+
+    native = WORK / "native"
+    namespace = "{http://schemas.microsoft.com/winfx/2006/xaml}"
+    root = ET.parse(native / "MainWindow.xaml").getroot()
+    names = [element.get(namespace + "Name") for element in root.iter()
+             if element.get(namespace + "Name")]
+    duplicates = sorted({name for name in names if names.count(name) > 1})
+    if duplicates:
+        raise ValueError("Doppelte x:Name-Einträge: " + ", ".join(duplicates))
+
+    references = set()
+    pattern = re.compile(r'(?<!\.)\b(?:Find<[^>]+>|Button|Field|Combo|Text|Table)\("([A-Za-z_][A-Za-z0-9_]*)"\)')
+    for path in native.glob("*.cs"):
+        references.update(pattern.findall(path.read_text(encoding="utf-8")))
+    # FieldPile registriert diesen Button zur Laufzeit mit "Watch" + side + kind.
+    generated = {"WatchBottomExtra"}
+    missing = sorted(references - set(names) - generated)
+    if missing:
+        raise ValueError("C# verweist auf fehlende XAML-Namen: " + ", ".join(missing))
+    required = {"WebUrls", "WebState", "WebStart", "WebApply", "WebReport"}
+    if required - set(names):
+        raise ValueError("Web-Analyse-UI fehlt: " + ", ".join(sorted(required - set(names))))
+
+    build = (native / "build.ps1").read_text(encoding="utf-8")
+    sources = sorted(path.name for path in native.glob("*.cs"))
+    not_in_build = [name for name in sources if name not in build]
+    if not_in_build or "MainWindow.xaml" not in build:
+        raise ValueError("build.ps1 bindet nicht alle Quellen ein: " + ", ".join(not_in_build))
+    newer = []
+    for path in native.glob("*.cs"):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if re.search(r'\$"|\?\.|\bnameof\(|\busing static\b|\bout var\b', line):
+                newer.append(path.name)
+    if newer:
+        raise ValueError("C#-6+-Syntax für /langversion:5: " + ", ".join(sorted(set(newer))))
+    return (f"{len(names)} XAML-Namen, {len(references)} C#-Referenzen, "
+            f"{len(sources)} Quellen, Web-UI vollständig")
+
+
 def bridge():
     process = subprocess.Popen([sys.executable, "-B", "-X", "utf8", str(WORK / "native_bridge.py")],
                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, encoding="utf-8")
@@ -237,6 +348,8 @@ def main():
     step("Handtrap-Erkennung (Ash, Mulcharmy, Shifter …)", handtrap_guard)
     step("Routen-Test (jede Route einmal)", route_test)
     step("Obsidian-Export (Probelauf in Temp-Ordner)", obsidian)
+    step("C#/XAML-Vertrag (statisch, ohne WPF-Build)", ui_contract)
+    step("Web-Analyse (Trockenlauf ohne Netz und KI)", web_analysis)
     step("Lokale Qwen-Anbindung", qwen)
     step("App-Bridge (Training, Qwen-Status)", bridge)
     print("ERGEBNIS: " + ("alles in Ordnung" if not failures else f"{failures} Fehler"))

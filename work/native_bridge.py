@@ -35,6 +35,12 @@ def dispatch(editor, action, data):
         return training_jobs.qwen_start()
     if action == "train_start":
         return training_jobs.start(editor.deck_path(data["deck"]["source"], data["deck"]["name"]), data)
+    if action == "web_start":
+        return training_jobs.web_start(editor.deck_path(data["deck"]["source"], data["deck"]["name"]), data)
+    if action == "web_status":
+        return training_jobs.web_status(editor.deck_path(data["deck"]["source"], data["deck"]["name"]))
+    if action == "web_apply":
+        return training_jobs.web_apply(editor.deck_path(data["deck"]["source"], data["deck"]["name"]))
     if action == "train_runs":
         return training_jobs.runs()
     if action == "train_status":

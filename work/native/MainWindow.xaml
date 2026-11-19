@@ -397,9 +397,9 @@
       <Border Style="{StaticResource Panel}">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel>
-            <TextBlock Text="Lokale KI (Qwen)" Style="{StaticResource SectionTitle}"/>
-            <TextBlock x:Name="QwenState" Text="Prüfe Qwen …" TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,0,0,8"/>
-            <Button x:Name="QwenStart" Content="Qwen starten" HorizontalAlignment="Left" Margin="0,0,0,18"/>
+            <TextBlock Text="KI-Coach (Qwen oder remote)" Style="{StaticResource SectionTitle}"/>
+            <TextBlock x:Name="QwenState" Text="Prüfe KI-Coach …" TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,0,0,8"/>
+            <Button x:Name="QwenStart" Content="Qwen lokal starten" HorizontalAlignment="Left" Margin="0,0,0,18"/>
             <TextBlock Text="Neues Training" Style="{StaticResource SectionTitle}"/>
             <TextBlock Text="Deck" Style="{StaticResource LabelText}"/>
             <ComboBox x:Name="TrainDeck" Margin="0,0,0,9" AutomationProperties.Name="Trainingsdeck"/>
@@ -410,7 +410,7 @@
               <StackPanel Grid.Column="4"><TextBlock Text="Zielnote" Style="{StaticResource LabelText}"/><TextBox x:Name="TrainTarget" Text="9"/></StackPanel>
             </Grid>
             <CheckBox x:Name="TrainQwen" IsChecked="True" Foreground="#E6E9F2" Margin="0,0,0,6">
-              <TextBlock TextWrapping="Wrap" Text="Mit Qwen: Coach, Zuschauer-Reviewer, Judge-Erklärungen, Deckanalyse"/>
+              <TextBlock TextWrapping="Wrap" Text="Mit KI-Coach: Coach, Zuschauer-Reviewer, Judge-Erklärungen, Deckanalyse (lokal oder remote)"/>
             </CheckBox>
             <TextBlock TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,0,0,10" LineHeight="19"
                        Text="Die Spieler-KIs spielen Spiegelduelle im Turnier und verbessern ihre Playbooks. Prüfrunden messen den Champion gegen den Referenz-Bot und das Start-Playbook. Das Training endet bei zwei Prüfrunden ab der Zielnote, bei Stillstand oder auf Wunsch."/>
@@ -418,6 +418,18 @@
               <Button x:Name="TrainStart" Content="Training starten" Style="{StaticResource PrimaryButton}"/>
               <Button x:Name="TrainQueue" Content="Zur Warteschlange"/>
             </StackPanel>
+            <TextBlock Text="Web-Analyse" Style="{StaticResource SectionTitle}" Margin="0,22,0,6"/>
+            <TextBlock Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,6" LineHeight="19"
+                       Text="Liest Deck- und Gameplay-Analysen von Webseiten und speichert Strategie, Handtrap-Ziele, Kartenrollen und Kombos für das gewählte Deck. Das nächste Training gibt den Spieler-KIs dieses Wissen als Startpriorität mit."/>
+            <TextBox x:Name="WebUrls" Height="58" AcceptsReturn="True" TextWrapping="Wrap"
+                     VerticalScrollBarVisibility="Auto" Margin="0,0,0,6" AutomationProperties.Name="Web-Adressen für die Deckanalyse"/>
+            <TextBlock x:Name="WebState" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,6"
+                       Text="Eine Adresse pro Zeile. Noch keine Web-Analyse für dieses Deck."/>
+            <WrapPanel>
+              <Button x:Name="WebStart" Content="Analysieren"/>
+              <Button x:Name="WebApply" Content="Routen übernehmen" IsEnabled="False"/>
+              <Button x:Name="WebReport" Content="Bericht öffnen" IsEnabled="False"/>
+            </WrapPanel>
             <TextBlock Text="Combo-Solver (erster Zug)" Style="{StaticResource SectionTitle}" Margin="0,22,0,6"/>
             <TextBlock Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,6" LineHeight="19"
                        Text="Spielt für Starthände des gewählten Decks den ersten Zug immer wieder neu und sucht die Linie mit dem stärksten Endboard (Negationen, Quick Effects, Fallen, Handtraps). Der Gegner unterbricht dabei noch nicht."/>
@@ -499,7 +511,7 @@
             </Grid>
             <TextBlock x:Name="YcsPlan" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,8"/>
             <CheckBox x:Name="YcsQwen" IsChecked="True" Foreground="#E6E9F2" Margin="0,0,0,6">
-              <TextBlock TextWrapping="Wrap" Text="Mit Qwen: Turnierkommentar im Bericht"/>
+              <TextBlock TextWrapping="Wrap" Text="Mit KI-Coach: Turnierkommentar im Bericht (lokal oder remote)"/>
             </CheckBox>
             <TextBlock TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,0,0,10" LineHeight="19"
                        Text="Schweizer System mit Best of 3, danach Top Cut. Jeder Spieler nutzt das trainierte Playbook seines Decks, sonst das neutrale. Side Deck wird noch nicht gewechselt."/>

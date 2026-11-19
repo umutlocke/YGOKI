@@ -3,12 +3,67 @@
 ## So startest du es
 
 1. App öffnen (Desktop → *YGO KI APP* → *YGO KI App starten*) und oben **KI-Training** wählen.
-2. **Qwen starten** klicken und warten, bis „Qwen bereit“ angezeigt wird. Ohne Qwen geht es auch: dann den Haken bei „Mit Qwen“ entfernen.
+2. **Qwen lokal starten** klicken und warten, bis „KI-Coach bereit“ angezeigt wird. Ohne lokalen Qwen geht es auch: Haken bei „Mit KI-Coach“ entfernen (oder ein entferntes Modell eintragen, siehe unten).
 3. Deck wählen, 64 oder 32 Spieler-KIs, Mindestduelle (Standard 1.000) und Zielnote (Standard 9) eintragen und dann **Training starten** klicken.
 4. Rechts siehst du Fortschritt, Prüfnoten und das Protokoll. **Stoppen** beendet das Training sauber mit Bericht. **Fortsetzen** macht nach einem Absturz oder Neustart ab dem letzten Stand weiter.
 5. **Bericht öffnen** zeigt die Deckanalyse im Browser. Mit *Drucken → Als PDF speichern* bekommst du ein PDF.
 
 Das Training läuft auch weiter, wenn du die App schließt. Beim nächsten Öffnen erscheint es wieder in der Liste.
+
+## Ohne lokalen Qwen trainieren
+
+Das Training selbst — Turnier, Evolution, Prüfrunden, Judges und Replays — braucht kein Sprachmodell. Die Spieler-KIs lernen ausschließlich aus gespielten Duellen. Ohne KI-Coach läuft alles weiter; es entfallen nur Trainer-Coach, Zuschauer-Reviewer, Judge-Erklärungen, Deck- und Kombonamen. Die Freigabe misst dann nur noch Duelle und Judges, die Reviewer-Bedingung entfällt.
+
+**Variante 1: ganz ohne Modell.** Haken „Mit KI-Coach“ entfernen oder auf der Kommandozeile `--ohne-qwen` setzen. Das ist die schnellste und ressourcenschonendste Variante.
+
+**Variante 2: entferntes Modell.** Die Textrollen können statt auf dem lokalen Ollama auf einem anderen Rechner oder bei einem Anbieter laufen. Dafür im App-Ordner `work\llm.json` anlegen (die Datei wird nicht von Git erfasst):
+
+```json
+{
+  "backend": "openai",
+  "base_url": "https://dein-anbieter.example/v1",
+  "model": "dein-modell",
+  "api_key_env": "YGOKI_LLM_API_KEY",
+  "timeout": 180
+}
+```
+
+Der Anbieter muss die OpenAI-kompatible Schnittstelle `/chat/completions` und den JSON-Modus unterstützen. Den Schlüssel selbst nicht in die Datei schreiben, sondern in die genannte Umgebungsvariable legen, zum Beispiel in PowerShell:
+
+```powershell
+setx YGOKI_LLM_API_KEY "..."
+```
+
+Danach die App neu starten. In der App steht dann „KI-Coach bereit: … (remote)“, und **Qwen lokal starten** ist ausgegraut. Alternativ überschreiben `YGOKI_LLM_BACKEND`, `YGOKI_LLM_BASE_URL`, `YGOKI_LLM_MODEL` und `YGOKI_LLM_API_KEY` die Datei. Für einen Dienst ohne Schlüssel `"api_key_env": ""` setzen.
+
+Nur die Textrollen verlassen den Rechner: Deckname, Karten, Kartentexte und Messwerte. Die Duelle, Replays und Trainingsdaten bleiben lokal. Ist das entfernte Modell nicht erreichbar oder antwortet es nicht im geforderten JSON-Format, läuft das Training ohne diese Rolle weiter; der Fehler steht unter `qwen` in `Ergebnis.json`.
+
+## Web-Analyse für Decks und Gameplay
+
+Die **Web-Analyse** liest öffentliche Deck- und Gameplay-Analysen und macht daraus Startwissen für die Spieler-KIs. Sie braucht den KI-Coach (lokal oder remote), weil der Seitentext strukturiert werden muss. Das Training selbst braucht sie nicht.
+
+1. Im Reiter **KI-Training** das Deck wählen.
+2. Unter **Web-Analyse** eine Adresse pro Zeile einfügen (höchstens acht). Geeignet sind Deck-Guides, Kombo-Anleitungen und Gameplay-Analysen mit lesbarem Text.
+3. **Analysieren** klicken. Der Lauf läuft im Hintergrund weiter, auch wenn die App geschlossen wird.
+4. **Bericht öffnen** zeigt Strategie, Erstzug/Zweitzug, Timing-Regeln, Handtrap-Ziele, Kartenrollen, Kombos und alle Quellen.
+5. **Routen übernehmen** schreibt die Kombo-Vorschläge als `work\routen\<Deck>-Web.json`. Prüfe sie vorher mit `outputs\Routen-Test.cmd --deck "..\work\decks\<Deck>.ydk"`. Das nächste Training spielt sie automatisch.
+
+**Was gespeichert wird:**
+- `work\wissen\<Decklisten-Schlüssel>.json`: Strategie, Timing-Regeln, Handtrap-Ziele, Kartenrollen, Kombo-Linien, Quellen und die daraus berechneten Startprioritäten. Der Schlüssel ist derselbe wie bei den Playbooks; eine geänderte Deckliste hat einen neuen Schlüssel.
+- `work\web-analysen\<Deck>-<Zeit>\Web-Analyse.md`: der lesbare Bericht.
+- `work\web-analysen\<Deck>-<Zeit>\Routen-Vorschlag.json`: die Routen im Routen-Format.
+- `work\web-analysen\<Deck>-<Zeit>\Ergebnis.json`: alle Daten und Fehler.
+
+**Wie es das Training beeinflusst:** Jede neue Spieler-KI bekommt beim Start eine milde Priorität für Starter, Extender und Handtraps aus der Analyse und merkt sich die stärksten Web-Kombos. Timing- und Interaktionshinweise gehen zusätzlich an den Trainer-Coach. Das ist nur ein Startvorteil: Was in den Duellen nicht gewinnt, verliert im Training wieder an Gewicht. Der neutrale Referenzpunkt und die Prüfrunden bleiben unverändert, damit die Note ehrlich bleibt. Ein bereits laufendes oder fortgesetztes Training übernimmt neues Web-Wissen nicht nachträglich; starte dafür ein neues Training.
+
+**Grenzen:** Die Analyse liest nur öffentlichen Text. Seiten, die erst per JavaScript rendern, eine Anmeldung verlangen oder YouTube-Transkripte nur im Player zeigen, liefern zu wenig Text und werden mit einer Meldung übersprungen. Erfundene Karten werden verworfen, weil jede Karte gegen die Deckliste geprüft wird. Die Aussagen bleiben KI-Vorschläge aus fremden Texten: Quellen und Datum stehen im Bericht, Kombos und Kartenrollen gehören trotzdem in den Deckvergleich und Routen-Test. Nur Seitentext, Deckname und Kartendaten gehen an das konfigurierte Modell; die Duelle bleiben lokal.
+
+Kommandozeile:
+
+```
+outputs\Web-Analyse.cmd --deck "..\work\decks\HERO.ydk" --url "https://example.com/hero-guide"
+outputs\Web-Analyse.cmd --deck "..\work\decks\HERO.ydk" --url "https://example.com/guide" --url "https://example.com/gameplay"
+```
 
 ## Was dabei passiert
 
@@ -18,7 +73,7 @@ Das Training läuft auch weiter, wenn du die App schließt. Beim nächsten Öffn
 - **Prüfrunde** (alle 5 Generationen): Die vier besten KIs spielen ein Playoff. Der Sieger spielt auf zurückgehaltenen Seeds gegen den **eingefrorenen Referenz-Bot** und gegen das **neutrale Start-Playbook**, jeweils in beiden Startpositionen.
 - **Judge:** Er prüft jedes Prüfduell auf Engine-Fehler: Lua-Fehler, fehlende Skripte, abgelehnte Antworten und Endlosschleifen. Mit Qwen erklärt er gefundene Befunde.
 - **Headjudge:** Er spielt Stichproben-Replays nach und vergleicht jedes spielrelevante Ereignis. Reine Anzeige-Hinweise werden nur gezählt, weil einige Project-Ignis-Skripte deren Reihenfolge zwischen Prozessen ändern.
-- **Zuschauer-Reviewer (Qwen):** Drei Reviewer bewerten Ablauf, Fortschritt und Stabilität des Trainings anhand der Messwerte und kommentieren sie.
+- **Zuschauer-Reviewer (KI-Coach):** Drei Reviewer bewerten Ablauf, Fortschritt und Stabilität des Trainings anhand der Messwerte und kommentieren sie.
 
 ## Die Note (0 bis 10)
 
@@ -40,7 +95,7 @@ Die Siegquoten gehen mit der Untergrenze eines 95-%-Konfidenzintervalls ein. Ein
 
 Ältere Trainings wurden noch mit der alten, zu leichten Skala bewertet. Ihre 10/10 sind deshalb nicht mit neuen Noten vergleichbar. Ein neues Training des Decks zeigt die ehrliche Note.
 
-**Freigabe:** mindestens 1.000 gültige Trainingsduelle, zwei Prüfrunden in Folge mit mindestens 9/10, die Judges ohne Befund und, wenn Qwen läuft, die Zuschauer-Reviewer im Median bei mindestens 7/10. Dann wird das Playbook gespeichert (`work\playbooks`). Deckvergleich und Zuschauen verwenden es automatisch für dieses Deck.
+**Freigabe:** mindestens 1.000 gültige Trainingsduelle, zwei Prüfrunden in Folge mit mindestens 9/10, die Judges ohne Befund und, wenn der KI-Coach läuft, die Zuschauer-Reviewer im Median bei mindestens 7/10. Dann wird das Playbook gespeichert (`work\playbooks`). Deckvergleich und Zuschauen verwenden es automatisch für dieses Deck.
 
 Das Training endet außerdem bei **Stillstand** (6 Prüfrunden ohne neue Bestnote), nach 120 Generationen oder auf Wunsch. Einen Bericht gibt es in jedem Fall.
 
@@ -81,6 +136,8 @@ Jeder Schritt nennt die Karte (`code`), die Art (`do`: `N` Normal, `S` Spezial, 
 Wie oft jede Route begonnen und bis zum Endboard gespielt wurde, steht im Bericht und in Obsidian unter **Geschriebene Routen**. Eine niedrige Quote heißt meist: Der Gegner hat unterbrochen (Ash, Imperm), oder die Hand passte nicht. Neue Routen legst du als weitere JSON-Datei in `work\routen` ab. Die Prüfung übernimmt Routen aus dem Projekt nur, wenn sie neuer sind als die im App-Ordner.
 
 ## Combos aus Videos und Guides übernehmen
+
+Für öffentliche Webseiten mit lesbarem Text kann die **Web-Analyse** oben die ersten beiden Schritte übernehmen. Transkripte, PDFs und Seiten hinter einer Anmeldung liest sie nicht; dafür bleibt der manuelle Weg:
 
 1. Kopier das Transkript (YouTube: „Transkript anzeigen“) oder deine Notizen in eine Textdatei. Am besten mit Decknamen, Video-Titel und Link.
 2. Gib sie Claude oder ChatGPT mit dem Auftrag, daraus Routen für `work\routen\<Deck>.json` zu schreiben. Pro Linie gehören dazu: die Starthand (`hand`), die Schritte mit `pick`/`cost`, das Ziel-Board (`goal`) und die Quelle (`quelle`).

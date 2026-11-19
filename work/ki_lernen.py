@@ -39,6 +39,7 @@ from kartenrollen import text_role  # noqa: E402
 from bewertung import gauntlet_lines, rating, route_lines, route_summary, wilson_lower  # noqa: E402
 from playbook import Playbook, PlaybookPolicy, adjust, crossover, mutate, remember  # noqa: E402
 import kombos  # noqa: E402
+import web_wissen  # noqa: E402
 from obsidian_export import quiet_export  # noqa: E402
 
 RUNS = WORK / "ki-lernen"
@@ -159,15 +160,24 @@ def points(result, side):
 
 
 class Qwen:
-    """Optional local Qwen roles. Every call is logged; a failed call is recorded instead of crashing."""
+    """Optional LLM roles (local Qwen or a remote OpenAI-compatible model).
+
+    Every call is logged; a failed call is recorded instead of crashing. If the configured model is not
+    available, the training continues without the coach and reviewers instead of aborting.
+    """
 
     def __init__(self, enabled, log):
-        self.enabled = enabled
+        self.enabled = False
         self.model = None
         self.log = log
         if enabled:
-            from qwen_local import model_ready
-            self.model = model_ready()
+            try:
+                from qwen_local import model_ready
+                self.model = model_ready()
+                self.enabled = True
+            except ValueError as error:
+                self.log.append({"role": "status", "error": str(error)})
+                print(f"Hinweis: KI-Coach nicht verfügbar, Training läuft ohne ihn: {error}", flush=True)
 
     def ask(self, role, instructions, evidence, schema, seed):
         if not self.enabled:
@@ -237,6 +247,25 @@ class Trainer:
             for book in self.population[1:]:
                 remember(book, remembered, weight=round(self.rng.uniform(0.3, 1.5), 2))
         self.record["combos_remembered_at_start"] = len(remembered)
+        # Web-Wissen: a mild head start from deck and gameplay analyses. It never replaces the duels;
+        # whatever does not win loses its weight again during training.
+        self.web = web_wissen.load(self.playbook_key)
+        web_lines = web_wissen.combo_lines(self.web)
+        if self.web and not args.resume:
+            for book in self.population[1:]:
+                web_wissen.apply_prior(book, self.web, self.rng)
+                if web_lines:
+                    remember(book, web_lines, weight=1.2)
+        if self.web:
+            self.record["web_wissen"] = {
+                "quellen": [{"url": item.get("url"), "titel": item.get("titel")}
+                            for item in self.web.get("quellen", []) if not item.get("fehler")],
+                "strategie": self.web.get("strategie", [])[:8],
+                "erstzug": self.web.get("erstzug", [])[:8],
+                "zweitzug": self.web.get("zweitzug", [])[:8],
+                "regeln": self.web.get("regeln", [])[:8],
+                "kombos": len(self.web.get("kombos", [])),
+                "kartenrollen": len(self.web.get("kartenrollen", []))}
         self.gauntlet = self.find_gauntlet()
         self.record["gauntlet"] = [{key: item[key] for key in ("name", "rating", "released", "key")}
                                    for item in self.gauntlet]
@@ -407,7 +436,13 @@ class Trainer:
             "(das verhindert die Engine), sie brauchen eine passende Kettenquote. Starter brauchen hohe Priorität. "
             "Schlage höchstens 6 Änderungen vor, die sich aus Kartentext und den Einsatzzahlen in Siegen und "
             "Niederlagen begründen lassen. Die Engine testet jede Änderung in neuen Duellen.",
-            {"deck": self.deck.name, "karten": cards},
+            {"deck": self.deck.name, "karten": cards,
+             "web_strategie": self.web.get("strategie", [])[:8],
+             "web_erstzug": self.web.get("erstzug", [])[:8],
+             "web_zweitzug": self.web.get("zweitzug", [])[:8],
+             "web_regeln": self.web.get("regeln", [])[:8],
+             "web_handtraps": [{"karte": item.get("karte"), "ziel": item.get("ziel")}
+                               for item in self.web.get("handtraps", [])][:8]},
             obj(changes={"type": "array", "items": change, "maxItems": 6}, reason=TEXT),
             self.args.seed + self.record["generation"])
         if not answer:
@@ -727,7 +762,18 @@ def markdown(record, data, rows):
              f"{last['judge']['invalid']} ungültige Prüfduelle, {last['judge']['headjudge_reproduced']} Replays "
              f"exakt nachgespielt, Befund: {'keiner' if last['judge']['clear'] else 'siehe Ergebnis.json'}.", "",
              "## Zuschauer-Reviewer", ""]
-    lines += [f"- {r['role']}: {r['note']}/10 – {r['kommentar']}" for r in last["reviewers"]] or ["- Qwen war aus."]
+    lines += [f"- {r['role']}: {r['note']}/10 – {r['kommentar']}" for r in last["reviewers"]] or ["- Der KI-Coach war aus."]
+    web = record.get("web_wissen") or {}
+    if web:
+        lines += ["", "## Web-Wissen", "",
+                  f"{len(web.get('quellen', []))} Quellen, {web.get('kombos', 0)} Kombo-Vorschläge und "
+                  f"{web.get('kartenrollen', 0)} Kartenrollen sind in die Start-Playbooks eingeflossen."]
+        for title, key in (("Strategie", "strategie"), ("Erstzug", "erstzug"), ("Zweitzug", "zweitzug"),
+                           ("Regeln und Interaktionen", "regeln")):
+            if web.get(key):
+                lines += [f"- **{title}:** " + " ".join(web[key])]
+        lines += ["- Quellen: " + ", ".join(source.get("titel") or source.get("url", "")
+                                              for source in web.get("quellen", []))]
     if data.get("kombos"):
         lines += ["", "## Erkannte Kombos (Kombo-Gedächtnis)", ""]
         for combo in data["kombos"][:8]:
@@ -828,7 +874,7 @@ def main():
     parser.add_argument("--patience", type=int, default=6, help="Prüfrunden ohne Verbesserung bis Stillstand")
     parser.add_argument("--workers", type=int, default=max(1, min(12, (os.cpu_count() or 2) - 2)))
     parser.add_argument("--seed", type=int, default=None)
-    parser.add_argument("--ohne-qwen", action="store_true", help="Ohne lokale Qwen-Rollen trainieren")
+    parser.add_argument("--ohne-qwen", action="store_true", help="Ohne KI-Coach trainieren (lokal oder remote)")
     parser.add_argument("--gauntlet", type=int, default=4,
                         help="Champions anderer Decks als Prüfgegner (0 = nur Referenzbots, Note dann max. 7)")
     parser.add_argument("--resume", type=Path)

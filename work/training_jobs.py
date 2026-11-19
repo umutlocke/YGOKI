@@ -13,6 +13,7 @@ import sys
 WORK = Path(__file__).resolve().parent
 RUNS = WORK / "ki-lernen"
 TOURNAMENTS = WORK / "turniere"
+WEB_RUNS = WORK / "web-analysen"
 QWEN = WORK / "qwen-local"
 PYTHON = Path(sys.executable)
 NO_WINDOW = 0x08000000 if os.name == "nt" else 0
@@ -43,23 +44,27 @@ def _read(path):
 
 def _safe_run(folder):
     path = Path(folder).resolve()
-    if RUNS.resolve() not in path.parents and TOURNAMENTS.resolve() not in path.parents:
+    if RUNS.resolve() not in path.parents and TOURNAMENTS.resolve() not in path.parents \
+            and WEB_RUNS.resolve() not in path.parents:
         raise ValueError("Unbekannter Lauf-Ordner.")
     return path
 
 
 def qwen_status():
-    from qwen_local import MODEL, model_ready
-    try:
-        model = model_ready()
-        return {"ready": True, "message": f"Qwen bereit ({model['name']})"}
-    except ValueError as error:
-        online = "fehlt" in str(error)
-        return {"ready": False, "online": online, "model": MODEL,
-                "message": "Ollama läuft, aber das Modell fehlt." if online else "Qwen ist nicht gestartet."}
+    from qwen_local import status
+    info = status()
+    if not info["ready"] and not info.get("remote"):
+        info["online"] = "fehlt" in str(info.get("message", ""))
+    return info
 
 
 def qwen_start():
+    from qwen_local import settings
+    if settings()["backend"] == "openai":
+        info = qwen_status()
+        info["message"] = ("Der KI-Coach ist remote konfiguriert, ein lokaler Start ist nicht nötig. "
+                           + info.get("message", "")).strip()
+        return info
     exe = QWEN / "ollama" / "ollama.exe"
     if not exe.is_file():
         raise ValueError("Ollama fehlt unter work\\qwen-local\\ollama. Einmal outputs\\Qwen-Lokal.ps1 -Installieren ausführen.")
@@ -185,6 +190,69 @@ def trained(deck_path):
     _, inspected = load_deck(Path(deck_path))
     _, info = best_playbook(sha256(inspected.normalized.encode("utf-8")).hexdigest())
     return info
+
+
+# -- Web-Analyse -------------------------------------------------------------------------------------------
+def web_start(deck_path, data):
+    """Start a web analysis (work/web_analyse.py) for one deck; it keeps running when the app closes."""
+    deck_path = Path(deck_path).resolve()
+    if not deck_path.is_file():
+        raise ValueError("Deckdatei nicht gefunden.")
+    raw = data.get("urls") or []
+    urls = [str(url).strip() for url in (raw if isinstance(raw, list) else str(raw).splitlines()) if str(url).strip()]
+    if not urls:
+        raise ValueError("Bitte mindestens eine Web-Adresse eintragen.")
+    if len(urls) > 8:
+        raise ValueError("Höchstens acht Web-Adressen pro Analyse.")
+    if web_status(deck_path).get("running"):
+        raise ValueError("Für dieses Deck läuft bereits eine Web-Analyse.")
+    from qwen_local import model_ready
+    model_ready()   # fail before the background process starts, with a readable message
+    WEB_RUNS.mkdir(parents=True, exist_ok=True)
+    folder = WEB_RUNS / f"{deck_path.stem}-{datetime.now():%Y%m%d-%H%M%S}"
+    folder.mkdir()
+    args = [str(PYTHON), "-B", "-X", "utf8", str(WORK / "web_analyse.py"), "--deck", str(deck_path),
+            "--run-dir", str(folder)]
+    for url in urls:
+        args += ["--url", url]
+    if data.get("max_chars"):
+        args += ["--max-chars", str(int(data["max_chars"]))]
+    return _launch(args, folder, "Web-Analyse.log")
+
+
+def web_status(deck_path):
+    """Latest web analysis for a deck, with report, log and the number of route proposals."""
+    stem = Path(deck_path).stem
+    folders = sorted((folder for folder in WEB_RUNS.glob(f"{stem}-*") if folder.is_dir()),
+                     key=lambda folder: folder.stat().st_mtime, reverse=True) if WEB_RUNS.exists() else []
+    if not folders:
+        return {"state": "keiner", "message": "Noch keine Web-Analyse für dieses Deck.",
+                "report": None, "routes_count": 0, "running": False}
+    folder = folders[0]
+    info = status(folder)
+    report = folder / "Web-Analyse.md"
+    proposals = _read(folder / "Routen-Vorschlag.json") or {}
+    info["report"] = str(report) if report.exists() else None
+    info["routes_count"] = len(proposals.get("routes") or [])
+    log = folder / "Web-Analyse.log"
+    if log.exists():
+        info["log"] = log.read_text(encoding="utf-8", errors="replace").splitlines()[-14:]
+    return info
+
+
+def web_apply(deck_path):
+    """Write the latest analysis' combo proposals to work/routen/<Deck>-Web.json."""
+    info = web_status(deck_path)
+    if info.get("running"):
+        raise ValueError("Die Web-Analyse läuft noch. Bitte warten, bis sie fertig ist.")
+    if info.get("state") != "beendet":
+        raise ValueError("Die letzte Web-Analyse ist nicht erfolgreich beendet. Bericht und Protokoll prüfen.")
+    folder = info.get("folder")
+    if not folder:
+        raise ValueError("Noch keine Web-Analyse für dieses Deck.")
+    record = _read(Path(folder) / "Ergebnis.json") or {}
+    from web_wissen import write_routes
+    return write_routes(Path(deck_path), record.get("kombos") or [])
 
 
 # -- Combo-Solver ------------------------------------------------------------------------------------------

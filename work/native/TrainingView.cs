@@ -45,7 +45,7 @@ namespace YgoKi
     {
         private readonly DispatcherTimer trainTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         private bool trainPolling, trainVisible;
-        private string trainFolder, solverLines;
+        private string trainFolder, solverLines, webReport;
         private int qwenTicks;
 
         private void SetupTraining()
@@ -55,6 +55,9 @@ namespace YgoKi
             OnClickAsync("QwenStart", StartQwen);
             OnClickAsync("TrainStart", StartTraining);
             OnClickAsync("TrainQueue", QueueTraining);
+            OnClickAsync("WebStart", StartWebAnalysis);
+            OnClickAsync("WebApply", ApplyWebRoutes);
+            OnClick("WebReport", () => OpenPath(webReport));
             OnClickAsync("QueueRemove", async () =>
             {
                 var item = Find<ListBox>("QueueList").SelectedItem as QueueItem;
@@ -94,7 +97,11 @@ namespace YgoKi
             OnClick("TrainFolder", () => OpenPath(trainFolder));
             OnClickAsync("SolverStart", StartSolver);
             OnClick("SolverOpen", () => OpenPath(solverLines));
-            Combo("TrainDeck").SelectionChanged += async delegate { await Guard(RefreshSolver); };
+            Combo("TrainDeck").SelectionChanged += async delegate
+            {
+                await Guard(RefreshSolver);
+                await Guard(RefreshWeb);
+            };
             Find<ListBox>("TrainRuns").SelectionChanged += async delegate
             {
                 var run = Find<ListBox>("TrainRuns").SelectedItem as TrainingRun;
@@ -123,6 +130,7 @@ namespace YgoKi
             await Guard(LoadRuns);
             await Guard(RefreshQueue);
             await Guard(RefreshSolver);
+            await Guard(RefreshWeb);
             await Guard(async () =>
             {
                 if (String.IsNullOrEmpty(Field("ObsidianVault").Text))
@@ -136,16 +144,17 @@ namespace YgoKi
             await PollTraining();
             await RefreshQueue();
             if (++qwenTicks % 5 == 0) await RefreshQwen();
-            if (qwenTicks % 3 == 0) await RefreshSolver();
+            if (qwenTicks % 3 == 0) { await RefreshSolver(); await RefreshWeb(); }
         }
 
         private async Task RefreshQwen()
         {
             var value = Json.Object(await bridge.Call("qwen_status"));
             bool ok = value.Get("ready") is bool && (bool)value.Get("ready");
+            bool remote = value.Get("remote") is bool && (bool)value.Get("remote");
             Text("QwenState").Text = value.Text("message");
             Text("QwenState").Foreground = (System.Windows.Media.Brush)window.FindResource(ok ? "Accent" : "Muted");
-            Button("QwenStart").IsEnabled = !ok;
+            Button("QwenStart").IsEnabled = !ok && !remote;
         }
 
         private async Task StartQwen()
@@ -230,7 +239,7 @@ namespace YgoKi
             {
                 var state = Json.Object(await bridge.Call("qwen_status"));
                 if (!(state.Get("ready") is bool && (bool)state.Get("ready")))
-                    throw new InvalidOperationException("Qwen ist noch nicht bereit. Erst „Qwen starten“ und kurz warten, oder ohne Qwen trainieren.");
+                    throw new InvalidOperationException("Der KI-Coach ist noch nicht bereit. Erst „Qwen lokal starten“ oder ein remote Modell eintragen, oder ohne KI-Coach trainieren.");
             }
             var started = Json.Object(await bridge.Call("train_start", Json.Fields(
                 "deck", deck.Data, "players", Int32.Parse((string)Combo("TrainPlayers").SelectedItem),
@@ -238,6 +247,46 @@ namespace YgoKi
             trainFolder = started.Text("folder");
             Status("Training für " + deck.Name + " gestartet. Es läuft auch weiter, wenn du die App schließt.");
             await LoadRuns();
+        }
+
+        private async Task StartWebAnalysis()
+        {
+            var deck = Combo("TrainDeck").SelectedItem as DeckRef;
+            if (deck == null) throw new InvalidOperationException("Bitte ein Deck wählen.");
+            var urls = Field("WebUrls").Text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(line => line.Trim()).Where(line => line.Length > 0).ToArray();
+            if (urls.Length == 0) throw new InvalidOperationException("Bitte mindestens eine Web-Adresse eintragen.");
+            if (urls.Length > 8) throw new InvalidOperationException("Höchstens acht Web-Adressen pro Analyse.");
+            var state = Json.Object(await bridge.Call("qwen_status"));
+            if (!(state.Get("ready") is bool && (bool)state.Get("ready")))
+                throw new InvalidOperationException("Der KI-Coach ist nicht bereit: " + state.Text("message") +
+                    " Erst „Qwen lokal starten“ oder ein remote Modell eintragen.");
+            await bridge.Call("web_start", Json.Fields("deck", deck.Data, "urls", urls));
+            Status("Web-Analyse für " + deck.Name + " gestartet. Sie läuft auch weiter, wenn du die App schließt.");
+            await RefreshWeb();
+        }
+
+        private async Task RefreshWeb()
+        {
+            var deck = Combo("TrainDeck").SelectedItem as DeckRef;
+            if (deck == null) return;
+            var value = Json.Object(await bridge.Call("web_status", Json.Fields("deck", deck.Data)));
+            Text("WebState").Text = value.Text("message") ?? "";
+            webReport = value.Text("report");
+            bool running = value.Get("running") is bool && (bool)value.Get("running");
+            int routes = value.Get("routes_count") == null ? 0 : Convert.ToInt32(value.Get("routes_count"));
+            Button("WebStart").IsEnabled = !running;
+            Button("WebApply").IsEnabled = !running && routes > 0 && value.Text("state") == "beendet";
+            Button("WebReport").IsEnabled = webReport != null;
+        }
+
+        private async Task ApplyWebRoutes()
+        {
+            var deck = Combo("TrainDeck").SelectedItem as DeckRef;
+            if (deck == null) return;
+            var value = Json.Object(await bridge.Call("web_apply", Json.Fields("deck", deck.Data)));
+            Status(value.Text("message") ?? "Web-Routen übernommen.");
+            await RefreshWeb();
         }
 
         private async Task StartSolver()
@@ -304,7 +353,7 @@ namespace YgoKi
             if (run.Get("valid") != null)
                 progress = Convert.ToInt32(run.Get("valid")) + " von mind. " + Convert.ToInt32(run.Get("min_duels")) +
                     " gültigen Duellen · Generation " + Convert.ToInt32(run.Get("generation")) + " · " +
-                    Convert.ToInt32(run.Get("players")) + " Spieler-KIs" + (run.Get("qwen") is bool && (bool)run.Get("qwen") ? " · mit Qwen" : " · ohne Qwen") +
+                    Convert.ToInt32(run.Get("players")) + " Spieler-KIs" + (run.Get("qwen") is bool && (bool)run.Get("qwen") ? " · mit KI-Coach" : " · ohne KI-Coach") +
                     "\n" + progress;
             Text("TrainProgress").Text = progress;
             var ratings = run.Get("ratings") as object[];

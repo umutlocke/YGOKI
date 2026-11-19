@@ -225,8 +225,12 @@ class Tournament:
         self.matchups = defaultdict(lambda: [0, 0, 0])   # (deck a, deck b) -> wins a, wins b, draws
         self.qwen_model = None
         if not args.ohne_qwen:
-            from qwen_local import model_ready
-            self.qwen_model = model_ready()
+            try:
+                from qwen_local import model_ready
+                self.qwen_model = model_ready()
+            except ValueError as error:
+                print(f"Hinweis: KI-Coach nicht verfügbar, Turnier läuft ohne Kommentar: {error}", flush=True)
+                self.record["qwen_error"] = str(error)
         self.record["model"] = self.qwen_model
         self.status("Turnier startet")
 

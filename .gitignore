@@ -40,3 +40,4 @@ __pycache__/
 !/outputs/*.ps1
 !/outputs/Prototyp.md
 !/outputs/KI-Training-Anleitung.md
+!/outputs/Windows-Build-Pruefung.md

@@ -160,7 +160,8 @@ namespace YgoKi
             {
                 var state = Json.Object(await bridge.Call("qwen_status"));
                 if (!(state.Get("ready") is bool && (bool)state.Get("ready")))
-                    throw new InvalidOperationException("Qwen ist nicht bereit. Im Reiter KI-Training „Qwen starten“ oder den Haken entfernen.");
+                    throw new InvalidOperationException("Der KI-Coach ist nicht bereit: " + state.Text("message") +
+                        " Im Reiter KI-Training prüfen oder den Haken entfernen.");
             }
             var entries = field.Select(entry => (object)Json.Fields("name", entry.Deck.Name, "source", entry.Deck.Source, "share", entry.Share)).ToArray();
             var started = Json.Object(await bridge.Call("ycs_start", Json.Fields("field", entries, "players", players,
