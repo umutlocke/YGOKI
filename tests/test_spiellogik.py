@@ -193,6 +193,15 @@ def test_sabatiel_lv10_unterbricht_nicht():
     assert "unterbricht" not in reason, reason
 
 
+def test_tribut_quick_effect_gilt_als_unterbrechung():
+    tribute = Card(90000001, type=TYPE_MONSTER | TYPE_EFFECT, level=4,
+                   text="During your opponent's turn (Quick Effect): You can Tribute 1 monster your opponent "
+                        "controls; negate its effects until the end of this turn.")
+    role, reason = classify(tribute)
+    assert role == "Interrupt", (role, reason)
+    assert "Quick Effect" in reason, reason
+
+
 # -- F8/F9: Zufall ersetzen, Kampfphasen-Timing ---------------------------------------------------------
 
 NIBIRU_TEXT = ("During the Main Phase, if your opponent Normal or Special Summoned 5 or more monsters this "
@@ -247,14 +256,13 @@ def test_sortchain_behaelt_die_engine_reihenfolge():
     assert book(prompt, View(0, [Card(1)])) == ("sort", [0, 1, 2])
 
 
-def test_select_place_meidet_die_extra_monster_zone():
-    prompt = type("Place", (), {"count": 1, "zones": [(0, 0x04, 5), (0, 0x04, 1), (0, 0x04, 6)]})()
-    assert PlaybookPolicy._places(prompt) == [(0, 0x04, 1)]
-
-
-def test_select_place_nimmt_die_emz_wenn_es_nichts_anderes_gibt():
-    prompt = type("Place", (), {"count": 1, "zones": [(0, 0x04, 5)]})()
-    assert PlaybookPolicy._places(prompt) == [(0, 0x04, 5)]
+def test_announce_nimmt_zuerst_eine_offene_gegnerkarte():
+    shown, own = Card(47819246), Card(1)
+    view = View(0, [own], monsters=[own])
+    view.location = lambda team, loc: [shown] if team == 1 else ([own] if loc == 0x04 else [])
+    groups = PlaybookPolicy._announce_candidates(view)
+    assert groups[0] == [47819246], groups
+    assert groups[1] == [1], groups
 
 
 def test_ziel_handtrap_braucht_ein_gegnerisches_monster():

@@ -18,7 +18,7 @@ import routen
 
 from ygo_agent.arena.messages import (AnnounceCard, BattleAction, IdleAction, SelectBattleCmd, SelectCard,
                                       SelectChain, AnnounceNumber, SelectEffectYn, SelectIdleCmd, SelectOption,
-                                      SelectPlace, SelectPosition, SelectTribute, SelectUnselectCard, SelectYesNo,
+                                      SelectPosition, SelectTribute, SelectUnselectCard, SelectYesNo,
                                       SortChain)
 from ygo_agent.arena.policies import RandomPolicy
 from ygo_agent.core.constants import (LOCATION_DECK, LOCATION_HAND, LOCATION_MZONE, LOCATION_SZONE,
@@ -29,8 +29,8 @@ GOOD_HINTS = {506, 508, 509, 510, 514, 518, 522, 523, 527, 529}       # search, 
 COST_HINTS = {500, 501, 503, 504, 507, 511, 512, 513, 519, 531, 532, 533}  # tribute, discard, banish, material
 HOSTILE_HINTS = {502, 505, 520, 528, 530, 549, 551}                    # destroy, bounce, control, target
 TARGET_HINTS = {514, 575}          # Effect Veiler / Infinite Impermanence: target the chained monster
-NO_YESNO = {93, 210}               # "continue choosing materials / selecting cards?"
 PHASE_MAIN1, PHASE_BATTLE, PHASE_MAIN2, PHASE_END = 0x04, 0x08, 0x10, 0x200
+LOCATION_GRAVE, LOCATION_REMOVED = 0x10, 0x20
 STEP_GROUP = {"N": "N", "S": "S", "A": "E", "K": "E", "Z": "Z", "M": "M"}
 GROUPS_IDLE = {"summon": "N", "special": "S", "activate": "E", "sset": "Z", "mset": "M"}
 ACTIONS_PER_TURN = 18
@@ -519,27 +519,44 @@ class PlaybookPolicy(RandomPolicy):
                 wanted.remove(card.code)
 
     @staticmethod
-    def _places(p):
-        """Main monster zones before the Extra Monster Zone, so link arrows and the EMZ stay free."""
-        zones = list(p.zones)
-        main = [zone for zone in zones if zone[1] != LOCATION_MZONE or zone[2] < 5]
-        return (main or zones)[:max(p.count, 1)]
+    def _announce_candidates(view):
+        """Codes worth naming, best guess first: what the opponent has already shown, then our own open cards.
 
-    @staticmethod
-    def _announce(p, view):
-        """Declare the lowest legal card code: deterministic and the same in every duel."""
+        A declared name only matters if it is a card the opponent actually plays (Prohibition, Mind Crush,
+        Sales Ban) or one we run ourselves (Crossout Designator banishes our copy). The lowest code in the
+        database is a card nobody plays, so it is only the last resort.
+        """
+        groups = []
+        for team in (1 - view.team, view.team):
+            codes = set()
+            for location in (LOCATION_MZONE, LOCATION_SZONE, LOCATION_GRAVE, LOCATION_REMOVED):
+                try:
+                    codes.update(card.code for card in view.location(team, location) if card and card.code)
+                except Exception:   # noqa: BLE001 - a failed query must not stop the prompt
+                    pass
+            groups.append(sorted(codes))
+        return groups
+
+    @classmethod
+    def _announce(cls, p, view):
+        """Declare a shown opponent card, else one of our own, else the first legal code in the database."""
         try:
-            from ygo_agent.arena.announce import is_declarable
+            from ygo_agent.arena.announce import declarable_codes, is_declarable
         except Exception:   # noqa: BLE001 - announce support is optional
             return 0
-        for code in sorted(view.cards):
-            card = view.cards[code]
-            try:
-                if card and getattr(card, "name", "") and is_declarable(card, p.opcodes):
-                    return code
-            except Exception:   # noqa: BLE001 - one odd card must not stop the search
-                continue
-        return 0
+        for group in cls._announce_candidates(view):
+            for code in group:
+                card = view.cards.get(code) if hasattr(view.cards, "get") else None
+                try:
+                    if card and getattr(card, "name", "") and is_declarable(card, p.opcodes):
+                        return code
+                except Exception:   # noqa: BLE001 - one odd card must not stop the search
+                    continue
+        try:
+            found = declarable_codes(view.cards, p.opcodes, limit=1)
+        except Exception:   # noqa: BLE001 - a broken database must not stop the duel
+            return 0
+        return found[0] if found else 0
 
     def _idle_allowed(self, name, code, view):
         """Card-text rules: hand traps are never summoned or set, and used in your own turn only as an answer."""

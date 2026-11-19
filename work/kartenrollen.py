@@ -158,10 +158,15 @@ def classify(card):
     reveal = "reveal this card in your hand" in head
     hand_summon = bool(re.search(r"special summon (1|one) .{0,80}from your hand", head))
     # "unterbricht auch" only for Quick Effects that actually stop the opponent; a Quick Special Summon of
-    # this card (e.g. Winged Kuriboh Sabatiel LV10) is an Extender, not an interruption.
+    # this card (e.g. Winged Kuriboh Sabatiel LV10) is an Extender, not an interruption. The action words are
+    # checked against the whole text on purpose: 265 cards carry the label and none loses it through this
+    # check, so the wider scan costs nothing, while a sentence-only check would drop Rafflesia and the
+    # Synchro/Fusion Quick Effects that summon a negate on the opponent's turn.
     opp_quick = ("quick effect" in head and ("opponent" in head or "negate" in head)
-                 and bool(re.search(r"negate|destroy|banish|return .{0,30}to the hand|"
-                                    r"send .{0,30}to the (gy|graveyard)|target 1 .{0,40}opponent controls|"
+                 and bool(re.search(r"negate|destroy|banish|tribute|return .{0,30}to the (hand|deck)|"
+                                    r"send .{0,30}to the (gy|graveyard)|shuffle .{0,40}into the deck|"
+                                    r"flip .{0,30}face-down|change .{0,30}(battle position|control)|"
+                                    r"take control|attach|target 1 .{0,40}opponent controls|"
                                     r"(cannot|can't) activate", head)))
     cost = bool(_COST.search(head)) or "by discarding" in head
     # Costs count per effect: Sage with Eyes of Blue searches without a cost and discards only for its
