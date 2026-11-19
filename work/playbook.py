@@ -16,9 +16,10 @@ import random
 from kartenrollen import text_role
 import routen
 
-from ygo_agent.arena.messages import (BattleAction, IdleAction, SelectBattleCmd, SelectCard, SelectChain,
-                                      AnnounceNumber, SelectEffectYn, SelectIdleCmd, SelectOption, SelectPosition,
-                                      SelectTribute, SelectUnselectCard, SelectYesNo)
+from ygo_agent.arena.messages import (AnnounceCard, BattleAction, IdleAction, SelectBattleCmd, SelectCard,
+                                      SelectChain, AnnounceNumber, SelectEffectYn, SelectIdleCmd, SelectOption,
+                                      SelectPlace, SelectPosition, SelectTribute, SelectUnselectCard, SelectYesNo,
+                                      SortChain)
 from ygo_agent.arena.policies import RandomPolicy
 from ygo_agent.core.constants import (LOCATION_DECK, LOCATION_HAND, LOCATION_MZONE, LOCATION_SZONE,
                                       POS_FACEUP_ATTACK, POS_FACEUP_DEFENSE, TYPE_MONSTER)
@@ -28,6 +29,7 @@ GOOD_HINTS = {506, 508, 509, 510, 514, 518, 522, 523, 527, 529}       # search, 
 COST_HINTS = {500, 501, 503, 504, 507, 511, 512, 513, 519, 531, 532, 533}  # tribute, discard, banish, material
 HOSTILE_HINTS = {502, 505, 520, 528, 530, 549, 551}                    # destroy, bounce, control, target
 TARGET_HINTS = {514, 575}          # Effect Veiler / Infinite Impermanence: target the chained monster
+NO_YESNO = {93, 210}               # "continue choosing materials / selecting cards?"
 PHASE_MAIN1, PHASE_BATTLE, PHASE_MAIN2, PHASE_END = 0x04, 0x08, 0x10, 0x200
 STEP_GROUP = {"N": "N", "S": "S", "A": "E", "K": "E", "Z": "Z", "M": "M"}
 GROUPS_IDLE = {"summon": "N", "special": "S", "activate": "E", "sset": "Z", "mset": "M"}
@@ -204,6 +206,23 @@ def card_sense(view, code):
 def _duel_phase(view):
     duel = getattr(view, "_duel", None)
     return getattr(duel, "phase", 0) if duel is not None else 0
+
+
+def opponent_monsters(view):
+    try:
+        cards = view.location(1 - view.team, LOCATION_MZONE)
+    except Exception:   # noqa: BLE001 - a failed query must never stop a duel
+        return []
+    return [card for card in cards if card and getattr(card, "code", 0)]
+
+
+def target_activation_ok(view, targets, last):
+    """Imperm/Veiler need an opponent monster. In our turn: Main Phase 1 or the Battle Phase, never into nothing."""
+    if not targets or not opponent_monsters(view):
+        return False
+    if view.turn_player != view.team:
+        return last is not None
+    return _duel_phase(view) in (PHASE_MAIN1, PHASE_BATTLE)
 
 
 def handtrap_timing_ok(view, code):
@@ -422,11 +441,7 @@ class PlaybookPolicy(RandomPolicy):
         return getattr(data, "attack", 0) or 0
 
     def _opponent_monsters(self, view):
-        try:
-            cards = view.location(1 - view.team, LOCATION_MZONE)
-        except Exception:   # noqa: BLE001 - a failed query must never stop a duel
-            return []
-        return [card for card in cards if card and getattr(card, "code", 0)]
+        return opponent_monsters(view)
 
     @staticmethod
     def _beats(attack, card):
@@ -436,21 +451,22 @@ class PlaybookPolicy(RandomPolicy):
         return attack > (getattr(card, "attack", 0) or 0)
 
     def _choose_attack(self, view, attackable):
-        """An attacker that wins its battle or can attack directly; None instead of a suicide attack."""
+        """Direct attacks first; otherwise only an attack that wins its battle. None instead of a suicide attack."""
         targets = self._opponent_monsters(view)
-        best = None
+        direct = best = None
         for index, command in enumerate(attackable):
             attack = self._attack_of(view, command.code)
             if getattr(command, "direct_attack", False):
-                if best is None or attack > best[0]:
-                    best = (attack, index)
+                if direct is None or attack > direct[0]:
+                    direct = (attack, index)
             elif any(self._beats(attack, card) for card in targets):
                 if best is None or attack > best[0]:
                     best = (attack, index)
-        if best is None:
+        chosen = direct or best
+        if chosen is None:
             return None
-        self._attacker_atk = best[0]
-        return best[1]
+        self._attacker_atk = chosen[0]
+        return chosen[1]
 
     def _order(self, cards, view, hint):
         """Indices of `cards` in the order this playbook would pick them for the current hint."""
@@ -501,6 +517,29 @@ class PlaybookPolicy(RandomPolicy):
         for card in cards:
             if card.code in wanted:
                 wanted.remove(card.code)
+
+    @staticmethod
+    def _places(p):
+        """Main monster zones before the Extra Monster Zone, so link arrows and the EMZ stay free."""
+        zones = list(p.zones)
+        main = [zone for zone in zones if zone[1] != LOCATION_MZONE or zone[2] < 5]
+        return (main or zones)[:max(p.count, 1)]
+
+    @staticmethod
+    def _announce(p, view):
+        """Declare the lowest legal card code: deterministic and the same in every duel."""
+        try:
+            from ygo_agent.arena.announce import is_declarable
+        except Exception:   # noqa: BLE001 - announce support is optional
+            return 0
+        for code in sorted(view.cards):
+            card = view.cards[code]
+            try:
+                if card and getattr(card, "name", "") and is_declarable(card, p.opcodes):
+                    return code
+            except Exception:   # noqa: BLE001 - one odd card must not stop the search
+                continue
+        return 0
 
     def _idle_allowed(self, name, code, view):
         """Card-text rules: hand traps are never summoned or set, and used in your own turn only as an answer."""
@@ -633,12 +672,11 @@ class PlaybookPolicy(RandomPolicy):
                                                      [card_sense(view, card.code)[0] for card in p.chains]):
                         continue          # our own link is last, or an own hand trap already answered
                     if handtrap and not theirs:
-                        # own turn: hand traps only answer the opponent (or Imperm-style on their monster in MP1)
-                        if not (responder and opponent_link) and not (targets and last is None and
-                                                                       _duel_phase(view) == PHASE_MAIN1):
+                        # own turn: hand traps only answer the opponent (or Imperm-style on their monster)
+                        if not (responder and opponent_link) and not target_activation_ok(view, targets, last):
                             continue
                     elif handtrap and responder and not opponent_link:
-                        if not (targets and last is None and _duel_phase(view) == PHASE_MAIN1):
+                        if not target_activation_ok(view, targets, last):
                             continue      # Ash/Ogre/Imperm: only in response to the opponent
                     elif handtrap and not responder and not targets and not handtrap_timing_ok(view, code):
                         continue          # "During the Main Phase" (Nibiru, Fuwalos): in Battle/End wertlos
@@ -677,6 +715,12 @@ class PlaybookPolicy(RandomPolicy):
             if option is not None and 0 <= option < len(p.options):
                 return p.respond(option)
             return p.respond(0 if rng.random() < 0.7 else rng.randrange(len(p.options)))
+        if isinstance(p, SortChain) and getattr(p, "cards", None):
+            return p.respond(list(range(len(p.cards))))   # engine order: deterministic, no shuffle
+        if isinstance(p, AnnounceCard):
+            code = self._announce(p, view)
+            if code:
+                return p.respond(code)
         if isinstance(p, SelectCard) and p.cards:
             hint = _select_hint(view)
             order = self._order(p.cards, view, hint)

@@ -24,3 +24,9 @@ In der App unter **KI-Training**: 32 oder 64 Spieler-KIs lernen ein Deck in Spie
 - [Windows-Build-Prüfung](outputs/Windows-Build-Pruefung.md): was auf Windows geprüft wird und welche Ersatzprüfungen auf macOS möglich sind
 
 `work/qwen_training.py`, `work/ki_training.py` und `work/tournament.py` sind die älteren Versuche mit fünf festen Spielweisen. Sie bleiben vorerst zum Nachlesen erhalten.
+
+## Prüfen und wiederholbare Läufe
+- `python -m pytest -q tests` – komplette Suite; derselbe Befehl läuft im GitHub-Workflow `.github/workflows/tests.yml`.
+- Routen-Test: `python work/routen_test.py --deck "work/decks/<Deck>.ydk" --tries 8 --rollouts 0 --seed 7`; zusätzlich mit `--stoerer` (Gegner mit Ash, Imperm, Nibiru, Veiler). Vorlage: `outputs/Routen-Test-Stoerer.cmd`.
+- Gleiche Seeds und gleiche Decks ergeben dieselben Duelle: Die Engine ist deterministisch.
+- Freigaberegel, Qwen-Antwortzeiten und die Trainings-Starter stehen in `outputs/KI-Training-Anleitung.md`.

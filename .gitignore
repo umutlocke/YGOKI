@@ -10,6 +10,7 @@
 !/README.md
 !/work/
 !/outputs/
+!/.github/
 !/tests/
 
 # Python- und pytest-Artefakte
@@ -44,3 +45,4 @@ __pycache__/
 !/outputs/Prototyp.md
 !/outputs/KI-Training-Anleitung.md
 !/outputs/Windows-Build-Pruefung.md
+!/outputs/pre-push-beispiel.sh

@@ -315,3 +315,10 @@ Prüfe jeden Vorschlag im **Deckvergleich**, bevor du ihn übernimmst.
 - **Befolgen:** Jede KI zählt, wie oft sie eine gemerkte Kombo begonnen und wie oft sie sie vollständig durchgespielt hat. In Obsidian steht das bei jeder Kombo („Befolgt: in X von Y begonnenen Zügen vollständig“).
 - **Ausbauen:** Nach jeder Prüfrunde prüft das Training, welche Karte nach einer bekannten Kombo gespielt wurde und das Board dabei verbessert hat. Daraus entsteht eine **Erweiterung**, die die KIs ab dann ebenfalls einprägen.
 - **Erweitern:** Ein Viertel der KIs probiert außerdem gezielt längere Versionen der besten Kombos aus, mit einer zusätzlichen Karte, die in starken Zügen häufig vorkommt. Behalten wird nur, was in echten Duellen wirklich passiert und funktioniert.
+
+## Kurzreferenz: Prüfen, Wiederholen, Freigabe
+- **Routen-Test mit Störer:** `python routen_test.py --deck "decks\<Deck>.ydk" --tries 8 --seed 7 --rollouts 0 --stoerer`. Der Gegner hält Ash, Imperm, Nibiru und Veiler und antwortet auf die erste legale Aktivierung; ohne `--stoerer` bleibt er passiv. Fertige Vorlage: `outputs\Routen-Test-Stoerer.cmd`.
+- **Seed:** `--seed` steuert Starthände und Gegnerantworten. Für Vorher/Nachher immer denselben Seed und dieselbe Versuchszahl verwenden.
+- **Freigaberegel:** mindestens 1.000 gültige Trainingsduelle, zwei Prüfrunden in Folge mit mindestens 9/10, Judges ohne Befund und – wenn der KI-Coach läuft – die Zuschauer-Reviewer im Median bei mindestens 7/10. Erst dann wird das Playbook in `work\playbooks` gespeichert.
+- **Qwen-Zeiten:** Es gibt keine eigene Zeitdatei; die Antwortzeit steht im Selbsttest (`Lokale Qwen-Anbindung (… s)`) und im Trainingslog. Ein langsamer oder fehlender Coach hält das Training nicht auf, es entfallen nur die Textrollen.
+- **Training-Starter:** `outputs\KI-Training.cmd` (Einzellauf), `outputs\KI-Nachttraining.cmd` (mehrere Decks bis zur Uhrzeit), `outputs\Routen-Test-Stoerer.cmd` (Routen mit Handtrap-Gegner).

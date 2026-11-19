@@ -1,9 +1,13 @@
 """Falltests für die Spiel-Logik (P2): Handtrap-Filter, Imperm/Veiler-Ziel, Angriff, Ziel-Hints, Rollen."""
 
 from dataclasses import dataclass
+import random
 
 from kartenrollen import classify
-from playbook import Playbook, PlaybookPolicy, handtrap_blocked, handtrap_timing_ok
+from ygo_agent.arena.messages import SelectOption, SortChain
+
+from playbook import (Playbook, PlaybookPolicy, handtrap_blocked, handtrap_timing_ok,
+                      target_activation_ok)
 from player_policy import HAND_TRAPS
 
 LOCATION_MZONE, LOCATION_GRAVE = 0x04, 0x10   # same values as ygo_agent.core.constants (tests run without engine)
@@ -176,6 +180,19 @@ def test_forbidden_droplet_ist_keine_handtrap():
     assert 24299458 not in HAND_TRAPS
 
 
+SABATIEL = Card(40237839, type=TYPE_MONSTER | TYPE_EFFECT, level=10,
+                text="You can reveal this card in your hand and pay half your LP; add 1 \"Polymerization\" Spell "
+                     "or \"Fusion\" Spell from your Deck to your hand. During your opponent's turn, if your LP are "
+                     "1000 or less (Quick Effect): You can Special Summon this card from your hand, then you can "
+                     "inflict damage to your opponent equal to the highest ATK among the monsters they control.")
+
+
+def test_sabatiel_lv10_unterbricht_nicht():
+    role, reason = classify(SABATIEL)
+    assert role in ("Starter", "Extender"), role
+    assert "unterbricht" not in reason, reason
+
+
 # -- F8/F9: Zufall ersetzen, Kampfphasen-Timing ---------------------------------------------------------
 
 NIBIRU_TEXT = ("During the Main Phase, if your opponent Normal or Special Summoned 5 or more monsters this "
@@ -199,5 +216,65 @@ def test_maxx_c_bleibt_in_der_battle_phase_erlaubt():
     assert handtrap_timing_ok(view, card.code) is True
 
 
-# F8 (SelectOption/SelectYesNo ohne Zufall) wurde nach der Messung zurückgenommen:
-# WinterRaven C 6/8 -> 5/8 und A4 1/8 -> 0/8. Begründung im Protokoll (BEFUND).
+# -- B: Zufall durch Regeln ersetzen ----------------------------------------------------------------------
+
+class FakeOption(SelectOption):
+    def __init__(self, options):
+        self.options = options
+
+    def respond(self, index):
+        return ("option", index)
+
+
+class FakeSort(SortChain):
+    def __init__(self, cards):
+        self.cards = cards
+
+    def respond(self, order):
+        return ("sort", order)
+
+
+def test_option_ohne_route_ist_deterministisch():
+    book = policy(1)
+    book.rng = random.Random(1)
+    assert book(FakeOption([0, 1, 2]), View(0, [Card(1)])) == ("option", 0)
+
+
+def test_sortchain_behaelt_die_engine_reihenfolge():
+    book = policy(1)
+    book.rng = random.Random(1)
+    prompt = FakeSort([object(), object(), object()])
+    assert book(prompt, View(0, [Card(1)])) == ("sort", [0, 1, 2])
+
+
+def test_select_place_meidet_die_extra_monster_zone():
+    prompt = type("Place", (), {"count": 1, "zones": [(0, 0x04, 5), (0, 0x04, 1), (0, 0x04, 6)]})()
+    assert PlaybookPolicy._places(prompt) == [(0, 0x04, 1)]
+
+
+def test_select_place_nimmt_die_emz_wenn_es_nichts_anderes_gibt():
+    prompt = type("Place", (), {"count": 1, "zones": [(0, 0x04, 5)]})()
+    assert PlaybookPolicy._places(prompt) == [(0, 0x04, 5)]
+
+
+def test_ziel_handtrap_braucht_ein_gegnerisches_monster():
+    view = View(0, [Card(1)])
+    view._duel.phase = 0x04
+    assert target_activation_ok(view, True, None) is False
+    monster = Card(2, controller=1)
+    view._monsters = [monster]
+    assert target_activation_ok(view, True, None) is True
+    view._duel.phase = 0x08          # Battle Phase
+    assert target_activation_ok(view, True, None) is True
+    view._duel.phase = 0x200         # End Phase
+    assert target_activation_ok(view, True, None) is False
+
+
+def test_direktangriff_hat_vorrang():
+    killer = Card(3000, controller=1, attack=3000)
+    view = View(0, [killer], monsters=[killer])
+    view.cards[999] = Card(999, controller=0, attack=2500)
+    command = type("Cmd", (), {"code": 999, "direct_attack": True})()
+    book = policy(999)
+    assert book._choose_attack(view, [command]) == 0
+    assert book._attacker_atk == 2500

@@ -157,7 +157,12 @@ def classify(card):
                        or "you can special summon this card" in head)
     reveal = "reveal this card in your hand" in head
     hand_summon = bool(re.search(r"special summon (1|one) .{0,80}from your hand", head))
-    opp_quick = "quick effect" in head and ("opponent" in head or "negate" in head)
+    # "unterbricht auch" only for Quick Effects that actually stop the opponent; a Quick Special Summon of
+    # this card (e.g. Winged Kuriboh Sabatiel LV10) is an Extender, not an interruption.
+    opp_quick = ("quick effect" in head and ("opponent" in head or "negate" in head)
+                 and bool(re.search(r"negate|destroy|banish|return .{0,30}to the hand|"
+                                    r"send .{0,30}to the (gy|graveyard)|target 1 .{0,40}opponent controls|"
+                                    r"(cannot|can't) activate", head)))
     cost = bool(_COST.search(head)) or "by discarding" in head
     # Costs count per effect: Sage with Eyes of Blue searches without a cost and discards only for its
     # second effect, so it is a 1-card starter, not a 1.5-card starter.
