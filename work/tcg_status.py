@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 from datetime import date
 import json
+import os
 from pathlib import Path
 import sys
 from urllib.request import Request, urlopen
@@ -78,11 +79,14 @@ def check(codes, names=None, path=FILE, batch=40):
             print(f"Nicht gefunden: {part[0]} ({error})", flush=True)
             continue
         found += _store(rows, entries)
-    Path(path).write_text(json.dumps({
+    payload = json.dumps({
         "stand": date.today().isoformat(),
         "quelle": "YGOPRODeck API (misc_info.tcg_date); Karten, die Project Ignis noch als OCG führt",
-        "karten": {str(code): entries[code] for code in sorted(entries)}}, ensure_ascii=False, indent=1) + "\n",
-        encoding="utf-8")
+        "karten": {str(code): entries[code] for code in sorted(entries)}}, ensure_ascii=False, indent=1) + "\n"
+    target = Path(path)
+    temp = target.with_suffix(target.suffix + ".tmp")
+    temp.write_text(payload, encoding="utf-8")      # a crash must not leave a half-written status file
+    os.replace(temp, target)
     return found, len(entries)
 
 

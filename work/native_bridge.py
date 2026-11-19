@@ -132,6 +132,9 @@ def dispatch(editor, action, data):
     raise ValueError("Unbekannte Aktion.")
 
 
+import traceback
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--test-data", type=Path, help=argparse.SUPPRESS)
@@ -147,8 +150,9 @@ def main():
                 request = json.loads(line)
                 value = dispatch(editor, request["method"], request["data"])
                 response = {"result": value}
-            except (KeyError, OSError, TypeError, ValueError, RuntimeError) as error:
-                response = {"error": str(error)}
+            except Exception as error:   # noqa: BLE001 - one bad request must not stop the bridge
+                traceback.print_exc(file=sys.stderr)
+                response = {"error": str(error) or error.__class__.__name__}
             print(json.dumps(response, ensure_ascii=False), flush=True)
     finally:
         editor.comparisons.shutdown()

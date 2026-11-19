@@ -27,7 +27,8 @@ ACTIONS = ("summon", "special", "activate", "mset", "sset")
 GOOD_HINTS = {506, 508, 509, 510, 514, 518, 522, 523, 527, 529}       # search, summon, set, equip, to field
 COST_HINTS = {500, 501, 503, 504, 507, 511, 512, 513, 519, 531, 532, 533}  # tribute, discard, banish, material
 HOSTILE_HINTS = {502, 505, 520, 528, 530, 549, 551}                    # destroy, bounce, control, target
-PHASE_MAIN1, PHASE_END = 0x04, 0x200
+TARGET_HINTS = {514, 575}          # Effect Veiler / Infinite Impermanence: target the chained monster
+PHASE_MAIN1, PHASE_BATTLE, PHASE_MAIN2, PHASE_END = 0x04, 0x08, 0x10, 0x200
 STEP_GROUP = {"N": "N", "S": "S", "A": "E", "K": "E", "Z": "Z", "M": "M"}
 GROUPS_IDLE = {"summon": "N", "special": "S", "activate": "E", "sset": "Z", "mset": "M"}
 ACTIONS_PER_TURN = 18
@@ -185,6 +186,16 @@ def _duel_phase(view):
     return getattr(duel, "phase", 0) if duel is not None else 0
 
 
+def handtrap_timing_ok(view, code):
+    """Cards that say "During the Main Phase" are legal in Main Phase 1 and 2, not in Battle or End.
+    Maxx "C" ("during either player's turn") stays allowed everywhere."""
+    card = view.cards.get(code) if code else None
+    text = (getattr(card, "text", "") or "").lower()
+    if "during the main phase" not in text:
+        return True
+    return _duel_phase(view) in (PHASE_MAIN1, PHASE_MAIN2)
+
+
 def _chain_controllers(view):
     """Controllers of the current chain links (oldest first); empty when no chain is building."""
     duel = getattr(view, "_duel", None)
@@ -194,6 +205,25 @@ def _chain_controllers(view):
         return [link.controller for link in duel.field_state().chain]
     except Exception:   # noqa: BLE001 - a failed query must never stop a duel
         return []
+
+
+def _chain_links(view):
+    """(controller, code) of every chain link, oldest first."""
+    duel = getattr(view, "_duel", None)
+    if duel is None:
+        return []
+    try:
+        return [(link.controller, link.code) for link in duel.field_state().chain]
+    except Exception:   # noqa: BLE001 - a failed query must never stop a duel
+        return []
+
+
+def handtrap_blocked(team, controllers, handtrap_links):
+    """A further hand trap is pointless when our link is the last one, or one of ours already answered.
+    A chain like [opponent, own, opponent] therefore still offers the hand trap."""
+    if controllers and controllers[-1] == team:
+        return True
+    return any(own and controller == team for own, controller in zip(handtrap_links, controllers))
 
 
 def _last_link_controller(view):
@@ -228,6 +258,7 @@ class PlaybookPolicy(RandomPolicy):
         self.combo_follow = {}   # combo key -> [turns started, turns completed]
         self.routes = routen.for_codes(book.weights) if book.weights else []
         self.picks, self.costs, self.avoid = [], [], set()
+        self._attacker_atk = 0           # ATK of the attacker chosen in the current Battle Step
         self.present = frozenset()   # own monsters on the field (route steps reached another way)
         self.route_log = {}      # route name -> [turns started, turns completed]
 
@@ -370,6 +401,37 @@ class PlaybookPolicy(RandomPolicy):
         data = view.cards.get(code) if code else None
         return getattr(data, "attack", 0) or 0
 
+    def _opponent_monsters(self, view):
+        try:
+            cards = view.location(1 - view.team, LOCATION_MZONE)
+        except Exception:   # noqa: BLE001 - a failed query must never stop a duel
+            return []
+        return [card for card in cards if card and getattr(card, "code", 0)]
+
+    @staticmethod
+    def _beats(attack, card):
+        """True when this attack destroys the target without losing the attacker."""
+        if getattr(card, "position", 0) & 0x8:          # face-up or face-down Defense Position
+            return attack > (getattr(card, "defense", 0) or 0)
+        return attack > (getattr(card, "attack", 0) or 0)
+
+    def _choose_attack(self, view, attackable):
+        """An attacker that wins its battle or can attack directly; None instead of a suicide attack."""
+        targets = self._opponent_monsters(view)
+        best = None
+        for index, command in enumerate(attackable):
+            attack = self._attack_of(view, command.code)
+            if getattr(command, "direct_attack", False):
+                if best is None or attack > best[0]:
+                    best = (attack, index)
+            elif any(self._beats(attack, card) for card in targets):
+                if best is None or attack > best[0]:
+                    best = (attack, index)
+        if best is None:
+            return None
+        self._attacker_atk = best[0]
+        return best[1]
+
     def _order(self, cards, view, hint):
         """Indices of `cards` in the order this playbook would pick them for the current hint."""
         def own_value(card):
@@ -377,6 +439,11 @@ class PlaybookPolicy(RandomPolicy):
 
         cost = hint in COST_HINTS
         wanted = self.costs if cost else self.picks
+        route_cost = bool(self.costs)      # a route step names exactly what it spends
+        preferred_target = 0
+        if hint in TARGET_HINTS:
+            theirs = [code for controller, code in _chain_links(view) if controller != view.team]
+            preferred_target = theirs[-1] if theirs else 0
 
         def key(index):
             card = cards[index]
@@ -385,9 +452,24 @@ class PlaybookPolicy(RandomPolicy):
                 return (-2, wanted.index(card.code))
             if cost and mine and card.code in self.avoid:
                 return (2, own_value(card))
+            if hint in TARGET_HINTS and preferred_target and not mine and (
+                    card.code == preferred_target or getattr(card, "base_code", 0) == preferred_target):
+                return (-4, 0)   # the opponent's monster whose effect is on the chain
+            if hint == 549:
+                # Attack only what this attacker beats; among those, the strongest.
+                defense = bool(getattr(card, "position", 0) & 0x8)
+                value = (getattr(card, "defense", 0) if defense else getattr(card, "attack", 0)) or 0
+                if mine:
+                    return (1, own_value(card))
+                return (0 if (self._attacker_atk and self._attacker_atk > value) else 3,
+                        -self._attack_of(view, card.code))
             if hint in HOSTILE_HINTS:
                 return (0 if not mine else 1, -self._attack_of(view, card.code) if not mine else own_value(card))
             if hint in COST_HINTS and not (card.location == LOCATION_DECK and mine):
+                if not route_cost and any(other.controller != view.team for other in cards):
+                    # banish/GY/deck selection that offers their cards is an effect against the opponent
+                    return (0 if not mine else 1,
+                            -self._attack_of(view, card.code) if not mine else own_value(card))
                 if mine and card.location == LOCATION_HAND and card_sense(view, card.code)[0]:
                     return (0.5, own_value(card))     # keep hand traps for the opponent's turn
                 return (0 if mine else 1, own_value(card))
@@ -490,9 +572,9 @@ class PlaybookPolicy(RandomPolicy):
         if isinstance(p, SelectBattleCmd):
             self._new_turn(view)
             if p.attackable and rng.random() < book.attack:
-                best = max(range(len(p.attackable)), key=lambda i: (p.attackable[i].direct_attack,
-                           self._attack_of(view, p.attackable[i].code)))
-                return p.respond(BattleAction.ATTACK, best)
+                choice = self._choose_attack(view, p.attackable)
+                if choice is not None:
+                    return p.respond(BattleAction.ATTACK, choice)
             return p.respond(BattleAction.MAIN2 if p.can_main2 else BattleAction.END)
         if isinstance(p, SelectChain):
             self._new_turn(view)
@@ -527,8 +609,9 @@ class PlaybookPolicy(RandomPolicy):
                         links = _chain_controllers(view)
                     last = links[-1] if links else None
                     opponent_link = last is not None and last != view.team
-                    if handtrap and view.team in links:
-                        continue          # one hand trap per chain is enough
+                    if handtrap and handtrap_blocked(view.team, links,
+                                                     [card_sense(view, card.code)[0] for card in p.chains]):
+                        continue          # our own link is last, or an own hand trap already answered
                     if handtrap and not theirs:
                         # own turn: hand traps only answer the opponent (or Imperm-style on their monster in MP1)
                         if not (responder and opponent_link) and not (targets and last is None and
@@ -537,8 +620,8 @@ class PlaybookPolicy(RandomPolicy):
                     elif handtrap and responder and not opponent_link:
                         if not (targets and last is None and _duel_phase(view) == PHASE_MAIN1):
                             continue      # Ash/Ogre/Imperm: only in response to the opponent
-                    elif handtrap and not responder and not targets and _duel_phase(view) > PHASE_MAIN1:
-                        continue          # Fuwalos/Maxx "C"/Shifter wirken "this turn": nach Main Phase 1 wertlos
+                    elif handtrap and not responder and not targets and not handtrap_timing_ok(view, code):
+                        continue          # "During the Main Phase" (Nibiru, Fuwalos): in Battle/End wertlos
                     elif not handtrap and last is None:
                         chance *= 0.15 if end_phase else 0.4   # no reason to fire into an empty chain
                 if self.repeats[("chain", code, view.turn)] < 2 and rng.random() < chance:

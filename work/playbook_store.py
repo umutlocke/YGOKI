@@ -1,6 +1,7 @@
 """Find the best available playbook for a deck list: a released one, otherwise the best trained champion."""
 
 import json
+import sys
 from pathlib import Path
 
 WORK = Path(__file__).resolve().parent
@@ -12,8 +13,13 @@ def best_playbook(deck_key):
     """Returns (playbook dict, info) or (None, None). info: rating, released, run."""
     stored = PLAYBOOKS / f"{deck_key}.json"
     if stored.is_file():
-        data = json.loads(stored.read_text(encoding="utf-8"))
-        return data["playbook"], {"rating": data.get("rating"), "released": True, "run": data.get("run")}
+        try:
+            data = json.loads(stored.read_text(encoding="utf-8"))
+            return data["playbook"], {"rating": data.get("rating"), "released": True, "run": data.get("run")}
+        except (OSError, ValueError, KeyError) as error:
+            # A broken released file must not abort unrelated trainings: warn and fall back to the runs.
+            print(f"Warnung: {stored.name} ist unlesbar ({error}); trainiertes Playbook wird genutzt.",
+                  file=sys.stderr, flush=True)
     best = None
     if RUNS.exists():
         for result in RUNS.glob("*/Ergebnis.json"):

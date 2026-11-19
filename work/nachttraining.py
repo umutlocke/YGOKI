@@ -69,8 +69,8 @@ def main():
     parser.add_argument("--opt-extra", default="", help="zusätzliche Argumente für deck_optimierung.py")
     parser.add_argument("--optimieren", type=float, default=0.0,
                         help="Anteil der Zeit pro Deck für die Deck-Optimierung nach dem Training (z. B. 0.35)")
-    parser.add_argument("--bericht", default="Nachttraining-Bericht.md",
-                        help="Name der Berichtsdatei (für parallele Läufe einen eigenen Namen wählen)")
+    parser.add_argument("--bericht", default="berichte/Nachttraining-Bericht.md",
+                        help="Pfad der Berichtsdatei relativ zum Repo (für parallele Läufe eigenen Namen wählen)")
     args = parser.parse_args()
     REPORT[0] = args.bericht
     hour, minute = map(int, args.bis.split(":"))
@@ -78,9 +78,14 @@ def main():
     deadline = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
     if deadline <= now:
         deadline += dt.timedelta(days=1)
+    (WORK / "ki-lernen").mkdir(exist_ok=True)
+    (WORK / "berichte").mkdir(exist_ok=True)
     names = [n for n in args.decks.split(";") if n] or PRIORITY
     decks = [WORK / "decks" / n for n in names if (WORK / "decks" / n).is_file()]
+    unknown = [n for n in names if not (WORK / "decks" / n).is_file()]
     lines = []
+    for name in unknown:
+        log(lines, f"Unbekanntes Deck: {name} (nicht in work/decks) – übersprungen")
     log(lines, f"Start, Ende spätestens {deadline:%H:%M}, {len(decks)} Decks: " + ", ".join(d.stem for d in decks))
     env = dict(os.environ, XDG_CACHE_HOME=str(WORK / "cache"))
     for index, deck in enumerate(decks):

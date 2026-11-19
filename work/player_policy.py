@@ -15,7 +15,7 @@ STRATEGIES = {
     "Stärkstes Monster und Handtraps": ("special", "summon", "activate", True, True),
     "Effekte und Handtraps": ("activate", "special", "summon", False, True),
 }
-HAND_TRAPS = {14558127, 59438930, 94145021, 24299458, 10045474}
+HAND_TRAPS = {14558127, 59438930, 94145021, 10045474}   # Ash, Ghost Ogre, Droll, Imperm (Droplet is a Quick-Play Spell)
 class Candidate(SimplePolicy):
     def __init__(self, descriptor, seed):
         super().__init__(seed)

@@ -4,6 +4,7 @@ Trainings run as separate processes. They keep running when the app is closed an
 status.json in their run folder, so the app can pick them up again after a restart."""
 
 from datetime import datetime
+import glob
 import json
 import os
 from pathlib import Path
@@ -95,7 +96,8 @@ def start(deck_path, data):
         args += ["--max-generations", str(int(data["max_generations"]))]
     if not data.get("qwen", True):
         args.append("--ohne-qwen")
-    return _launch(args, folder)
+    settings = {key: data[key] for key in ("max_generations", "patience", "gauntlet") if data.get(key)}
+    return _launch(args, folder, settings=settings)
 
 
 def resume(folder):
@@ -108,16 +110,27 @@ def resume(folder):
     args = [str(PYTHON), "-B", "-X", "utf8", str(WORK / "ki_lernen.py"), "--deck", str(folder / "Deck.ydk"),
             "--players", str(record["players"]), "--min-duels", str(record["min_duels"]),
             "--target", str(record["target"]), "--seed", str(record["seed"]), "--resume", str(folder)]
+    # The stop conditions must survive an interruption, otherwise the resumed run uses other defaults.
+    saved = {**(_read(folder / "Start.json") or {}), **record}
+    for key, flag in (("max_generations", "--max-generations"), ("patience", "--patience"),
+                      ("gauntlet", "--gauntlet")):
+        if saved.get(key):
+            args += [flag, str(int(saved[key]))]
     if not record.get("model"):
         args.append("--ohne-qwen")
     return _launch(args, folder)
 
 
-def _launch(args, folder, log_name="Training.log"):
+def _launch(args, folder, log_name="Training.log", settings=None):
     log = (folder / log_name).open("ab")
     env = {**os.environ, "XDG_CACHE_HOME": str(WORK / "cache")}
-    process = subprocess.Popen(args, cwd=str(WORK.parent), stdout=log, stderr=subprocess.STDOUT,
-                               stdin=subprocess.DEVNULL, env=env, creationflags=NO_WINDOW | DETACHED)
+    try:
+        process = subprocess.Popen(args, cwd=str(WORK.parent), stdout=log, stderr=subprocess.STDOUT,
+                                   stdin=subprocess.DEVNULL, env=env, creationflags=NO_WINDOW | DETACHED)
+    finally:
+        log.close()          # the child keeps its own handle; the parent must not leak one per launch
+    if settings:
+        _write(folder / "Start.json", settings)
     (folder / "STOP").unlink(missing_ok=True)
     (folder / "pid.txt").write_text(str(process.pid), encoding="utf-8")
     return {"folder": str(folder), "pid": process.pid}
@@ -223,7 +236,9 @@ def web_start(deck_path, data):
 def web_status(deck_path):
     """Latest web analysis for a deck, with report, log and the number of route proposals."""
     stem = Path(deck_path).stem
-    folders = sorted((folder for folder in WEB_RUNS.glob(f"{stem}-*") if folder.is_dir()),
+    # "Branded" must not pick up "Branded-Despia-...": escape the name and require a numeric timestamp.
+    folders = sorted((folder for folder in WEB_RUNS.glob(f"{glob.escape(stem)}-*")
+                      if folder.is_dir() and folder.name[len(stem) + 1:][:1].isdigit()),
                      key=lambda folder: folder.stat().st_mtime, reverse=True) if WEB_RUNS.exists() else []
     if not folders:
         return {"state": "keiner", "message": "Noch keine Web-Analyse für dieses Deck.",

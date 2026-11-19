@@ -141,6 +141,8 @@ def classify(card):
         return "Boardbreaker", "bekannter Boardbreaker"
     if monster and _hand_quick(text):
         return "Handtrap", "Quick Effect von der Hand"
+    if trap and "activate this card from your hand" in text and re.search(r"destroy (that target|it)", head):
+        return "Boardbreaker", "Falle gegen gegnerische Zauber/Fallen, aus der Hand aktivierbar"
     if trap and "activate this card from your hand" in text:
         return "Handtrap", "Falle, die von der Hand aktiviert werden kann"
     if _BREAKER.search(head) and not (monster and "if this card is normal or special summoned" in head
@@ -157,10 +159,15 @@ def classify(card):
     hand_summon = bool(re.search(r"special summon (1|one) .{0,80}from your hand", head))
     opp_quick = "quick effect" in head and ("opponent" in head or "negate" in head)
     cost = bool(_COST.search(head)) or "by discarding" in head
+    # Costs count per effect: Sage with Eyes of Blue searches without a cost and discards only for its
+    # second effect, so it is a 1-card starter, not a 1.5-card starter.
+    search_part = next((part for part in sentences if _DECK.search(part) and not _LATE.search(part)), "")
+    search_cost = bool(_COST.search(search_part)) or "by discarding" in search_part
     if spell and from_deck:
         return "Starter", "Suchzauber: holt eine Karte aus dem Deck"
     if monster and (from_deck or summon_play) and (level <= 4 or self_summon or reveal):
-        kind = "1,5-Karten-Starter (braucht eine Kosten-/Abwurfkarte)" if cost else "1-Karten-Starter"
+        needs_cost = search_cost if from_deck else cost
+        kind = "1,5-Karten-Starter (braucht eine Kosten-/Abwurfkarte)" if needs_cost else "1-Karten-Starter"
         return "Starter", kind + (", unterbricht auch" if opp_quick else "")
     if monster and (self_summon or reveal or hand_summon):
         return "Extender", "kommt selbst oder holt einen Körper aufs Feld" + (

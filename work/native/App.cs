@@ -55,13 +55,22 @@ namespace YgoKi
 
     sealed class Bridge : IDisposable
     {
-        private readonly Process process;
-        private readonly StreamWriter input;
+        private Process process;
+        private StreamWriter input;
+        private readonly string root;
+        private readonly string testData;
         private readonly SemaphoreSlim queue = new SemaphoreSlim(1);
         private readonly JavaScriptSerializer serializer = new JavaScriptSerializer { MaxJsonLength = 64 * 1024 * 1024 };
         private volatile string error;
 
         public Bridge(string root, string testData)
+        {
+            this.root = root;
+            this.testData = testData;
+            Start();
+        }
+
+        private void Start()
         {
             string work = Path.Combine(root, "work");
             string backend = Path.Combine(work, "native_bridge.py");
@@ -94,16 +103,41 @@ namespace YgoKi
             await queue.WaitAsync().ConfigureAwait(false);
             try
             {
-                if (process.HasExited) throw new IOException(error ?? "Der lokale Hintergrundprozess wurde beendet.");
+                if (process == null || process.HasExited) Start();   // a dead bridge must not freeze the UI
                 await input.WriteLineAsync(serializer.Serialize(Json.Fields(
                     "method", method, "data", fields ?? Json.Fields()))).ConfigureAwait(false);
-                string line = await process.StandardOutput.ReadLineAsync().ConfigureAwait(false);
-                if (line == null) throw new IOException(error ?? "Der lokale Hintergrundprozess hat nicht geantwortet.");
+                var read = process.StandardOutput.ReadLineAsync();
+                if (await Task.WhenAny(read, Task.Delay(60000)).ConfigureAwait(false) != read)
+                {
+                    Restart();
+                    throw new TimeoutException("Der lokale Hintergrundprozess hat nicht innerhalb von 60 s geantwortet.");
+                }
+                string line = await read.ConfigureAwait(false);
+                if (line == null)
+                {
+                    Restart();
+                    throw new IOException(error ?? "Der lokale Hintergrundprozess hat nicht geantwortet.");
+                }
                 var envelope = Json.Object(serializer.DeserializeObject(line));
                 if (envelope.ContainsKey("error")) throw new InvalidOperationException(envelope.Text("error"));
                 return envelope["result"];
             }
             finally { queue.Release(); }
+        }
+
+        private void Restart()
+        {
+            try
+            {
+                if (input != null) input.Dispose();
+                if (process != null && !process.WaitForExit(1600)) process.Kill();
+                if (process != null) process.Dispose();
+            }
+            catch (InvalidOperationException) { }
+            catch (IOException) { }
+            catch (Win32Exception) { }
+            error = null;
+            Start();
         }
 
         public void Dispose()
