@@ -1,0 +1,84 @@
+{
+  "format": 1,
+  "stand": "2026-11-19",
+  "hinweis": "Einzige Quelle der Wahrheit für die Upstream-Stände. bootstrap.ps1 lädt genau diese Archive und prüft jede Datei vor dem Entpacken per SHA-256; work/doctor.py vergleicht die Installationsmarken damit.",
+  "quellen": [
+    {
+      "id": "python",
+      "name": "Portable Python 3.11.9 (Windows x64)",
+      "revision": "3.11.9",
+      "herkunft": "https://www.python.org/downloads/release/python-3119/",
+      "url": "https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip",
+      "sha256": "009d6bf7e3b2ddca3d784fa09f90fe54336d5b60f0e0f305c37f400bf83cfd3b",
+      "ziel": "work/upstream/python-win32",
+      "pruefung": [
+        "python.exe",
+        "python311.dll"
+      ]
+    },
+    {
+      "id": "ignis-engine",
+      "name": "Project Ignis Engine (bin)",
+      "revision": "73c01f0da9df7692a23828ede22a44a32a0cee80",
+      "herkunft": "https://github.com/ProjectIgnis/bin/tree/73c01f0da9df7692a23828ede22a44a32a0cee80",
+      "url": "https://codeload.github.com/ProjectIgnis/bin/zip/73c01f0da9df7692a23828ede22a44a32a0cee80",
+      "sha256": "bb122b223e1e61b1179a4a8a98edd4357ff5e3fc67c64f78528b53ee9523c463",
+      "ziel": "work/upstream/IgnisUpdate",
+      "pruefung": [
+        "ocgcore.dll"
+      ]
+    },
+    {
+      "id": "babelcdb",
+      "name": "Project Ignis Kartendatenbank (BabelCDB)",
+      "revision": "a40b0ef4e1f25bb527fff533e9563fbfb8863a59",
+      "herkunft": "https://github.com/ProjectIgnis/BabelCDB/tree/a40b0ef4e1f25bb527fff533e9563fbfb8863a59",
+      "url": "https://codeload.github.com/ProjectIgnis/BabelCDB/zip/a40b0ef4e1f25bb527fff533e9563fbfb8863a59",
+      "sha256": "885d9bcdd69942f9905eebaf7d6641efe4fdfd7c5b3d5fc79bad99b80fb46a2d",
+      "ziel": "work/upstream/BabelCDB",
+      "pruefung": [
+        "cards.cdb",
+        "prerelease-imph.cdb"
+      ]
+    },
+    {
+      "id": "cardscripts",
+      "name": "Project Ignis Lua-Skripte (CardScripts)",
+      "revision": "6812e76928dc2e89c6dc471b0e69e57d4523c0f1",
+      "herkunft": "https://github.com/ProjectIgnis/CardScripts/tree/6812e76928dc2e89c6dc471b0e69e57d4523c0f1",
+      "url": "https://codeload.github.com/ProjectIgnis/CardScripts/zip/6812e76928dc2e89c6dc471b0e69e57d4523c0f1",
+      "sha256": "678f43025b74f312ae58a7385d543b06c51ce728682b4a016df8fe58cda5a021",
+      "ziel": "work/upstream/CardScripts",
+      "pruefung": [
+        "constant.lua",
+        "official"
+      ]
+    },
+    {
+      "id": "lflists",
+      "name": "Project Ignis Banlisten (LFLists)",
+      "revision": "336ec7e282c3a6e8c0b621108a050fdeb98ababc",
+      "herkunft": "https://github.com/ProjectIgnis/LFLists/tree/336ec7e282c3a6e8c0b621108a050fdeb98ababc",
+      "url": "https://codeload.github.com/ProjectIgnis/LFLists/zip/336ec7e282c3a6e8c0b621108a050fdeb98ababc",
+      "sha256": "082a2c113b4b46841e770c718585981b60cd7153d242a228ba8396b73dc8d96b",
+      "ziel": "work/upstream/LFLists",
+      "pruefung": [
+        "0TCG.lflist.conf",
+        "OCG.lflist.conf"
+      ]
+    },
+    {
+      "id": "ygo-agent",
+      "name": "ygo-agent (Duell-Anbindung und Bots)",
+      "revision": "442857b2afe30b3de94a9fee4630f9719516825b",
+      "herkunft": "https://github.com/mostwanted7/ygo-agent/tree/442857b2afe30b3de94a9fee4630f9719516825b",
+      "url": "https://codeload.github.com/mostwanted7/ygo-agent/zip/442857b2afe30b3de94a9fee4630f9719516825b",
+      "sha256": "258602f640414147623e49fe4fe4ccb19c96dfb4b493d8d76ba5c406660f114c",
+      "ziel": "work/upstream/ygo-agent",
+      "pruefung": [
+        "ygo_agent/__init__.py",
+        "ygo_agent/core/__init__.py"
+      ]
+    }
+  ]
+}

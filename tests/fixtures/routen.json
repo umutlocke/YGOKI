@@ -1,0 +1,17 @@
+{
+  "deck": "Testdeck",
+  "routes": [
+    {
+      "name": "Testlinie",
+      "priority": 1,
+      "goal": "Nur für Tests",
+      "requires": [100],
+      "hand": [100, 300],
+      "steps": [
+        {"code": 100, "do": "N"},
+        {"code": 200, "do": "S", "optional": true},
+        {"code": 300, "do": "E", "pick": [400]}
+      ]
+    }
+  ]
+}

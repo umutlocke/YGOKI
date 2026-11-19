@@ -146,6 +146,29 @@ def auto_top_cut(players):
     return 4 if players >= 8 else 0
 
 
+def pair_round(players, rng):
+    """Swiss pairings by points, avoiding rematches where possible.
+
+    Returns (pairs, bye) with zero-based player indices in `pairs`; the odd player out gets the bye.
+    """
+    order = sorted(players, key=lambda p: (-p["points"], rng.random()))
+    pairs, bye = [], None
+    if len(order) % 2:
+        for player in reversed(order):
+            if not player["bye"]:
+                bye = player
+                break
+        bye = bye or order[-1]
+        order = [p for p in order if p is not bye]
+    open_ = list(order)
+    while open_:
+        first = open_.pop(0)
+        partner = next((i for i, other in enumerate(open_[:60]) if other["id"] not in first["opponents"]), 0)
+        second = open_.pop(partner)
+        pairs.append((first["id"] - 1, second["id"] - 1))
+    return pairs, bye
+
+
 def distribute(shares, players, rng):
     """Largest-remainder split of `players` over the shares; returns a shuffled list of deck indices."""
     total = sum(shares)
@@ -256,22 +279,7 @@ class Tournament:
         return sorted(self.players, key=lambda p: (-p["points"], -p["omw"], -p["oomw"], p["id"]))
 
     def pair(self):
-        order = sorted(self.players, key=lambda p: (-p["points"], self.rng.random()))
-        pairs, bye = [], None
-        if len(order) % 2:
-            for player in reversed(order):
-                if not player["bye"]:
-                    bye = player
-                    break
-            bye = bye or order[-1]
-            order = [p for p in order if p is not bye]
-        open_ = list(order)
-        while open_:
-            first = open_.pop(0)
-            partner = next((i for i, other in enumerate(open_[:60]) if other["id"] not in first["opponents"]), 0)
-            second = open_.pop(partner)
-            pairs.append((first["id"] - 1, second["id"] - 1))
-        return pairs, bye
+        return pair_round(self.players, self.rng)
 
     def swiss_round(self, pool, number):
         pairs, bye = self.pair()

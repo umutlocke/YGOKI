@@ -1,0 +1,9 @@
+# YGOKI wird nicht als Paket installiert. Diese Datei konfiguriert nur pytest.
+# Die Tests der reinen Logik brauchen weder Engine noch Windows:
+#   python -m pip install pytest
+#   python -m pytest
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+pythonpath = ["work"]
+addopts = "-ra"

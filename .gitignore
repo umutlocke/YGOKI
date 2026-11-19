@@ -1,9 +1,21 @@
 # Keep installation data, personal decks, and generated results local.
+# New files on the top level must be allowed explicitly; otherwise /* hides them.
 /*
 !/.gitignore
+!/LICENSE
+!/THIRD-PARTY.md
+!/bootstrap.ps1
+!/revisionen.json
+!/pyproject.toml
 !/README.md
 !/work/
 !/outputs/
+!/tests/
+
+# Python- und pytest-Artefakte
+__pycache__/
+*.pyc
+.pytest_cache/
 
 /work/*
 !/work/*.py

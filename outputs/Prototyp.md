@@ -141,3 +141,30 @@ Speichere bei solchen Duellen die `Ergebnis.json` zusammen mit `Duell.yrpX`. Sie
 - Die Engine nutzt [Project Ignis bin, Revision 73c01f0](https://github.com/ProjectIgnis/bin/tree/73c01f0da9df7692a23828ede22a44a32a0cee80), [BabelCDB, Revision a40b0ef](https://github.com/ProjectIgnis/BabelCDB/tree/a40b0ef4e1f25bb527fff533e9563fbfb8863a59) und [CardScripts, Revision 6812e76](https://github.com/ProjectIgnis/CardScripts/tree/6812e76928dc2e89c6dc471b0e69e57d4523c0f1). Für Red-Eyes Darkness Metal Dragon lädt der Prototyp gezielt das Skript mit Erratum. [Kartentext bei Konami](https://www.db.yugioh-card.com/yugiohdb/card_search.action?cid=7557&ope=2&request_locale=en)
 - Der Import ordnet die Omega-ID für Xtra HERO Wonder Driver sowie elf PHNX-Passcodes den Kennungen im gewählten Engine-Datenstand zu. [YGO Omega](https://omega.duelistsunite.org/wiki/card/1948639) · [Konami zu Immortal Phoenix](https://yu-gi-oh.jp/news/khetf4yog_k/)
 - Die Windows-Anbindung und die einfachen Bots bauen auf [ygo-agent, Revision 442857b](https://github.com/mostwanted7/ygo-agent/tree/442857b2afe30b3de94a9fee4630f9719516825b) auf.
+
+## Einrichtung aus dem Quellcode
+
+Ein frischer Checkout enthält den Quellcode, aber nicht die portable Laufzeit, die Engine, die Kartendaten oder die Skripte. `revisionen.json` pinnt jeden Stand mit Revision und SHA-256; `bootstrap.ps1` lädt die Archive nach `work\upstream`, prüft jede Datei vor dem Entpacken und schreibt eine Installationsmarke. Bereits vorhandene Stände mit passender Marke werden übersprungen.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\bootstrap.ps1
+```
+
+`-Neu` lädt alles neu und ersetzt die Ziele unter `work\upstream`. Lokale Änderungen dort, etwa ein eigener `IgnisUpdate\script`-Override, gehen dabei verloren.
+
+Danach prüft `work\doctor.py` die Installation: Laufzeit, Engine, Kartendaten, Skripte, Banlisten, Decks und Lizenzdateien. Unter Windows startet er außerdem einen echten Import von `deck_check` und `playbook` mit der portablen Laufzeit.
+
+```powershell
+.\outputs\Doctor.cmd
+```
+
+Der Doctor braucht nur die Standardbibliothek. Auf einem frischen Clone meldet er die fehlenden Teile, statt einen `ImportError` aus `deck_check.py` zu zeigen. Exit-Code 0 bedeutet: alle Pflichtteile sind vorhanden.
+
+Die Tests der reinen Logik brauchen weder Engine noch Windows:
+
+```powershell
+python -m pip install pytest
+python -m pytest
+```
+
+Sie prüfen YDK-Parsing und Banlisten-Normalisierung, Kartenrollen, die Wilson-Untergrenze, Routenfortschritt, die Schweizer Paarung, das Playbook-JSON und die Vollständigkeit von `revisionen.json`.
