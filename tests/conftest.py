@@ -73,7 +73,7 @@ def _install_engine_stubs():
     messages = _module("ygo_agent.arena.messages")
     for name in ("BattleAction IdleAction SelectBattleCmd SelectCard SelectChain SelectEffectYn "
                  "SelectIdleCmd SelectOption AnnounceNumber SelectPosition SelectTribute SelectUnselectCard SelectYesNo "
-                 "SelectPlace AnnounceCard SortChain SortCard").split():
+                 "AnnounceCard SortChain SortCard").split():
         setattr(messages, name, type(name, (), {}))
 
     _module("ygo_agent.core.constants",
