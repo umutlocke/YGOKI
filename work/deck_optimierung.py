@@ -116,8 +116,10 @@ def _duel_init(preview_codes, format_name):
     engine = Engine.load(str(SOURCES / "IgnisUpdate"))
     previews = registered(sorted(preview_codes), engine.cards)
     engine = with_previews(engine, previews)
+    # The run's own temp folder collects the workers' duel folders, so one rmtree at the end removes them all.
     _DUEL.update(engine=engine, profile=select_format(SOURCES, format_name), scripts=script_ids(engine, previews),
-                 decks={}, folder=Path(tempfile.mkdtemp(prefix="ygoki-opt-")))
+                 decks={}, folder=Path(tempfile.mkdtemp(prefix="ygoki-opt-worker-",
+                                                       dir=os.environ.get("YGOKI_OPT_TMP") or None)))
 
 
 def _duel(task):
@@ -401,6 +403,7 @@ class Optimizer:
         self.say(f"Deck-Optimierung {self.deck_path.stem} · Format {self.profile.label} · Gauntlet: "
                  + ", ".join(p.stem for p in self.opponents) + f" · Spielweise: {self.strategy}")
         workers = self.args.workers
+        os.environ["YGOKI_OPT_TMP"] = str(self.tmp)   # workers create their temp folders inside the run folder
         current = self.tmp / "Runde-0.ydk"
         write_deck(current, self.sections, "Ausgangsdeck")
         seeds = [random.Random(self.args.seed + i).getrandbits(48) for i in range(self.args.haende)]

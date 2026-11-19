@@ -34,7 +34,7 @@ import time
 import traceback
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 WORK = Path(__file__).resolve().parent
 sys.path.insert(0, str(WORK))
@@ -163,6 +163,14 @@ def check_url(url):
     return parsed
 
 
+class _CheckedRedirect(HTTPRedirectHandler):
+    """Check a redirect target before urllib follows it: a public page must not send us into the LAN."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        check_url(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def fetch(url):
     """Load one public page and return title, readable text and metadata."""
     check_url(url)
@@ -172,7 +180,7 @@ def fetch(url):
         "Accept-Language": "de,en;q=0.8",
     })
     try:
-        with urlopen(request, timeout=20) as response:
+        with build_opener(_CheckedRedirect()).open(request, timeout=20) as response:
             final = response.geturl()
             check_url(final)   # a redirect must not lead into the local network
             raw = response.read(MAX_BYTES + 1)

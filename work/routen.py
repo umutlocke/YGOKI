@@ -119,7 +119,10 @@ def progress(route, done, present=frozenset()):
 def finished(route, position):
     """True once every required step outside the End Phase was played."""
     needed = [i for i, step in enumerate(route["steps"]) if not step["optional"] and step["when"] != "end"]
-    return position >= (needed[-1] + 1 if needed else 0)
+    if not needed:
+        # A route of optional steps only is not done before it started: position 0 must not count.
+        return position > 0 and position >= len(route["steps"])
+    return position >= needed[-1] + 1
 
 
 def next_steps(route, position):

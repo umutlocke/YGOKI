@@ -493,6 +493,16 @@ def _resolve_hand(text, engine, deck):
     return codes
 
 
+def _solve_safe(task):
+    """One broken hand becomes an error record; the run continues with the next hand."""
+    try:
+        return solve(task)
+    except Exception as error:   # noqa: BLE001 - an engine failure must not kill the whole run
+        return {"error": f"{type(error).__name__}: {error}", "hand": list(task[2] or []),
+                "base_score": 0.0, "score": 0.0, "details": {"interruptions": 0}, "line": [], "route": [],
+                "rollouts": 0, "seconds": 0.0}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Combo-Solver für den ersten Zug")
     parser.add_argument("--deck", type=Path, required=True)
@@ -526,16 +536,29 @@ def main(argv=None):
     print(f"Combo-Solver: {args.deck.stem}, {len(tasks)} Hände, {args.rollouts} Probe-Züge je Hand, "
           f"{args.workers} Prozesse, Ausgangspunkt: {source}", flush=True)
     started = time.perf_counter()
-    with ProcessPoolExecutor(args.workers, initializer=_init_worker, initargs=(str(args.deck),)) as pool:
-        for number, result in enumerate(pool.map(solve, tasks), start=1):
-            record["hands"].append(result)
-            names = ", ".join(_card_label(engine.cards, c) for c in result["hand"])
-            print(f"[{number}/{len(tasks)}] {result['base_score']:.1f} → {result['score']:.1f} "
-                  f"({result['rollouts']} Züge, {result['seconds']} s) · {names}", flush=True)
-            status.write_text(json.dumps({"done": number, "total": len(tasks)}), encoding="utf-8")
-    record["state"] = "fertig"
-    record["seconds"] = round(time.perf_counter() - started, 1)
-    write_report(out, record, engine.cards)
+    errors = []
+    try:
+        with ProcessPoolExecutor(args.workers, initializer=_init_worker, initargs=(str(args.deck),)) as pool:
+            for number, result in enumerate(pool.map(_solve_safe, tasks), start=1):
+                if "error" in result:
+                    errors.append({"hand": result["hand"], "error": result["error"]})
+                    print(f"[{number}/{len(tasks)}] Engine-Fehler: {result['error']}", flush=True)
+                else:
+                    record["hands"].append(result)
+                    names = ", ".join(_card_label(engine.cards, c) for c in result["hand"])
+                    print(f"[{number}/{len(tasks)}] {result['base_score']:.1f} → {result['score']:.1f} "
+                          f"({result['rollouts']} Züge, {result['seconds']} s) · {names}", flush=True)
+                record["errors"] = errors
+                status.write_text(json.dumps({"done": len(record["hands"]) + len(errors),
+                                              "total": len(tasks)}), encoding="utf-8")
+                (out / "Ergebnis.json").write_text(json.dumps(record, ensure_ascii=False, indent=1),
+                                                   encoding="utf-8")
+        record["state"] = "fehler" if errors else "fertig"
+    finally:
+        if record.get("state") == "läuft":     # the run was aborted: never leave "läuft" on disk
+            record["state"] = "fehler"
+        record["seconds"] = round(time.perf_counter() - started, 1)
+        write_report(out, record, engine.cards)
     print(f"Fertig. Bericht: {out / 'Linien.md'}", flush=True)
     return record
 

@@ -81,9 +81,27 @@ class Playbook:
 
     @classmethod
     def from_json(cls, data):
-        return cls({int(k): v for k, v in data["weights"].items()},
-                   {int(k): v for k, v in data["chain_opp"].items()}, dict(data["bias"]),
-                   data["end_threshold"], data["chain_own"], data["yes"], data["attack"], data.get("origin", ""),
+        """Validated playbook: missing bias values get defaults, empty weights are an error (mutate/crossover
+        iterate over the weights and must not fail later with a bare KeyError or ValueError)."""
+        if not isinstance(data, dict):
+            raise ValueError("Playbook ist kein JSON-Objekt.")
+        weights = {int(k): float(v) for k, v in (data.get("weights") or {}).items()}
+        if not weights:
+            raise ValueError("Playbook ohne weights: mindestens eine Karte wird gebraucht.")
+        chain = {int(k): float(v) for k, v in (data.get("chain_opp") or {}).items()}
+        bias = {str(k): float(v) for k, v in (data.get("bias") or {}).items()}
+        for action in ACTIONS:
+            bias.setdefault(action, 0.0)
+        defaults = {"end_threshold": -0.2, "chain_own": 0.35, "yes": 0.85, "attack": 0.9}
+        numbers = {}
+        for key, fallback in defaults.items():
+            try:
+                numbers[key] = float(data.get(key, fallback))
+            except (TypeError, ValueError) as error:
+                raise ValueError(f"Playbook-Feld {key} ist keine Zahl: {data.get(key)!r}") from error
+        return cls(weights, {code: chain.get(code, 0.6) for code in weights}, bias,
+                   numbers["end_threshold"], numbers["chain_own"], numbers["yes"], numbers["attack"],
+                   str(data.get("origin", "")),
                    [dict(steps=list(c["steps"]), weight=c.get("weight", 1.0)) for c in data.get("combos", [])],
                    data.get("combo_bonus", 1.5), data.get("route_bonus", 4.0), data.get("route_stop", 1.5))
 
@@ -97,6 +115,8 @@ class Playbook:
 def mutate(book: Playbook, rng: random.Random, strength=1.0, origin="Mutation"):
     child = book.copy(origin)
     codes = list(child.weights)
+    if not codes:
+        return child
     for code in rng.sample(codes, max(1, len(codes) // 4)):
         child.weights[code] = round(child.weights[code] + rng.gauss(0, 0.6 * strength), 3)
     for code in rng.sample(codes, max(1, len(codes) // 6)):

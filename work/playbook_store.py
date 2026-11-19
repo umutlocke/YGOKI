@@ -1,5 +1,6 @@
 """Find the best available playbook for a deck list: a released one, otherwise the best trained champion."""
 
+import copy
 import json
 import sys
 from pathlib import Path
@@ -9,9 +10,30 @@ PLAYBOOKS = WORK / "playbooks"
 RUNS = WORK / "ki-lernen"
 
 
+_CACHE = {}
+
+
 def best_playbook(deck_key):
-    """Returns (playbook dict, info) or (None, None). info: rating, released, run."""
+    """Returns (playbook dict, info) or (None, None). info: rating, released, run.
+
+    The lookup scans every run folder; the result is cached until the released file or the runs folder changes."""
     stored = PLAYBOOKS / f"{deck_key}.json"
+    try:
+        stamp = (stored.stat().st_mtime_ns if stored.is_file() else 0,
+                 RUNS.stat().st_mtime_ns if RUNS.exists() else 0)
+    except OSError:
+        stamp = (0, 0)
+    cached = _CACHE.get(str(deck_key))
+    if cached and cached[0] == stamp:
+        return copy.deepcopy(cached[1])
+    result = _best_playbook(deck_key, stored)
+    if len(_CACHE) > 16:
+        _CACHE.clear()
+    _CACHE[str(deck_key)] = (stamp, copy.deepcopy(result))
+    return result
+
+
+def _best_playbook(deck_key, stored):
     if stored.is_file():
         try:
             data = json.loads(stored.read_text(encoding="utf-8"))

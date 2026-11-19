@@ -142,7 +142,11 @@ try {
 
     Write-Output '--- 6. App-Selbsttest (unsichtbares Fenster)'
     $test = Join-Path $env:TEMP ('ygoki-selbsttest-' + [guid]::NewGuid().ToString('N'))
-    $process = Start-Process -FilePath $exe -ArgumentList '--root', "`"$app`"", '--self-test', "`"$test`"" -PassThru -Wait
+    $process = Start-Process -FilePath $exe -ArgumentList '--root', "`"$app`"", '--self-test', "`"$test`"" -PassThru
+    if (-not $process.WaitForExit(600000)) {
+        try { $process.Kill() } catch { }
+        throw 'Der App-Selbsttest hat das Zeitlimit von 10 Minuten überschritten.'
+    }
     if (Test-Path -LiteralPath (Join-Path $test 'ok.txt')) {
         Write-Output ('OK       ' + (Get-Content -LiteralPath (Join-Path $test 'ok.txt') -Raw))
         Copy-Item -LiteralPath (Join-Path $test 'training.png') -Destination (Join-Path $repo 'Pruefbild-Training.png') -Force -ErrorAction SilentlyContinue

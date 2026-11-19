@@ -43,6 +43,13 @@ def _read(path):
         return None
 
 
+def _write(path, data):
+    try:
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    except OSError:
+        pass
+
+
 def _safe_run(folder):
     path = Path(folder).resolve()
     if RUNS.resolve() not in path.parents and TOURNAMENTS.resolve() not in path.parents \
@@ -143,7 +150,8 @@ def status(folder):
     if not pid and (folder / "pid.txt").exists():
         pid = int((folder / "pid.txt").read_text(encoding="utf-8").strip() or 0)
     running = _alive(pid) and info.get("state") not in ("beendet", "freigegeben", "fehler")
-    if not running and info.get("state") in ("läuft", "startet"):
+    killed = not running and info.get("state") in ("läuft", "startet")
+    if killed:
         info["state"] = "unterbrochen"
         info["message"] = "Der Trainingsprozess läuft nicht mehr. Mit „Fortsetzen“ geht es ab dem letzten Stand weiter."
     info["running"] = running
@@ -156,6 +164,8 @@ def status(folder):
     info["report"] = str(report) if report.exists() else None
     info["folder"] = str(folder)
     info["name"] = folder.name
+    if killed:
+        _write(folder / "status.json", info)   # a taskkill'ed run must not show "läuft" forever
     return info
 
 

@@ -222,12 +222,22 @@ def _rows(folder):
         return {}
 
 
+_KNOWLEDGE_CACHE = {}
+
+
 def knowledge(main_codes):
     """The training whose deck list matches this main deck best (at least half of the different cards)."""
     wanted = set(main_codes)
-    best = None
     if not wanted or not RUNS.exists():
         return None
+    try:
+        stamp = (RUNS.stat().st_mtime_ns, len(list(RUNS.iterdir())))   # cheap: only the runs folder itself
+    except OSError:
+        stamp = (0, 0)
+    key = (frozenset(wanted), stamp)
+    if key in _KNOWLEDGE_CACHE:
+        return _KNOWLEDGE_CACHE[key]
+    best = None
     for folder in RUNS.iterdir():
         if folder.name.startswith("_") or not (folder / "Kartenanalyse.csv").is_file():
             continue
@@ -250,6 +260,7 @@ def knowledge(main_codes):
             best = (rank, {"run": folder.name, "overlap": overlap, "rows": _rows(folder), "rating": analysis.get("note"),
                            "overall": analysis.get("siegquote_pruefung") or 0.5, "deck_key": record.get("deck_key")})
     if best is None:
+        _KNOWLEDGE_CACHE[key] = None
         return None
     info = best[1]
     starters = Counter()
@@ -264,6 +275,9 @@ def knowledge(main_codes):
         except (OSError, ValueError):
             pass
     info["combo_starters"] = starters
+    if len(_KNOWLEDGE_CACHE) > 16:
+        _KNOWLEDGE_CACHE.clear()
+    _KNOWLEDGE_CACHE[key] = info
     return info
 
 

@@ -60,9 +60,26 @@ def settings():
                      (MODEL if backend == "ollama" else "")).strip(),
         "api_key": key,
         "api_key_env": key_env,
-        "timeout": int(data.get("timeout", 180)),
+        "timeout": _timeout(data.get("timeout", 180)),
         "send_seed": bool(data.get("send_seed", False)),
     }
+
+
+def _timeout(value):
+    try:
+        seconds = int(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"LLM-Timeout ist keine Zahl: {value!r}. In work/llm.json z. B. \"timeout\": 180 setzen.") from error
+    if seconds <= 0:
+        raise ValueError(f"LLM-Timeout muss größer als 0 sein: {seconds}")
+    return seconds
+
+
+def _opener(cfg):
+    """Local Ollama ignores proxies; a remote model must keep the system proxy settings."""
+    if (cfg or {}).get("backend") == "openai":
+        return build_opener(LocalOnly())
+    return build_opener(ProxyHandler({}), LocalOnly())
 
 
 def request(endpoint, data=None, timeout=180, cfg=None):
@@ -71,8 +88,11 @@ def request(endpoint, data=None, timeout=180, cfg=None):
     body = None if data is None else json.dumps(data, ensure_ascii=False).encode("utf-8")
     req = Request(cfg["host"] + endpoint, data=body, headers={"Content-Type": "application/json"})
     try:
-        with build_opener(ProxyHandler({}), LocalOnly()).open(req, timeout=timeout) as response:
-            return json.load(response)
+        with _opener(cfg).open(req, timeout=timeout) as response:
+            try:
+                return json.load(response)
+            except ValueError as error:
+                raise ValueError("Ollama hat keine gültige JSON-Antwort geliefert.") from error
     except (OSError, URLError) as error:
         raise ValueError(f"Lokales Ollama ist nicht erreichbar oder hat geantwortet: {error}") from error
 
@@ -124,7 +144,10 @@ def _object(content):
     if text.startswith("```"):
         text = text[7:] if text.lower().startswith("```json") else text[3:]
         text = text.rsplit("```", 1)[0].strip()
-    result = json.loads(text)
+    try:
+        result = json.loads(text)
+    except ValueError as error:
+        raise ValueError("Die Antwort war kein gültiges JSON.") from error
     if not isinstance(result, dict):
         raise ValueError("Antwort ist kein Objekt.")
     return result
@@ -146,7 +169,7 @@ def _remote(cfg, role, instructions, evidence, schema, seed, max_tokens=900):
         headers["Authorization"] = f"Bearer {cfg['api_key']}"
     req = Request(url, data=json.dumps(body, ensure_ascii=False).encode("utf-8"), headers=headers)
     try:
-        with build_opener(ProxyHandler({}), LocalOnly()).open(req, timeout=cfg["timeout"]) as response:
+        with _opener(cfg).open(req, timeout=cfg["timeout"]) as response:
             payload = json.load(response)
     except HTTPError as error:
         detail = ""
