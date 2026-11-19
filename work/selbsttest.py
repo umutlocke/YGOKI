@@ -71,8 +71,15 @@ def decks():
     return ", ".join(summary)
 
 
+def _selftest_output(*parts):
+    """Run folder for self-test runs. YGOKI_SELBSTTEST_DIR redirects it (for example into a temporary folder),
+    so a real work\\ki-lernen\\_selbsttest run stays untouched."""
+    root = os.environ.get("YGOKI_SELBSTTEST_DIR")
+    return Path(root).joinpath(*parts) if root else WORK.joinpath(*parts)
+
+
 def training():
-    folder = WORK / "ki-lernen" / "_selbsttest"
+    folder = _selftest_output("ki-lernen", "_selbsttest")
     shutil.rmtree(folder, ignore_errors=True)
     deck = sorted((WORK / "decks").glob("*.ydk"))[0]
     command = [sys.executable, "-B", "-X", "utf8", str(WORK / "ki_lernen.py"), "--deck", str(deck),
@@ -96,7 +103,7 @@ def training():
 
 
 def tournament():
-    folder = WORK / "turniere" / "_selbsttest"
+    folder = _selftest_output("turniere", "_selbsttest")
     shutil.rmtree(folder, ignore_errors=True)
     folder.mkdir(parents=True)
     decks = sorted((WORK / "decks").glob("*.ydk"))[:3]
