@@ -17,7 +17,7 @@ from kartenrollen import text_role
 import routen
 
 from ygo_agent.arena.messages import (BattleAction, IdleAction, SelectBattleCmd, SelectCard, SelectChain,
-                                      SelectEffectYn, SelectIdleCmd, SelectOption, SelectPosition,
+                                      AnnounceNumber, SelectEffectYn, SelectIdleCmd, SelectOption, SelectPosition,
                                       SelectTribute, SelectUnselectCard, SelectYesNo)
 from ygo_agent.arena.policies import RandomPolicy
 from ygo_agent.core.constants import (LOCATION_DECK, LOCATION_HAND, LOCATION_MZONE, LOCATION_SZONE,
@@ -271,7 +271,11 @@ class PlaybookPolicy(RandomPolicy):
     def _route_step(self, group, code, end_phase=False):
         """The best route step matching an action, or None."""
         best = None
-        for score, route, position, step in self._route_options(end_phase):
+        options = self._route_options(end_phase)
+        lead = max((position for _, _, position, _ in options), default=0)
+        for score, route, position, step in options:
+            if lead >= 4 and position < lead / 2:   # deep into one route: a barely started one must not steer picks
+                continue
             if routen.matches(step, group, code) and (best is None or score > best[0]):
                 best = (score, route, position, step)
         return best
@@ -289,9 +293,12 @@ class PlaybookPolicy(RandomPolicy):
                 picks = picks + [c for c in self.picks if c not in picks]
                 costs = costs + [c for c in self.costs if c not in costs]
             self.picks, self.costs = picks, costs
+            if step.get("option") is not None or not merge:
+                self.option = step.get("option")
             self.avoid = {s["code"] for s in route["steps"]} | {c for s in route["steps"] for c in s["pick"]}
         elif not merge:
             self.picks, self.costs, self.avoid = [], [], set()
+            self.option = None
 
     def _route_finished(self):
         done = self._done()
@@ -555,14 +562,30 @@ class PlaybookPolicy(RandomPolicy):
                 if end_phase:
                     self._log_routes_end()
             return p.respond(yes)
+        if isinstance(p, AnnounceNumber) and p.options and self.costs:
+            # "banish N cards, summon a Link-N": a route step names its costs, so announce that many
+            n = len(self.costs)
+            if n in p.options:
+                return p.respond(p.options.index(n))
         if isinstance(p, SelectYesNo):
             return p.respond(rng.random() < book.yes)
         if isinstance(p, SelectOption):
+            option = getattr(self, "option", None)
+            if option is not None and 0 <= option < len(p.options):
+                return p.respond(option)
             return p.respond(0 if rng.random() < 0.7 else rng.randrange(len(p.options)))
         if isinstance(p, SelectCard) and p.cards:
             hint = _select_hint(view)
             order = self._order(p.cards, view, hint)
             count = p.max if hint in GOOD_HINTS else max(p.min, 1)
+            wanted = list(self.costs) + list(self.picks)
+            hits = 0
+            for card in p.cards:   # a route step names exactly what to pick: take only that many
+                if card.code in wanted and card.controller == view.team:
+                    wanted.remove(card.code)
+                    hits += 1
+            if hits:
+                count = max(p.min, min(p.max, hits))
             chosen = order[:min(count, len(order))]
             self._consume([p.cards[i] for i in chosen], view, hint)
             return p.respond(sorted(chosen))
@@ -579,6 +602,9 @@ class PlaybookPolicy(RandomPolicy):
             enough = len(p.selected) >= max(p.min, 1)
             wanted = self.costs if hint in COST_HINTS else self.picks
             more = any(card.code in wanted for card in p.selectable) and len(p.selected) < p.max
+            if self.costs or self.picks:   # route step active: stop as soon as its cards are chosen
+                both = list(self.costs) + list(self.picks)
+                more = any(card.code in both for card in p.selectable) and len(p.selected) < p.max
             if p.finishable and (enough or not p.selectable) and not more:
                 return p.respond(None)
             if p.selectable:

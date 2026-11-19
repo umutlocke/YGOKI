@@ -127,17 +127,17 @@ def classify(card):
     if card.is_extra_deck:
         return "Extra Deck", ""
     manual = _manual()
-    manual = manual.get(card.code) or manual.get(card.alias)
+    manual = manual.get(card.code) or manual.get(getattr(card, "alias", 0))
     if manual:
         return manual, "von dir festgelegt"
     text = (card.text or "").lower()
     head = re.split(r"if the activation of this card|if this card's activation", text)[0]
     monster, spell, trap = card.type & TYPE_MONSTER, card.type & TYPE_SPELL, card.type & TYPE_TRAP
     quickplay = bool(spell and card.type & TYPE_QUICKPLAY)
-    level = abs(card.level or 0) & 0xFF
-    if card.code in GENERIC_HANDTRAPS or card.alias in GENERIC_HANDTRAPS:
+    level = abs(getattr(card, "level", 0) or 0) & 0xFF
+    if card.code in GENERIC_HANDTRAPS or getattr(card, "alias", 0) in GENERIC_HANDTRAPS:
         return "Handtrap", "bekannte Handtrap"
-    if card.code in GENERIC_BREAKERS or card.alias in GENERIC_BREAKERS:
+    if card.code in GENERIC_BREAKERS or getattr(card, "alias", 0) in GENERIC_BREAKERS:
         return "Boardbreaker", "bekannter Boardbreaker"
     if monster and _hand_quick(text):
         return "Handtrap", "Quick Effect von der Hand"

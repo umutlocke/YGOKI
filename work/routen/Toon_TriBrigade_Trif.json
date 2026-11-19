@@ -1,0 +1,273 @@
+{
+ "deck": "Tri-Brigade Toon",
+ "quelle": "Steven 'Trif' Trifunoski (Bread-and-Butter-Combo, von Umut 19.11.2026), gegen Kartentexte geprüft",
+ "routes": [
+  {
+   "name": "Toon Tri-Brigade · Fraktall (Bread and Butter)",
+   "priority": 3,
+   "goal": "Mouser → Shuraig/Bucephalus/Springans Kitt → Chimera, Double Dragon Lords, Ferrijit; Shuraig sucht (eigentlich Animimicat)",
+   "quelle": "Steven 'Trif' Trifunoski (Bread-and-Butter-Combo, von Umut 19.11.2026), gegen Kartentexte geprüft",
+   "hand": [
+    87209160
+   ],
+   "steps": [
+    {
+     "code": 87209160,
+     "do": "E",
+     "note": "Fraktall wirft sich ab, schickt Nervall",
+     "cost": [
+      14816857
+     ]
+    },
+    {
+     "code": 14816857,
+     "do": "E",
+     "note": "Nervall sucht Tri-Brigade Kitt",
+     "pick": [
+      56196385
+     ]
+    },
+    {
+     "code": 56196385,
+     "do": "N",
+     "note": "Kitt normal"
+    },
+    {
+     "code": 56196385,
+     "do": "E",
+     "note": "Kitt verbannt Nervall → Yummy★Snatchy",
+     "cost": [
+      14816857
+     ],
+     "pick": [
+      30581601
+     ]
+    },
+    {
+     "code": 33781156,
+     "do": "S",
+     "note": "Arms Mouser aus Kitt + Snatchy",
+     "cost": [
+      56196385,
+      30581601
+     ]
+    },
+    {
+     "code": 33781156,
+     "do": "E",
+     "note": "Mouser schickt Bucephalus II + Shuraig",
+     "cost": [
+      10019086,
+      99726621
+     ]
+    },
+    {
+     "code": 56196385,
+     "do": "E",
+     "note": "Kitt (im Friedhof) schickt Springans Kitt",
+     "cost": [
+      19304410
+     ]
+    },
+    {
+     "code": 19304410,
+     "do": "E",
+     "note": "Springans Kitt belebt Fraktall",
+     "pick": [
+      87209160
+     ]
+    },
+    {
+     "code": 10019086,
+     "do": "E",
+     "note": "Bucephalus II schickt Chimera",
+     "cost": [
+      1769875
+     ],
+     "optional": true
+    },
+    {
+     "code": 99726621,
+     "do": "E",
+     "note": "Shuraig sucht Animimicat",
+     "pick": [
+      72921536
+     ]
+    },
+    {
+     "code": 87209160,
+     "do": "E",
+     "note": "Fraktall verbannt Snatchy + Bucephalus → Double Dragon Lords",
+     "cost": [
+      30581601,
+      10019086
+     ],
+     "pick": [
+      65711558
+     ]
+    },
+    {
+     "code": 26847978,
+     "do": "S",
+     "note": "Ferrijit aus Fraktall + Mouser",
+     "cost": [
+      87209160,
+      33781156
+     ]
+    },
+    {
+     "code": 26847978,
+     "do": "E",
+     "note": "Ferrijit beschwört Animimicat von der Hand",
+     "pick": [
+      72921536
+     ]
+    },
+    {
+     "code": 72921536,
+     "do": "E",
+     "note": "Animimicat tributet sich → Funny Dark Rabbit aus dem Deck",
+     "cost": [
+      72921536
+     ],
+     "pick": [
+      45536531
+     ]
+    },
+    {
+     "code": 45536531,
+     "do": "E",
+     "note": "Rabbit legt Toon World the Perfect World aufs Feld",
+     "pick": [
+      7293697
+     ],
+     "option": 1
+    },
+    {
+     "code": 7293697,
+     "do": "E",
+     "note": "neu gelegte Toon World sucht Toon Bookmark",
+     "pick": [
+      91500017
+     ]
+    },
+    {
+     "code": 91500017,
+     "do": "E",
+     "note": "Toon Bookmark sucht Faceless Mage",
+     "pick": [
+      34314989
+     ]
+    },
+    {
+     "code": 34314989,
+     "do": "E",
+     "note": "Faceless Mage legt Mind Scan",
+     "pick": [
+      34298391
+     ]
+    },
+    {
+     "code": 45536531,
+     "do": "E",
+     "note": "Rabbit (von Toon World kurz verbannt, wieder da) legt die dritte Toon World aufs Feld",
+     "pick": [
+      7293697
+     ],
+     "option": 1
+    },
+    {
+     "code": 7293697,
+     "do": "E",
+     "note": "dritte Toon World sucht Evil Box",
+     "pick": [
+      8915275
+     ]
+    },
+    {
+     "code": 8915275,
+     "do": "E",
+     "note": "Evil Box beschwört sich, setzt Toon Terror",
+     "pick": [
+      53094821
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Toon Tri-Brigade · Perfect Toon World (Toon-Teil, Einstieg)",
+   "priority": 2,
+   "goal": "Funny Dark Rabbit, Mind Scan, Evil Box mit Toon Terror",
+   "quelle": "Steven 'Trif' Trifunoski (Bread-and-Butter-Combo, von Umut 19.11.2026), gegen Kartentexte geprüft",
+   "hand": [
+    7293697
+   ],
+   "steps": [
+    {
+     "code": 7293697,
+     "do": "E",
+     "note": "Toon World the Perfect World aktivieren"
+    },
+    {
+     "code": 7293697,
+     "do": "E",
+     "note": "Toon World sucht Funny Dark Rabbit",
+     "pick": [
+      45536531
+     ]
+    },
+    {
+     "code": 45536531,
+     "do": "N",
+     "note": "Funny Dark Rabbit normal"
+    },
+    {
+     "code": 45536531,
+     "do": "E",
+     "note": "Rabbit legt die nächste Toon World aufs Feld (Toon World verbannt Rabbit kurz → Rabbit-Effekt erneut)",
+     "pick": [
+      7293697
+     ],
+     "option": 1
+    },
+    {
+     "code": 7293697,
+     "do": "E",
+     "note": "neue Toon World sucht Toon Bookmark (oder Evil Box)",
+     "pick": [
+      91500017,
+      8915275
+     ],
+     "optional": true
+    },
+    {
+     "code": 91500017,
+     "do": "E",
+     "note": "Toon Bookmark sucht Dark-Eyes Illusionist Faceless Mage",
+     "pick": [
+      34314989
+     ],
+     "optional": true
+    },
+    {
+     "code": 34314989,
+     "do": "E",
+     "note": "Faceless Mage wirft sich ab, legt Mind Scan",
+     "pick": [
+      34298391
+     ],
+     "optional": true
+    },
+    {
+     "code": 8915275,
+     "do": "E",
+     "note": "Evil Box beschwört sich, setzt Toon Terror",
+     "pick": [
+      53094821
+     ],
+     "optional": true
+    }
+   ]
+  }
+ ]
+}

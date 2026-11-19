@@ -12,6 +12,7 @@ Step fields
   cost   cards to use when the effect asks for a cost (send, banish, return to deck ...)
   when   "end" = only in the End Phase (e.g. Deep Forest setting Illusion)
   optional  true = the route continues if this step cannot be played
+  option    index for an effect's own choice prompt (e.g. 0 = add to hand, 1 = place on the field)
 
 Route fields: name, priority, goal, steps, optional "requires" (extra cards the deck must contain),
 "hand" (the starting hand the route is meant for; used by routen_test.py) and "quelle" (where it comes from,
@@ -32,7 +33,8 @@ def _step(raw):
     return {"code": int(raw["code"]), "do": str(raw.get("do", "")).upper()[:1],
             "pick": [int(c) for c in raw.get("pick", [])], "cost": [int(c) for c in raw.get("cost", [])],
             "when": raw.get("when", ""), "optional": bool(raw.get("optional", False)),
-            "note": raw.get("note", "")}
+            "note": raw.get("note", ""),
+            "option": int(raw["option"]) if raw.get("option") is not None else None}
 
 
 def load_all(folder=None):
