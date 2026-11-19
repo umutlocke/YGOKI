@@ -23,7 +23,8 @@ def test_extra_deck():
 
 
 def test_fehlende_karte():
-    assert text_role(None) == "Sonstige"
+    # seit der Rollen-Erweiterung (Starter/Extender/Handtrap/Interrupt/Boardbreaker/Brick/Engine) gibt es kein "Sonstige" mehr
+    assert text_role(None) == "Engine"
 
 
 def test_starter_ueber_suche():
@@ -49,4 +50,4 @@ def test_falle_aus_der_hand():
 
 
 def test_gewoehnliche_karte():
-    assert text_role(Card(TYPE_MONSTER, "This card gains 500 ATK.")) == "Sonstige"
+    assert text_role(Card(TYPE_MONSTER, "This card gains 500 ATK.")) == "Engine"
