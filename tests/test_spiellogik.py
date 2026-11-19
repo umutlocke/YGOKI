@@ -272,8 +272,8 @@ def test_ziel_handtrap_braucht_ein_gegnerisches_monster():
     monster = Card(2, controller=1)
     view._monsters = [monster]
     assert target_activation_ok(view, True, None) is True
-    view._duel.phase = 0x08          # Battle Phase
-    assert target_activation_ok(view, True, None) is True
+    view._duel.phase = 0x08          # Battle Phase: no measurable case, so not allowed
+    assert target_activation_ok(view, True, None) is False
     view._duel.phase = 0x200         # End Phase
     assert target_activation_ok(view, True, None) is False
 

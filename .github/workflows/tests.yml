@@ -17,3 +17,23 @@ jobs:
         run: python -m pip install --upgrade pip pytest
       - name: Tests
         run: python -m pytest -q tests
+
+  powershell:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PowerShell-Skripte parsen
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem -Path . -Recurse -Filter *.ps1 | ForEach-Object {
+            $file = $_.FullName
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$tokens, [ref]$errors) | Out-Null
+            foreach ($error in $errors) {
+              Write-Host "::error file=$file::$($error.Message)"
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 }

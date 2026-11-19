@@ -11,7 +11,7 @@ def _trainer(noten, qwen=True, rating=9.5, clear=True, valid=2000):
     exams = [{"rating": rating, "judge": {"clear": clear}, "reviewers": [{"note": n} for n in noten]}
              for _ in range(2)]
     return SimpleNamespace(record={"exams": exams, "valid": valid},
-                           args=SimpleNamespace(min_duels=1000, target=9.0),
+                           args=SimpleNamespace(min_duels=1000, target=9.0, release_margin=0.5),
                            qwen=SimpleNamespace(enabled=qwen))
 
 
@@ -39,3 +39,8 @@ def test_zielnote_und_judges_bleiben_pflicht():
     assert not freigabe(_trainer([10, 10, 10], rating=8.9))
     assert not freigabe(_trainer([10, 10, 10], clear=False))
     assert not freigabe(_trainer([10, 10, 10], valid=500))
+
+
+def test_marge_ueber_der_zielnote_schuetzt_vor_rauschen():
+    assert freigabe(_trainer([10, 10, 10], rating=9.5))
+    assert not freigabe(_trainer([10, 10, 10], rating=9.2))

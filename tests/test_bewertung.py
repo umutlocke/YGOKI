@@ -1,4 +1,4 @@
-from bewertung import wilson_lower
+from bewertung import stufe, wilson_lower
 
 
 def test_ohne_spiele():
@@ -13,3 +13,9 @@ def test_untergrenze_liegt_unter_der_quote():
 def test_mehr_siege_heben_die_untergrenze():
     values = [wilson_lower(wins, 20) for wins in (4, 8, 12, 16)]
     assert values == sorted(values)
+
+
+def test_notenstufen_an_den_grenzen():
+    assert [stufe(note) for note in (0, 1, 3, 3.1, 4, 6, 6.5, 7, 8, 8.5, 9, 10)] == [
+        "Anfänger", "Anfänger", "Anfänger", "Fortgeschritten", "Fortgeschritten", "Fortgeschritten",
+        "Guter Spieler", "Guter Spieler", "Guter Spieler", "YCS-Champion", "YCS-Champion", "YCS-Champion"]

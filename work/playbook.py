@@ -217,12 +217,13 @@ def opponent_monsters(view):
 
 
 def target_activation_ok(view, targets, last):
-    """Imperm/Veiler need an opponent monster. In our turn: Main Phase 1 or the Battle Phase, never into nothing."""
+    """Imperm/Veiler need an opponent monster, in our turn only in Main Phase 1 (0 Battle-Phase offers in 160
+    real duels, see the duel measurement; the wider rule is therefore not kept)."""
     if not targets or not opponent_monsters(view):
         return False
     if view.turn_player != view.team:
         return last is not None
-    return _duel_phase(view) in (PHASE_MAIN1, PHASE_BATTLE)
+    return _duel_phase(view) == PHASE_MAIN1
 
 
 def handtrap_timing_ok(view, code):

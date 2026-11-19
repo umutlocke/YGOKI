@@ -37,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from deck_check import WORK  # noqa: E402  (also puts ygo-agent on sys.path)
 from kartenrollen import text_role  # noqa: E402
 import kartenwissen  # noqa: E402
-from bewertung import gauntlet_lines, rating, route_lines, route_summary, wilson_lower  # noqa: E402
+from bewertung import gauntlet_lines, rating, route_lines, route_summary, stufe, wilson_lower  # noqa: E402
 from playbook import Playbook, PlaybookPolicy, adjust, crossover, mutate, remember  # noqa: E402
 import kombos  # noqa: E402
 import web_wissen  # noqa: E402
@@ -341,6 +341,7 @@ class Trainer:
             "players": self.args.players, "qwen": bool(self.qwen.model), "pid": os.getpid(),
             "qwen_zeiten": self.qwen.timings(),
             "ratings": [exam["rating"] for exam in exams], "best": max((e["rating"] for e in exams), default=None),
+            "stufe": stufe(exams[-1]["rating"]) if exams else None,
             "updated": datetime.now().isoformat(timespec="seconds")})
         print(f"[{datetime.now():%H:%M:%S}] {message}", flush=True)
 
@@ -602,8 +603,9 @@ class Trainer:
         exams = self.record["exams"]
         if self.record["valid"] < self.args.min_duels or len(exams) < 2:
             return False
+        margin = getattr(self.args, "release_margin", 0.5)   # exam noise (SD ~0.6) must not decide a release
         for exam in exams[-2:]:
-            if exam["rating"] < self.args.target or not exam["judge"]["clear"]:
+            if exam["rating"] < self.args.target + margin or not exam["judge"]["clear"]:
                 return False
             if self.qwen.enabled:
                 # all three reviewer roles must have answered, each with at least REVIEW_MIN
@@ -748,7 +750,8 @@ class Trainer:
         dead = sorted((r for r in main_rows if r["tot_auf_der_hand"]),
                       key=lambda r: -r["tot_auf_der_hand"] / max(r["in_starthand"], 1))[:6]
         data = {"deck": self.deck.name, "freigegeben": self.record.get("released"), "ende": self.record["end_reason"],
-                "note": last["rating"], "teilnoten": last["parts"], "siegquote_pruefung": round(overall, 3),
+                "note": last["rating"], "stufe": stufe(last["rating"]), "teilnoten": last["parts"],
+                "siegquote_pruefung": round(overall, 3),
                 "pruefspiele": count, "staerkste_starthandkarten": strong, "schwaechste_starthandkarten": weak,
                 "oft_tot_auf_der_hand": dead, "hoechste_prioritaet": sorted(rows, key=lambda r: -r["prioritaet"])[:8]}
         analyst = self.qwen.ask(
@@ -786,7 +789,7 @@ def markdown(record, data, rows):
     last = record["exams"][-1]
     lines = [f"# Deckanalyse · {record['deck']}", "",
              f"**Status:** {'freigegeben' if record.get('released') else 'nicht freigegeben'} "
-             f"({record['end_reason']}) · **Note:** {last['rating']:.1f}/10 · "
+             f"({record['end_reason']}) · **Note:** {last['rating']:.1f}/10 ({stufe(last['rating'])}) · "
              f"{record['valid']} gültige Trainingsduelle in {record['generation']} Generationen "
              f"mit {record['players']} Spieler-KIs.", "",
              "## Teilnoten (gemessen)", "",
@@ -904,19 +907,37 @@ def main():
     parser.add_argument("--max-generations", type=int, default=120)
     parser.add_argument("--exam-every", type=int, default=5)
     parser.add_argument("--exam-blocks", type=int, default=40, help="Seeds pro Gegner, jeweils beide Startpositionen")
-    parser.add_argument("--rounds", type=int, default=3, help="Gegner pro Spieler und Generation (je 2 Duelle)")
+    parser.add_argument("--rounds", type=int, default=6,
+                        help="Gegner pro Spieler und Generation (je 2 Duelle); 6 = 12 Duelle gegen das Rauschen")
+    parser.add_argument("--release-margin", type=float, default=0.5,
+                        help="Freigabe erst ab Zielnote plus dieser Marge (Prüfnote streut mit SD ~0,6)")
     parser.add_argument("--playoff-blocks", type=int, default=10, help="Seeds im Champion-Playoff (0 = aus)")
     parser.add_argument("--coach-every", type=int, default=3)
     parser.add_argument("--patience", type=int, default=6, help="Prüfrunden ohne Verbesserung bis Stillstand")
     parser.add_argument("--workers", type=int, default=max(1, min(12, (os.cpu_count() or 2) - 2)))
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--ohne-qwen", action="store_true", help="Ohne KI-Coach trainieren (lokal oder remote)")
+    parser.add_argument("--qwen-start", action=argparse.BooleanOptionalAction, default=True,
+                        help="Lokales Ollama vor dem Training starten (Standard: an; --no-qwen-start schaltet aus)")
     parser.add_argument("--gauntlet", type=int, default=4,
                         help="Champions anderer Decks als Prüfgegner (0 = nur Referenzbots, Note dann max. 7)")
     parser.add_argument("--resume", type=Path)
     parser.add_argument("--out", type=Path, default=RUNS)
     parser.add_argument("--run-dir", type=Path, help="Ordner für diesen Lauf (setzt die App)")
     args = parser.parse_args()
+    if args.qwen_start and not args.ohne_qwen:
+        try:
+            import time
+            from qwen_local import status as qwen_status
+            from training_jobs import qwen_start
+            info = qwen_start()
+            print(f"Qwen: {info.get('message', 'gestartet')}", flush=True)
+            for _ in range(20):   # the detached server needs a moment; otherwise the trainer misses it
+                if qwen_status().get("ready"):
+                    break
+                time.sleep(1)
+        except Exception as error:   # missing install must not block training; the coach stays optional
+            print(f"Qwen-Start nicht möglich: {error}", file=sys.stderr)
     if args.seed is None:
         args.seed = random.SystemRandom().getrandbits(31)
     trainer = None
