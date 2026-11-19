@@ -39,7 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from deck_check import WORK  # noqa: E402  (also puts ygo-agent on sys.path)
 from kartenrollen import text_role  # noqa: E402
 import kartenwissen  # noqa: E402
-from bewertung import gauntlet_lines, rating, route_lines, route_summary, stufe, wilson_lower  # noqa: E402
+from bewertung import gauntlet_lines, rating, route_lines, route_summary, wilson_lower  # noqa: E402
 from playbook import Playbook, PlaybookPolicy, adjust, crossover, mutate, remember  # noqa: E402
 import kombos  # noqa: E402
 import web_wissen  # noqa: E402
@@ -351,7 +351,6 @@ class Trainer:
             "players": self.args.players, "qwen": bool(self.qwen.model), "pid": os.getpid(),
             "qwen_zeiten": self.qwen.timings(),
             "ratings": [exam["rating"] for exam in exams], "best": max((e["rating"] for e in exams), default=None),
-            "stufe": stufe(exams[-1]["rating"]) if exams else None,
             "updated": datetime.now().isoformat(timespec="seconds")})
         print(f"[{datetime.now():%H:%M:%S}] {message}", flush=True)
 
@@ -841,8 +840,7 @@ class Trainer:
         dead = sorted((r for r in main_rows if r["tot_auf_der_hand"]),
                       key=lambda r: -r["tot_auf_der_hand"] / max(r["in_starthand"], 1))[:6]
         data = {"deck": self.deck.name, "freigegeben": self.record.get("released"), "ende": self.record["end_reason"],
-                "note": last["rating"], "stufe": stufe(last["rating"]), "teilnoten": last["parts"],
-                "rauschboden": last.get("noise"),
+                "note": last["rating"], "teilnoten": last["parts"], "rauschboden": last.get("noise"),
                 "siegquote_pruefung": round(overall, 3),
                 "pruefspiele": count, "staerkste_starthandkarten": strong, "schwaechste_starthandkarten": weak,
                 "oft_tot_auf_der_hand": dead, "hoechste_prioritaet": sorted(rows, key=lambda r: -r["prioritaet"])[:8]}
@@ -881,7 +879,7 @@ def markdown(record, data, rows):
     last = record["exams"][-1]
     lines = [f"# Deckanalyse · {record['deck']}", "",
              f"**Status:** {'freigegeben' if record.get('released') else 'nicht freigegeben'} "
-             f"({record['end_reason']}) · **Note:** {last['rating']:.1f}/10 ({stufe(last['rating'])}) · "
+             f"({record['end_reason']}) · **Note:** {last['rating']:.1f}/10 · "
              f"{record['valid']} gültige Trainingsduelle in {record['generation']} Generationen "
              f"mit {record['players']} Spieler-KIs.", "",
              "## Teilnoten (gemessen)", "",

@@ -17,20 +17,6 @@ Win rates enter as the lower end of a 95 % Wilson interval, so a lucky small sam
 
 from math import sqrt
 
-# Human-readable bands for the measured 0-10 rating. They are labels, not a second scale: the anchors below
-# (gauntlet, second turn, reference bot, route tests) decide the number, and the label only names it.
-STUFEN = ((3.0, "Anfänger"), (6.0, "Fortgeschritten"), (8.0, "Guter Spieler"), (10.0, "YCS-Champion"))
-
-
-def stufe(note):
-    """1-3 Anfänger, 4-6 Fortgeschritten, 7-8 Guter Spieler, 9-10 YCS-Champion."""
-    note = max(0.0, min(10.0, float(note)))
-    for limit, label in STUFEN:
-        if note <= limit:
-            return label
-    return STUFEN[-1][1]
-
-
 WEIGHTS = {"gauntlet": 0.45, "zweitzug": 0.15, "staerke": 0.15, "fortschritt": 0.15, "integritaet": 0.1}
 WEIGHTS_WITHOUT_GAUNTLET = {"staerke": 0.4, "fortschritt": 0.3, "zweitzug": 0.2, "integritaet": 0.1}
 # (rate that gives 0 points, rate that gives full points) of the Wilson lower bound
