@@ -138,7 +138,8 @@ def effect(card, block, sentence, masked, names, is_first):
     monster = card.type & TYPE_MONSTER
     spell_trap = card.type & (TYPE_SPELL | TYPE_TRAP)
     entry = {"block": block, "text": plain, "art": "", "bedingung": "", "vorab": "", "wirkung": "",
-             "kosten": [], "ziel": False, "zone": [], "timing": "", "folge": [], "opt": "", "warnung": []}
+             "kosten": [], "ziel": False, "zone": [], "timing": "", "folge": [], "opt": "",
+             "opt_ebene": "", "warnung": []}
     if re.search(r"you can activate this card (from your hand|the turn it was set)", low) and not _outside(masked, ";"):
         entry["art"] = "continuous"
         entry["wirkung"] = plain
@@ -220,6 +221,8 @@ def effect(card, block, sentence, masked, names, is_first):
         entry["warnung"].append(f"{len(colons)} Doppelpunkte in einem Effekt")
     if plain.count('"') % 2 and '"' not in card.name:
         entry["warnung"].append("Anführungszeichen nicht geschlossen")
+    if entry["opt"]:
+        entry["opt_ebene"] = "Karte" if entry["art"] == "activation" else "Effekt"
     return entry
 
 
@@ -267,6 +270,7 @@ def analyse(card):
     for entry in effects:
         if entry["art"] in ("quick", "trigger", "ignition", "activation") and not entry["opt"] and hard:
             entry["opt"] = "hart"
+            entry["opt_ebene"] = "Karte" if entry["art"] == "activation" else "Effekt"
     return {"code": card.code, "name": card.name, "effects": effects, "opt": opt_lines, "warnungen": warnings}
 
 
@@ -501,6 +505,19 @@ def write_report(out, database, findings, stats, decks):
 
 
 _DB = {}
+
+
+def hard_opt_levels(code):
+    """{"Karte", "Effekt"} for the hard once-per-turn clauses of one card.
+
+    Card activation and effect activation are separate locks: a Field Spell may be played and then use
+    its effect, but neither side may be used twice. Unknown cards return an empty set.
+    """
+    info = knowledge(code)
+    if not info or not isinstance(info.get("effects"), list):
+        return set()
+    return {entry.get("opt_ebene") or ("Karte" if entry.get("art") == "activation" else "Effekt")
+            for entry in info["effects"] if entry.get("opt") == "hart"}
 
 
 def knowledge(code):

@@ -11,9 +11,11 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass, field
 import json
+import os
 import random
 
 from kartenrollen import text_role
+from kartenwissen import hard_opt_levels
 import routen
 
 from ygo_agent.arena.messages import (AnnounceCard, BattleAction, IdleAction, SelectBattleCmd, SelectCard,
@@ -35,6 +37,19 @@ STEP_GROUP = {"N": "N", "S": "S", "A": "E", "K": "E", "Z": "Z", "M": "M"}
 GROUPS_IDLE = {"summon": "N", "special": "S", "activate": "E", "sset": "Z", "mset": "M"}
 ACTIONS_PER_TURN = 18
 REPEATS_PER_TURN = 3
+# P3-Messschalter: Die Effekt-Sperre lässt sich für dieselben Seeds abschalten.
+EFFECT_RULES = os.environ.get("YGOKI_P3_EFFEKT", "1") != "0"
+_HARD_OPT = {}
+
+
+def _hard_opt(code):
+    """Hard once-per-turn levels of a card, cached; a missing knowledge file must not stop a duel."""
+    if code not in _HARD_OPT:
+        try:
+            _HARD_OPT[code] = hard_opt_levels(code)
+        except Exception:   # noqa: BLE001 - the knowledge database is optional at play time
+            _HARD_OPT[code] = set()
+    return _HARD_OPT[code]
 
 
 def _clamp(value, low=0.0, high=1.0):
@@ -287,6 +302,7 @@ class PlaybookPolicy(RandomPolicy):
         self.turn = -1
         self.turn_actions = 0
         self.repeats = Counter()
+        self.opt_used = set()
         self.opening = None
         self.activated = Counter()
         self.used = Counter()
@@ -430,6 +446,7 @@ class PlaybookPolicy(RandomPolicy):
             self.turn = view.turn
             self.turn_actions = 0
             self.repeats.clear()
+            self.opt_used.clear()
             self.steps = []
             if view.turn_player == view.team:
                 self.start_hand = [c.code for c in view.location(view.team, LOCATION_HAND) if c and c.code]
@@ -559,6 +576,21 @@ class PlaybookPolicy(RandomPolicy):
             return 0
         return found[0] if found else 0
 
+    def _opt_key(self, code, description):
+        """Lock key for a hard once-per-turn clause. Card activation and effect activation are separate."""
+        description = int(description or 0)
+        return ("Effekt", code, description) if description > 0 else ("Karte", code)
+
+    def _opt_blocked(self, code, description):
+        if not EFFECT_RULES:
+            return False
+        key = self._opt_key(code, description)
+        return key[0] in _hard_opt(code) and key in self.opt_used
+
+    def _mark_opt(self, code, description):
+        if EFFECT_RULES:
+            self.opt_used.add(self._opt_key(code, description))
+
     def _idle_allowed(self, name, code, view):
         """Card-text rules: hand traps are never summoned or set, and used in your own turn only as an answer."""
         handtrap, _, targets, monster = card_sense(view, code)
@@ -572,6 +604,7 @@ class PlaybookPolicy(RandomPolicy):
 
     def _chain(self, p, index, view, theirs, end_phase):
         code = p.chains[index].code
+        self._mark_opt(code, getattr(p.chains[index], "description", 0))
         self.repeats[("chain", code, view.turn)] += 1
         self.activated[code] += 1
         self.used[code] += 1
@@ -617,6 +650,8 @@ class PlaybookPolicy(RandomPolicy):
                     key = (name, card.code, getattr(card, "description", 0))
                     if self.repeats[key] >= REPEATS_PER_TURN or not self._idle_allowed(name, card.code, view):
                         continue
+                    if name == "activate" and self._opt_blocked(card.code, key[2]):
+                        continue
                     score = book.bias[name] + self.weight(card.code) + bonus.get(card.code, 0.0) + rng.gauss(0, 0.05)
                     score += route_bonus.get((GROUPS_IDLE.get(name, ""), card.code), 0.0)
                     options.append((score, name, action, index, key, card.code))
@@ -639,6 +674,7 @@ class PlaybookPolicy(RandomPolicy):
                                             "sset": "Z"}[name], code))
                     if name == "activate":
                         self.activated[code] += 1
+                        self._mark_opt(code, key[2])
                     return p.respond(action, index)
             self._log_turn(view)
             if p.can_battle_phase and view.turn > 1:
@@ -677,6 +713,8 @@ class PlaybookPolicy(RandomPolicy):
             links = None
             for index in ranked:
                 code = p.chains[index].code
+                if self._opt_blocked(code, getattr(p.chains[index], "description", 0)):
+                    continue
                 chance = book.chain_opp.get(code, 0.6) if theirs else book.chain_own
                 handtrap, responder, targets, _ = card_sense(view, code)
                 if code in route_cards:
@@ -715,7 +753,10 @@ class PlaybookPolicy(RandomPolicy):
                 yes = False
             else:
                 yes = rng.random() < book.yes
+            if yes and self._opt_blocked(code, getattr(p, "description", 0)):
+                yes = False
             if yes and own and code:
+                self._mark_opt(code, getattr(p, "description", 0))
                 self._taken("E", code, end_phase, merge=True)
                 self.steps.append(("K", code))
                 if end_phase:
