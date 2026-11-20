@@ -11,6 +11,7 @@ import playbook_store
 import training_jobs
 
 APP_PYTHON = Path("C:/Users/umutc/Desktop/YGO KI APP/work/upstream/python-win32/python.exe")
+YGO_AGENT = Path("work/upstream/ygo-agent/ygo_agent")
 
 
 def test_web_status_ignoriert_laengeren_decknamen(tmp_path, monkeypatch):
@@ -31,7 +32,8 @@ def test_kaputtes_playbook_wird_uebersprungen(tmp_path, monkeypatch, capsys):
     assert "unlesbar" in capsys.readouterr().err
 
 
-@pytest.mark.skipif(not APP_PYTHON.is_file(), reason="32-Bit-Laufzeit der App fehlt")
+@pytest.mark.skipif(not (APP_PYTHON.is_file() and YGO_AGENT.is_dir()),
+                    reason="32-Bit-Laufzeit oder ygo_agent fehlt (Frischarchiv)")
 def test_bridge_meldet_fehler_und_laeuft_weiter(tmp_path):
     requests = '{"method": "gibtsnicht", "data": {}}\n' * 2
     result = subprocess.run(

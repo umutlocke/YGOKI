@@ -5,7 +5,7 @@
   {
    "name": "Toon Tri-Brigade · Fraktall (Bread and Butter)",
    "priority": 3,
-   "goal": "Mouser → Shuraig/Bucephalus/Springans Kitt → Chimera, Double Dragon Lords, Ferrijit; Shuraig sucht (eigentlich Animimicat)",
+   "goal": "Mouser → Shuraig/Bucephalus/Springans Kitt → Double Dragon Lords, Ferrijit; Shuraig sucht Comic Cat; Toon World/Toon Bookmark → Evil Box + Toon Terror",
    "quelle": "Steven 'Trif' Trifunoski (Bread-and-Butter-Combo, von Umut 19.11.2026), gegen Kartentexte geprüft",
    "hand": [
     87209160
@@ -89,7 +89,7 @@
     {
      "code": 99726621,
      "do": "E",
-     "note": "Shuraig sucht Animimicat",
+     "note": "Shuraig sucht Comic Cat",
      "pick": [
       72921536
      ]
@@ -118,7 +118,7 @@
     {
      "code": 26847978,
      "do": "E",
-     "note": "Ferrijit beschwört Animimicat von der Hand",
+     "note": "Ferrijit beschwört Comic Cat von der Hand (deren Effekte sind negiert)",
      "pick": [
       72921536
      ]
@@ -126,7 +126,7 @@
     {
      "code": 72921536,
      "do": "E",
-     "note": "Animimicat tributet sich → Funny Dark Rabbit aus dem Deck",
+     "note": "Comic Cat tributet sich → Funny Dark Rabbit aus dem Deck",
      "cost": [
       72921536
      ],
@@ -141,7 +141,12 @@
      "pick": [
       7293697
      ],
-     "option": 1
+     "option": 0
+    },
+    {
+     "code": 7293697,
+     "do": "E",
+     "note": "gelegte Toon World wird aktiviert (Legens gilt als Aktivierung)"
     },
     {
      "code": 7293697,
@@ -154,32 +159,7 @@
     {
      "code": 91500017,
      "do": "E",
-     "note": "Toon Bookmark sucht Faceless Mage",
-     "pick": [
-      34314989
-     ]
-    },
-    {
-     "code": 34314989,
-     "do": "E",
-     "note": "Faceless Mage legt Mind Scan",
-     "pick": [
-      34298391
-     ]
-    },
-    {
-     "code": 45536531,
-     "do": "E",
-     "note": "Rabbit (von Toon World kurz verbannt, wieder da) legt die dritte Toon World aufs Feld",
-     "pick": [
-      7293697
-     ],
-     "option": 1
-    },
-    {
-     "code": 7293697,
-     "do": "E",
-     "note": "dritte Toon World sucht Evil Box",
+     "note": "Toon Bookmark sucht Evil Box",
      "pick": [
       8915275
      ]
@@ -192,7 +172,8 @@
       53094821
      ]
     }
-   ]
+   ],
+   "korrektur": "20.11.2026: Kitt verbannt Nervall (1) → Yummy★Snatchy (Link-1), Kitt + Snatchy → Mouser; Rabbit legt Toon World (Option 0), Legen zählt als Aktivierung; Evil Box über Toon Bookmark, weil der Motor die dritte Toon-World-Suche im selben Zug nicht mehr zulässt. Offen: Ferrijit negiert die Effekte des von ihr beschworenen Comic Cat; die Tail-Stufe 14 ist damit regeltechnisch nicht erreichbar (2/8 statt 9/10)."
   },
   {
    "name": "Toon Tri-Brigade · Perfect Toon World (Toon-Teil, Einstieg)",

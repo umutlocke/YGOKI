@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 APP_PYTHON = Path("C:/Users/umutc/Desktop/YGO KI APP/work/upstream/python-win32/python.exe")
+YGO_AGENT = Path("work/upstream/ygo-agent/ygo_agent")
 
 SCRIPT = r"""
 import sys
@@ -50,7 +51,8 @@ print('OK', round(base, 2), round(with_ash, 2), round(three, 2), round(veiler, 2
 """
 
 
-@pytest.mark.skipif(not APP_PYTHON.is_file(), reason="32-Bit-Laufzeit der App fehlt")
+@pytest.mark.skipif(not (APP_PYTHON.is_file() and YGO_AGENT.is_dir()),
+                    reason="32-Bit-Laufzeit oder ygo_agent fehlt (Frischarchiv)")
 def test_board_score_zaehlt_handtraps_und_einmal_pro_zug():
     result = subprocess.run([str(APP_PYTHON), "-B", "-X", "utf8", "-c", SCRIPT], cwd=Path.cwd(),
                             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180)

@@ -13,6 +13,7 @@ import routen
 from playbook import Playbook, crossover, mutate
 
 APP_PYTHON = Path("C:/Users/umutc/Desktop/YGO KI APP/work/upstream/python-win32/python.exe")
+YGO_AGENT = Path("work/upstream/ygo-agent/ygo_agent")
 
 
 def app_python(script):
@@ -31,7 +32,8 @@ def test_route_aus_nur_optionalen_schritten_ist_bei_position_null_nicht_fertig()
     assert routen.finished(route, 2) is True
 
 
-@pytest.mark.skipif(not APP_PYTHON.is_file(), reason="32-Bit-Laufzeit der App fehlt")
+@pytest.mark.skipif(not (APP_PYTHON.is_file() and YGO_AGENT.is_dir()),
+                    reason="32-Bit-Laufzeit oder ygo_agent fehlt (Frischarchiv)")
 def test_handkarten_ausserhalb_des_decks_werden_gemeldet():
     result = app_python(
         "import sys, random; sys.path.insert(0, 'work'); import routen_test\n"
@@ -44,7 +46,8 @@ def test_handkarten_ausserhalb_des_decks_werden_gemeldet():
     assert "HAND [1," in result.stdout
 
 
-@pytest.mark.skipif(not APP_PYTHON.is_file(), reason="32-Bit-Laufzeit der App fehlt")
+@pytest.mark.skipif(not (APP_PYTHON.is_file() and YGO_AGENT.is_dir()),
+                    reason="32-Bit-Laufzeit oder ygo_agent fehlt (Frischarchiv)")
 def test_mehr_als_fuenf_handkarten_werden_gemeldet():
     result = app_python(
         "import sys, random; sys.path.insert(0, 'work'); import routen_test\n"
@@ -84,7 +87,8 @@ def test_toter_trainingsprozess_wird_als_unterbrochen_gespeichert(tmp_path, monk
     assert json.loads((folder / "status.json").read_text(encoding="utf-8"))["state"] == "unterbrochen"
 
 
-@pytest.mark.skipif(not APP_PYTHON.is_file(), reason="32-Bit-Laufzeit der App fehlt")
+@pytest.mark.skipif(not (APP_PYTHON.is_file() and YGO_AGENT.is_dir()),
+                    reason="32-Bit-Laufzeit oder ygo_agent fehlt (Frischarchiv)")
 def test_engine_fehler_wird_zur_fehlerhand():
     result = app_python(
         "import sys, json; sys.path.insert(0, 'work'); import combo_solver\n"
