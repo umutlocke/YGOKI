@@ -132,7 +132,8 @@ def resume(folder):
             args += [flag, str(value)]
     qwen_started = start.get("qwen")
     if qwen_started is None:
-        qwen_started = bool(record.get("model"))
+        # Old runs have no Start.json: a logged coach attempt or a loaded model means it was requested.
+        qwen_started = bool(record.get("model")) or bool(record.get("qwen"))
     if not qwen_started:
         args.append("--ohne-qwen")
     return _launch(args, folder)

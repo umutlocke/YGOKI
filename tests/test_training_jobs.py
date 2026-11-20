@@ -53,6 +53,13 @@ def test_resume_ohne_startdaten_bleibt_lauffaehig(tmp_path, monkeypatch):
     assert "--ohne-qwen" in args               # ohne Startdaten zählt das gespeicherte Modell
 
 
+def test_resume_erkennt_angeforderten_aber_fehlenden_coach(tmp_path, monkeypatch):
+    record = _record()
+    record["qwen"] = [{"role": "status", "error": "kein Modell"}]
+    args = _resume_args(tmp_path, monkeypatch, {}, record)
+    assert "--ohne-qwen" not in args           # der Coach war angefordert, nur nicht erreichbar
+
+
 def test_start_speichert_die_qwen_wahl(tmp_path, monkeypatch):
     deck = tmp_path / "Deck.ydk"
     deck.write_text("", encoding="utf-8")
