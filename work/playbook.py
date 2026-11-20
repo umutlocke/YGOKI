@@ -485,23 +485,23 @@ class PlaybookPolicy(RandomPolicy):
             pass
         return None
 
+    @staticmethod
+    def _code_of(view, card):
+        """Code of the public field card behind a CardRef, else the reference's own code."""
+        field_card = PlaybookPolicy._field_card(view, card)
+        if field_card is not None:
+            return getattr(field_card, "code", 0) or 0
+        try:
+            return int(getattr(card, "code", card) or 0)
+        except (TypeError, ValueError):
+            return 0
+
     def _attack_of(self, view, card):
         """Current ATK from the public field (player/zone/sequence), not the printed card data."""
         field_card = self._field_card(view, card)
         if field_card is not None:
             return getattr(field_card, "attack", 0) or 0
-        ref = card if hasattr(card, "controller") and hasattr(card, "sequence") else None
-        code = getattr(ref, "code", 0) if ref is not None else getattr(card, "code", card)
-        try:
-            code = int(code or 0)
-        except (TypeError, ValueError):
-            code = 0
-        try:
-            for field_card in view.location(view.team, LOCATION_MZONE):
-                if field_card and field_card.code == code:
-                    return getattr(field_card, "attack", 0) or 0
-        except Exception:   # noqa: BLE001 - a failed query must never stop a duel
-            pass
+        code = self._code_of(view, card)
         data = view.cards.get(code) if code else None
         return getattr(data, "attack", 0) or 0
 
@@ -510,7 +510,9 @@ class PlaybookPolicy(RandomPolicy):
         field_card = self._field_card(view, card)
         if field_card is not None:
             return getattr(field_card, "defense", 0) or 0
-        return getattr(card, "defense", 0) or 0
+        code = self._code_of(view, card)
+        data = view.cards.get(code) if code else None
+        return getattr(data, "defense", 0) or 0
 
     def _position_of(self, view, card):
         """Public battle position; a CardRef's own position is only a fallback."""
@@ -518,6 +520,21 @@ class PlaybookPolicy(RandomPolicy):
         if field_card is not None:
             return getattr(field_card, "position", 0) or 0
         return getattr(card, "position", 0) or 0
+
+    def _hostile_key(self, view, card, mine):
+        """Rank an opponent target by public ATK/DEF, never by the ATK-less CardRef.
+
+        Destroy/bounce/control effects (502/505/520 and the other HOSTILE_HINTS) want the most
+        threatening open card. Face-down cards keep their printed/fallback values but are still
+        valid targets; the public position only breaks ties in favour of a face-up body.
+        """
+        if mine:
+            return (1, self.weight(self._code_of(view, card)), 0)
+        attack = self._attack_of(view, card)
+        defense = self._defense_of(view, card)
+        position = self._position_of(view, card)
+        face_up = 0 if position & (POS_FACEUP_ATTACK | POS_FACEUP_DEFENSE) else 1
+        return (0, face_up, -max(attack, defense), -attack)
 
     def _opponent_monsters(self, view):
         return opponent_monsters(view)
@@ -576,8 +593,9 @@ class PlaybookPolicy(RandomPolicy):
                 return (-2, wanted.index(card.code))
             if cost and mine and card.code in self.avoid:
                 return (2, own_value(card))
+            code = self._code_of(view, card)
             if hint in TARGET_HINTS and preferred_target and not mine and (
-                    card.code == preferred_target or getattr(card, "base_code", 0) == preferred_target):
+                    code == preferred_target or getattr(card, "base_code", 0) == preferred_target):
                 return (-4, 0)   # the opponent's monster whose effect is on the chain
             if hint == 549:
                 # Attack only what this attacker beats; face-down targets are unknown. CardRefs carry no
@@ -592,12 +610,11 @@ class PlaybookPolicy(RandomPolicy):
                 return (0 if (self._attacker_atk and self._attacker_atk > value) else 3,
                         -self._attack_of(view, card))
             if hint in HOSTILE_HINTS:
-                return (0 if not mine else 1, -self._attack_of(view, card.code) if not mine else own_value(card))
+                return self._hostile_key(view, card, mine)
             if hint in COST_HINTS and not (card.location == LOCATION_DECK and mine):
                 if not route_cost and any(other.controller != view.team for other in cards):
                     # banish/GY/deck selection that offers their cards is an effect against the opponent
-                    return (0 if not mine else 1,
-                            -self._attack_of(view, card.code) if not mine else own_value(card))
+                    return self._hostile_key(view, card, mine)
                 if mine and card.location == LOCATION_HAND and card_sense(view, card.code)[0]:
                     return (0.5, own_value(card))     # keep hand traps for the opponent's turn
                 return (0 if mine else 1, own_value(card))

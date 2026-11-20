@@ -39,11 +39,15 @@ def test_alle_drei_reviewer_mindestens_9():
 
 
 def test_eine_sieben_blockiert():
-    assert not freigabe(_trainer([7, 9.5, 10]))
+    trainer = _trainer([7, 9.5, 10])
+    assert not freigabe(trainer)
+    assert "Reviewer-Note 7.0" in trainer.record["release_blocked"]
 
 
 def test_fehlender_reviewer_blockiert():
-    assert not freigabe(_trainer([9.5, 9.5]))
+    trainer = _trainer([9.5, 9.5])
+    assert not freigabe(trainer)
+    assert "2 von 3 Reviewer-Rollen" in trainer.record["release_blocked"]
 
 
 def test_ohne_modell_entscheidet_nur_die_messung():

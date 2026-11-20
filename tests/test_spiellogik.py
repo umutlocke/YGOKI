@@ -136,6 +136,52 @@ def test_angriffsziel_549_liest_echte_selectcard_cardrefs():
     assert prompt.decode_response(answer) == {"indices": [1]}
 
 
+def _select_with_refs(hint, refs, monsters):
+    view = View(0, [Card(ref.code, controller=1, attack=ref.position, position=ref.position) for ref in refs],
+                monsters=monsters)
+    view._duel._select_hint[view.team] = b"\x00\x00\x00" + int(hint).to_bytes(8, "little")
+    prompt = SelectCard(0, False, 1, 1, refs)
+    return view, prompt
+
+
+def test_zerstoeren_502_liest_ziel_atk_aus_dem_oeffentlichen_feld():
+    big = Card(3000, controller=1, attack=3000, position=0x1)
+    small = Card(1000, controller=1, attack=1000, position=0x1)
+    refs = [CardRef(3000, 1, LOCATION_MZONE, 0, 0x1), CardRef(1000, 1, LOCATION_MZONE, 1, 0x1)]
+    view, prompt = _select_with_refs(502, refs, [big, small])
+    answer = policy(3000, 1000)(prompt, view)
+    assert prompt.decode_response(answer) == {"indices": [0]}
+
+
+def test_zurueck_505_liest_ziel_atk_aus_dem_oeffentlichen_feld():
+    big = Card(3000, controller=1, attack=3000, position=0x1)
+    small = Card(1000, controller=1, attack=1000, position=0x1)
+    refs = [CardRef(3000, 1, LOCATION_MZONE, 0, 0x1), CardRef(1000, 1, LOCATION_MZONE, 1, 0x1)]
+    view, prompt = _select_with_refs(505, refs, [big, small])
+    answer = policy(3000, 1000)(prompt, view)
+    assert prompt.decode_response(answer) == {"indices": [0]}
+
+
+def test_kontrolle_520_liest_ziel_atk_aus_dem_oeffentlichen_feld():
+    big = Card(3000, controller=1, attack=3000, position=0x1)
+    small = Card(1000, controller=1, attack=1000, position=0x1)
+    refs = [CardRef(3000, 1, LOCATION_MZONE, 0, 0x1), CardRef(1000, 1, LOCATION_MZONE, 1, 0x1)]
+    view, prompt = _select_with_refs(520, refs, [big, small])
+    answer = policy(3000, 1000)(prompt, view)
+    assert prompt.decode_response(answer) == {"indices": [0]}
+
+
+def test_veiler_514_und_imperm_575_waehlen_das_kettenziel_mit_cardrefs():
+    big = Card(111, controller=1, attack=3000, position=0x1)
+    small = Card(222, controller=1, attack=1000, position=0x1)
+    refs = [CardRef(111, 1, LOCATION_MZONE, 0, 0x1), CardRef(222, 1, LOCATION_MZONE, 1, 0x1)]
+    for hint in (514, 575):
+        view, prompt = _select_with_refs(hint, refs, [big, small])
+        view._duel._chain = [Link(1, 222)]
+        answer = policy(111, 222)(prompt, view)
+        assert prompt.decode_response(answer) == {"indices": [1]}, hint
+
+
 def test_kein_angriff_ohne_besiegbares_ziel():
     killer = Card(3000, controller=1, attack=3000)
     view = View(0, [killer], monsters=[killer])

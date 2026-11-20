@@ -7,10 +7,13 @@ from datetime import datetime
 import glob
 import json
 from pathlib import Path
-
-from bewertung import wilson_lower
+import sys
 
 WORK = Path(__file__).resolve().parent
+sys.path.insert(0, str(WORK))
+
+from bewertung import wilson_lower  # noqa: E402
+
 OUT = WORK / "duell-liga"
 
 
@@ -24,8 +27,12 @@ def interval(wins, games):
 
 def main():
     rows = []
+    sample = None
     for path in sorted(glob.glob(str(OUT / "P3-*.json"))):
         data = json.loads(Path(path).read_text(encoding="utf-8"))
+        sample = data.get("duels", sample)
+        for row in data["rows"]:
+            row.setdefault("buch", data.get("buch"))
         rows.extend(data["rows"])
     if not rows:
         raise SystemExit("Keine P3-Liga-Dateien gefunden.")
@@ -35,6 +42,8 @@ def main():
     summary = []
     for deck in decks:
         entry = {"deck": deck}
+        books = [row.get("buch") for row in rows if row["deck"] == deck and row.get("buch")]
+        entry["buch"] = books[0] if books else None
         for rule in rules:
             picked = [row for row in rows if row["deck"] == deck and row["rules"] == rule]
             games = sum(row["games"] for row in picked)
@@ -51,7 +60,7 @@ def main():
 
     stamp = f"{datetime.now():%Y-%m-%d %H:%M:%S}"
     lines = ["# P3-Duell-Liga: alt gegen neu", "",
-             f"{stamp} · {len(decks)} Pflichtdecks · je 4 Gegner · 40 Seeds · SimplePolicy", "",
+             f"{stamp} · {len(decks)} Pflichtdecks · je 4 Gegner · {sample or '—'} Seeds · SimplePolicy", "",
              "Alt = Effekt-Sperre aus, neu = Effekt-Sperre an. Gleiche Seeds und dieselbe Sitzverteilung.",
              "", "| Deck | Alt | Alt 95% | Neu | Neu 95% | Δ Siegpunkte |", "|---|---|---|---|---|---|"]
     for entry in summary:
@@ -65,6 +74,11 @@ def main():
                  f"**{overall['alt_lower']:.0%}–{overall['alt_upper']:.0%}** | "
                  f"**{overall['neu'][0]}/{overall['neu'][1]}** | "
                  f"**{overall['neu_lower']:.0%}–{overall['neu_upper']:.0%}** | **{delta:+.1f}** |")
+    lines += ["", "## Bücher", ""]
+    for entry in summary:
+        book = entry.get("buch") or {}
+        lines.append(f"- **{entry['deck']}:** {book.get('art') or 'unbekannt'} · SHA-256 "
+                     f"`{book.get('sha256') or '—'}`")
     lines += ["", "Δ = Differenz der Siegquote in Prozentpunkten (neu minus alt).", ""]
     (OUT / "P3-Liga.md").write_text("\n".join(lines), encoding="utf-8")
 

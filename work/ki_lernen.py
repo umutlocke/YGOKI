@@ -733,9 +733,8 @@ class Trainer:
                 return block_release(self.record, f"Reviewer-Note {min(grades):.1f}/10 liegt unter {REVIEW_MIN}/10.")
         noise = final.get("noise")
         if not noise or noise.get("mean", 0.0) < self.args.target or not noise.get("clear"):
-            self.record["release_blocked"] = ("Rauschboden fehlt, liegt im Mittel unter dem Ziel oder "
-                                              "enthält einen Integritätsbefund.")
-            return False
+            return block_release(self.record, "Rauschboden fehlt, liegt im Mittel unter dem Ziel oder "
+                               "enthält einen Integritätsbefund.")
         self.record.pop("release_blocked", None)
         return True
 

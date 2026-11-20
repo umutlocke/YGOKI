@@ -23,7 +23,7 @@ os.environ.setdefault("XDG_CACHE_HOME", str(WORK / "cache"))
 import ki_lernen  # noqa: E402
 import playbook  # noqa: E402
 from bewertung import wilson_lower  # noqa: E402
-from duell_liga import run_duel  # noqa: E402
+from duell_liga import book_metadata, run_duel  # noqa: E402
 from playbook import Playbook  # noqa: E402
 from ygo_agent.arena.policies import SimplePolicy  # noqa: E402
 
@@ -52,6 +52,7 @@ def main(argv=None):
     ki_lernen._init_worker(str(WORK / "decks" / f"{args.deck}.ydk"), tuple(str(path) for path in paths))
     engine, deck = ki_lernen._ENGINE, ki_lernen._DECK
     book = Playbook.neutral(sorted(set(deck.main + deck.extra)))
+    book_info = book_metadata(book)
 
     rows = []
     for name, other in zip(opponents, ki_lernen._DECKS[1:]):
@@ -66,7 +67,7 @@ def main(argv=None):
                 for key in ("attacks", "lost", "declined", "handtraps"):
                     stats[key] += result.get(key, 0)
                 stats["turns"] += result.get("turns", 0)
-            rows.append({"deck": args.deck, "opponent": name, "rules": rules, **stats,
+            rows.append({"deck": args.deck, "opponent": name, "rules": rules, **stats, "buch": book_info,
                          "lower": round(wilson_lower(stats["wins"], stats["games"]), 3),
                          "upper": round(wilson_upper(stats["wins"], stats["games"]), 3)})
             print(f"{args.deck} / {name} / {rules}: {stats['wins']}/{stats['games']}", flush=True)
@@ -74,7 +75,7 @@ def main(argv=None):
     OUT.mkdir(parents=True, exist_ok=True)
     path = OUT / f"P3-{args.deck}.json"
     path.write_text(json.dumps({"deck": args.deck, "opponents": opponents, "duels": args.duels,
-                                "seed": args.seed, "rules": [name for name, _ in RULES],
+                                "seed": args.seed, "rules": [name for name, _ in RULES], "buch": book_info,
                                 "zeit": f"{datetime.now():%Y-%m-%d %H:%M:%S}", "rows": rows},
                                ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"geschrieben: {path}")
