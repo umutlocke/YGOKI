@@ -104,6 +104,7 @@ def start(deck_path, data):
     if not data.get("qwen", True):
         args.append("--ohne-qwen")
     settings = {key: data[key] for key in ("max_generations", "patience", "gauntlet") if data.get(key)}
+    settings["qwen"] = bool(data.get("qwen", True))
     return _launch(args, folder, settings=settings)
 
 
@@ -117,13 +118,22 @@ def resume(folder):
     args = [str(PYTHON), "-B", "-X", "utf8", str(WORK / "ki_lernen.py"), "--deck", str(folder / "Deck.ydk"),
             "--players", str(record["players"]), "--min-duels", str(record["min_duels"]),
             "--target", str(record["target"]), "--seed", str(record["seed"]), "--resume", str(folder)]
-    # The stop conditions must survive an interruption, otherwise the resumed run uses other defaults.
-    saved = {**(_read(folder / "Start.json") or {}), **record}
+    # Start parameters and run data are different things: record["gauntlet"] is the list of opponents that
+    # were actually played, while Start.json holds the requested count. Never int() the run's list.
+    start = _read(folder / "Start.json") or {}
     for key, flag in (("max_generations", "--max-generations"), ("patience", "--patience"),
                       ("gauntlet", "--gauntlet")):
-        if saved.get(key):
-            args += [flag, str(int(saved[key]))]
-    if not record.get("model"):
+        value = start.get(key)
+        if value is None and key != "gauntlet":   # record["gauntlet"] is a list of played opponents
+            value = record.get(key)
+        if isinstance(value, list):
+            value = len(value)
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+            args += [flag, str(value)]
+    qwen_started = start.get("qwen")
+    if qwen_started is None:
+        qwen_started = bool(record.get("model"))
+    if not qwen_started:
         args.append("--ohne-qwen")
     return _launch(args, folder)
 
