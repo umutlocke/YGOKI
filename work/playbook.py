@@ -282,6 +282,15 @@ def handtrap_blocked(team, controllers, handtrap_links):
     return any(own and controller == team for own, controller in zip(handtrap_links, controllers))
 
 
+def chain_handtrap_state(view):
+    """Controllers and hand-trap flags of the existing chain links, oldest first.
+
+    The currently offered cards are not part of this state: the same chain history must give the same
+    filter answer, whatever the engine happens to offer in this prompt."""
+    links = _chain_links(view)
+    return [controller for controller, _ in links], [card_sense(view, code)[0] for _, code in links]
+
+
 def _last_link_controller(view):
     links = _chain_controllers(view)
     return links[-1] if links else None
@@ -743,7 +752,7 @@ class PlaybookPolicy(RandomPolicy):
             if p.forced:
                 return self._chain(p, ranked[0], view, theirs, end_phase)
             route_cards = self._route_cards() if not theirs and self.routes else set()
-            links = None
+            links, handtrap_links = chain_handtrap_state(view)
             for index in ranked:
                 code = p.chains[index].code
                 if self._opt_blocked(code, getattr(p.chains[index], "description", 0)):
@@ -753,12 +762,9 @@ class PlaybookPolicy(RandomPolicy):
                 if code in route_cards:
                     chance = 1.0
                 if handtrap or theirs:
-                    if links is None:
-                        links = _chain_controllers(view)
                     last = links[-1] if links else None
                     opponent_link = last is not None and last != view.team
-                    if handtrap and handtrap_blocked(view.team, links,
-                                                     [card_sense(view, card.code)[0] for card in p.chains]):
+                    if handtrap and handtrap_blocked(view.team, links, handtrap_links):
                         continue          # our own link is last, or an own hand trap already answered
                     if handtrap and not theirs:
                         # own turn: hand traps only answer the opponent (or Imperm-style on their monster)

@@ -8,8 +8,8 @@ from kartenrollen import classify
 from ygo_agent.arena.messages import SelectOption, SortChain
 from ygo_agent.core.constants import PHASE_BATTLE, PHASE_BATTLE_STEP, PHASE_MAIN2
 
-from playbook import (Playbook, PlaybookPolicy, handtrap_blocked, handtrap_timing_ok,
-                      target_activation_ok)
+from playbook import (Playbook, PlaybookPolicy, chain_handtrap_state, handtrap_blocked,
+                      handtrap_timing_ok, target_activation_ok)
 from player_policy import HAND_TRAPS
 
 LOCATION_MZONE, LOCATION_GRAVE = 0x04, 0x10   # same values as ygo_agent.core.constants (tests run without engine)
@@ -80,6 +80,16 @@ def test_handtrap_nach_eigenem_letzten_glied_blockiert():
 
 def test_zweite_eigene_handtrap_blockiert():
     assert handtrap_blocked(0, [1, 0], [False, True]) is True
+
+
+def test_handtrap_filter_nutzt_die_kettenhistorie():
+    ash = Card(14558127, controller=0)
+    opponent = Card(222, controller=1)
+    view = View(0, [ash, opponent], chain=[(1, opponent.code), (0, ash.code)])
+    controllers, flags = chain_handtrap_state(view)
+    assert controllers == [1, 0]
+    assert flags == [False, True]
+    assert handtrap_blocked(0, controllers, flags) is True
 
 
 # -- F2: Imperm (575) und Veiler (514) ---------------------------------------------------------------
