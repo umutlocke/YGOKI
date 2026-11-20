@@ -1,4 +1,4 @@
-"""Freigabe eines Trainings: zwei Prüfungen in Folge, Zielnote, klare Judges und alle drei Reviewer ≥ 9."""
+"""Freigabe eines Trainings: frische Abschlussprüfung, Zielnote, klare Judges, Reviewer ≥ 9, Rauschboden."""
 
 from types import SimpleNamespace
 
@@ -7,9 +7,23 @@ import pytest
 ki_lernen = pytest.importorskip("ki_lernen")
 
 
-def _trainer(noten, qwen=True, rating=9.5, clear=True, valid=2000, attempted=None, error=None):
-    exams = [{"rating": rating, "judge": {"clear": clear}, "reviewers": [{"note": n} for n in noten]}
-             for _ in range(2)]
+def _noise(values=None, clear=True):
+    values = [9.1, 9.2, 9.3] if values is None else list(values)
+    return {"probes": len(values), "ratings": values, "mean": sum(values) / len(values),
+            "sd": 0.1, "range": max(values) - min(values), "clear": clear,
+            "invalid": 0 if clear else 1}
+
+
+def _trainer(noten, qwen=True, rating=9.5, clear=True, valid=2000, attempted=None, error=None,
+             frozen=(False, True), streams=("pruefung", "abschluss"), noise="default"):
+    ratings = list(rating) if isinstance(rating, (tuple, list)) else [rating, rating]
+    exams = []
+    for index in range(2):
+        exams.append({"rating": ratings[index], "judge": {"clear": clear},
+                      "reviewers": [{"note": n} for n in noten],
+                      "champion": {"karten": [1]}, "champion_frozen": frozen[index],
+                      "seed_stream": streams[index],
+                      "noise": (_noise() if noise == "default" else noise) if index == 1 else None})
     return SimpleNamespace(record={"exams": exams, "valid": valid},
                            args=SimpleNamespace(min_duels=1000, target=9.0, release_margin=0.5),
                            qwen=SimpleNamespace(enabled=qwen, attempted=qwen if attempted is None else attempted,
@@ -66,15 +80,66 @@ def test_zwei_runden_muessen_dasselbe_playbook_pruefen():
     assert "release_blocked" not in same.record
 
 
-def test_naechste_pruefung_friert_den_champion_ein():
+def test_identische_doppelmessung_gibt_nicht_mehr_frei():
+    # Zwei Prüfrunden mit denselben Seeds und demselben Playbook sind nur eine Messung.
+    trainer = _trainer([10, 10, 10], frozen=(False, False), streams=("pruefung", "pruefung"))
+    assert not freigabe(trainer)
+    assert "frischen" in trainer.record["release_blocked"]
+
+
+def test_abschlusspruefung_muss_auf_frischen_seeds_laufen():
+    trainer = _trainer([10, 10, 10], frozen=(False, True), streams=("pruefung", "pruefung"))
+    assert not freigabe(trainer)
+    assert "frischen" in trainer.record["release_blocked"]
+
+
+def test_rauschproben_muessen_im_mittel_das_ziel_erreichen():
+    # ChatGPTs In-Memory-Fall: Note 9,5/9,5, Rauschproben 3/4/5 → keine Freigabe.
+    trainer = _trainer([10, 10, 10], noise=_noise([3, 4, 5]))
+    assert not freigabe(trainer)
+    assert "Rauschboden" in trainer.record["release_blocked"]
+
+
+def test_rauschprobe_mit_integritaetsbefund_blockiert():
+    trainer = _trainer([10, 10, 10], noise=_noise([9.1, 9.2, 9.3], clear=False))
+    assert not freigabe(trainer)
+    assert "Integritätsbefund" in trainer.record["release_blocked"]
+
+
+def test_frische_abschlusspruefung_mit_rauschboden_gibt_frei():
+    assert freigabe(_trainer([10, 10, 10], rating=(9.5, 9.6), noise=_noise([9.0, 9.2, 9.4])))
+
+
+def test_naechste_pruefung_friert_erst_bei_ziel_plus_marge_ein():
     calls = []
-    trainer = SimpleNamespace(record={"exams": [{"rating": 9.5, "judge": {"clear": True},
+    trainer = SimpleNamespace(record={"exams": [{"rating": 9.2, "judge": {"clear": True},
                                                "champion": {"karten": [1]}}]},
-                              args=SimpleNamespace(target=9.0), status=lambda message: None,
+                              args=SimpleNamespace(target=9.0, release_margin=0.5),
+                              status=lambda message: None,
                               exam=lambda pool, frozen=None: calls.append(frozen) or {})
     ki_lernen.Trainer.next_exam(trainer, None)
-    assert calls == [{"karten": [1]}]
+    assert calls == [None]
+
+    trainer.record["exams"][0]["rating"] = 9.5
+    ki_lernen.Trainer.next_exam(trainer, None)
+    assert calls == [None, {"karten": [1]}]
 
     trainer.record["exams"][0]["champion_frozen"] = True
     ki_lernen.Trainer.next_exam(trainer, None)
-    assert calls == [{"karten": [1]}, None]
+    assert calls == [None, {"karten": [1]}, None]
+
+
+def test_abschlusspruefung_nutzt_eigenen_seed_strom():
+    trainer = SimpleNamespace(args=SimpleNamespace(seed=7))
+    assert ki_lernen.Trainer.exam_seed_stream(trainer, False, 2) == "7:pruefung"
+    assert ki_lernen.Trainer.exam_seed_stream(trainer, True, 2) == "7:abschluss:2"
+    assert ki_lernen.Trainer.exam_seed_stream(trainer, True, 4) == "7:abschluss:4"
+
+
+def test_abschlusspruefung_lehrt_keine_kombos():
+    called = []
+    trainer = SimpleNamespace(learn_combos=lambda games, index: called.append((games, index)) or {"found": 1})
+    assert "skipped" in ki_lernen.Trainer.exam_combos(trainer, True, [1], 2)
+    assert not called
+    assert ki_lernen.Trainer.exam_combos(trainer, False, [1], 2) == {"found": 1}
+    assert called == [([1], 2)]
