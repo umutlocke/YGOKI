@@ -1,5 +1,5 @@
 {
- "stand": "2026-11-18",
+ "stand": "2026-11-20",
  "quelle": "YGOPRODeck API (misc_info.tcg_date); Karten, die Project Ignis noch als OCG führt",
  "karten": {
   "1710647": {
@@ -161,6 +161,26 @@
    "name": "Ars Magna the Division and the Union",
    "tcg_date": "2026-10-08",
    "ocg_date": "2026-07-18"
+  },
+  "72921536": {
+   "name": "Comic Cat",
+   "tcg_date": "2026-11-12",
+   "ocg_date": "2026-05-30"
+  },
+  "45536531": {
+   "name": "Funny Dark Rabbit",
+   "tcg_date": "2026-11-12",
+   "ocg_date": "2026-05-30"
+  },
+  "34314989": {
+   "name": "Dark-Eyes Illusionist Faceless Mage",
+   "tcg_date": "2026-11-12",
+   "ocg_date": "2026-05-30"
+  },
+  "8915275": {
+   "name": "Evil Box",
+   "tcg_date": "2026-11-12",
+   "ocg_date": "2026-05-30"
   }
  }
 }

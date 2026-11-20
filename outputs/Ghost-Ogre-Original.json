@@ -1,0 +1,56 @@
+{
+ "stand": "2026-11-20",
+ "deck": "Tri-Brigade Toon - Vorschau TCG",
+ "deck_path": "C:/Users/umutc/Desktop/YGO KI APP/work/decks/Tri-Brigade Toon - Vorschau TCG.ydk",
+ "backup_path": "C:/Users/umutc/Desktop/YGO KI APP/work/decks/Tri-Brigade Toon - Vorschau TCG.vorher-20261120.ydk",
+ "tries": 8,
+ "seed": 7,
+ "book": {
+  "art": "neutral",
+  "sha256": "cc795f8963b2b773c4afe117c68dfc9ddcd97084280cba70baa36ff96368ea7f"
+ },
+ "baseline": {
+  "games": 16,
+  "finished": 8,
+  "abort_rate": 0.5,
+  "avg_score": 8.29,
+  "stoerer_uses": 0,
+  "interruptions": 33
+ },
+ "ghost_ogre": {
+  "name": "Ghost Ogre & Snow Rabbit",
+  "games": 16,
+  "finished": 0,
+  "abort_rate": 1.0,
+  "avg_score": 7.25,
+  "stoerer_uses": 16,
+  "interruptions": 31,
+  "routes": [
+   {
+    "name": "Toon Tri-Brigade · Fraktall (Bread and Butter)",
+    "games": 8,
+    "finished": 0,
+    "abort_rate": 1.0,
+    "avg_score": 7.27,
+    "stoerer_uses": 8,
+    "interruptions": 14,
+    "finished_drop": 0,
+    "board_loss": 0.59
+   },
+   {
+    "name": "Toon Tri-Brigade · Perfect Toon World (Toon-Teil, Einstieg)",
+    "games": 8,
+    "finished": 0,
+    "abort_rate": 1.0,
+    "avg_score": 7.22,
+    "stoerer_uses": 8,
+    "interruptions": 17,
+    "finished_drop": 8,
+    "board_loss": 1.5
+   }
+  ],
+  "finished_drop": 8,
+  "board_loss": 1.04,
+  "ampel": "stark"
+ }
+}
