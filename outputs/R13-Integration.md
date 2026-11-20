@@ -18,12 +18,11 @@ p6s `book`-Metadaten in Bericht/Status/JSON und p12s Störkarten-Logik. Damit gi
 | App-Selbsttest | **0**, `ok.txt` vorhanden |
 | `git diff --check` | **0** |
 
-## Routen-Baseline (8 Seeds, passiv)
+## Routen-Baseline (8 Seeds)
 
 Befehl je Deck: `work/upstream/python-win32/python.exe -B -X utf8 work/routen_test.py --deck <Deck> --tries 8 --rollouts 0 --seed 7`
 
-**Gesamt:** 18 Decks, 28 Routen, **208/224** Starthände bis zum Ende.
-**Privatdecks:** 93/104 · **Meta-Decks:** 115/120.
+**Passiv:** 18 Decks, 28 Routen, **208/224** Starthände bis zum Ende (Privat 93/104 · Meta 115/120).
 
 ### Privatdecks
 
@@ -63,11 +62,40 @@ Befehl je Deck: `work/upstream/python-win32/python.exe -B -X utf8 work/routen_te
 | mitsurugi-light-and-darkness-ritual-744943 | neutral | Meta Mitsurugi · Saji → Ritual → Futsu → Kusanagi → Prayers | 6/8 |
 | synchron-744077 | neutral | Meta Synchron · Junk Meister → Junk Signal → Stardust Synchron → Junk Synchron | 8/8 |
 
+## Störer-Kontrolle (8 Seeds, `--stoerer`)
+
+Gleiche Seeds und Decks, zusätzlich Ash/Imperm/Nibiru/Veiler. **Gesamt 52/224** (Privat 1/104 · Meta 51/120).
+Gegenüber der p8-Baseline ist nur **Sacred Beasts** besser: **1/8 statt 0/8**. p12 allein liefert dort 0/8;
+die übrigen 13 Meta-Decks und alle Privatdecks bleiben unverändert. Der eine zusätzliche Abschluss ist auf die
+p6-Handtrap-/Effektlogik zurückzuführen, nicht auf den Merge-Konflikt.
+
+| Deck | Störer fertig |
+|---|---:|
+| D-LINK V3.1 | 0/16 |
+| OMNI - HERO | 0/24 |
+| ElfMagnaPP | 0/16 |
+| WinterRaven_WhiteForest_new | 1/48 |
+| blitzclique-745416 | 5/8 |
+| branded-dracotail-745063 | 8/8 |
+| gem-knight-745441 | 8/8 |
+| radiant-typhoon-745273 | 0/8 |
+| radiant-typhoon-sky-striker-745551 | 8/8 |
+| ryzeal-toon-745059 | 0/8 |
+| sacred-beasts-745516 | 1/8 |
+| dark-magician-azamina-light-and-darkness-ritual-744109 | 0/8 |
+| dark-magician-witchcrafter-fairy-tail-744003 | 0/16 |
+| harpie-amazoness-744944 | 0/8 |
+| light-and-darkness-ritual-clown-crew-744112 | 8/8 |
+| magistus-dracotail-fairy-tail-744945 | 0/8 |
+| mitsurugi-light-and-darkness-ritual-744943 | 5/8 |
+| synchron-744077 | 8/8 |
+
 ## Befunde
 
-- **Meta:** Alle 14 aktiven Decks erreichen dieselben Werte wie die p8-Baseline (Minimum 6/8 bei Radiant Typhoon und Mitsurugi; Harpie 7/8). Das DM-Witchcrafter-Deck erkennt zusätzlich die Magistus-Route; beide stehen in der Tabelle.
+- **Meta (passiv):** Alle 14 aktiven Decks erreichen dieselben Werte wie die p8-Baseline (Minimum 6/8 bei Radiant Typhoon und Mitsurugi; Harpie 7/8). Das DM-Witchcrafter-Deck erkennt zusätzlich die Magistus-Route; beide stehen in der Tabelle.
 - **Privat:** D-LINK `16/16`, OMNI `21/24`, ElfMagna `16/16`, WinterRaven `40/48`. Der einzige 0/8-Fall ist die WinterRaven-Route **A4 · Deep Forest → Purifire**; die Engine spielt stattdessen die höher priorisierte A1-Linie. Dasselbe Ergebnis tritt auf p12 auf, daher keine p6/p12-Regression.
 - **Buch:** Privatdecks nutzen freigegebene Playbooks (`released`), Meta-Decks neutrale Playbooks; die konkreten SHA-256-Werte stehen im JSON. Das ist der zusammengeführte p6-Buch-Hash.
+- **Störer:** 52/224; einzige Abweichung zu p8 ist Sacred 1/8 statt 0/8 (p12 allein 0/8). Das ist eine Verbesserung durch p6, keine Verschlechterung durch die Integration.
 - **Deckgrenze (nur gemeldet, nicht geändert):** `work/decks/Tri-Brigade Toon - Vorschau TCG.ydk` fehlen weiterhin die vier Routenkarten Comic Cat `72921536`, Funny Dark Rabbit `45536531`, Dark-Eyes Illusionist Faceless Mage `34314989` und Evil Box `8915275`. Die Datei wurde nicht verändert; die R12-Messkopie bleibt separat.
 
 ## Bereit für Merge
