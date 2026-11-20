@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime
+from hashlib import sha256
 import json
 import os
 from pathlib import Path
@@ -38,6 +39,14 @@ from ygo_agent.arena.seats import PolicySeat  # noqa: E402
 
 OUT = WORK / "duell-liga"
 DEFAULT_OPPONENTS = ("OMNI - HERO", "WinterRaven_WhiteForest_new", "D-LINK V3.1")
+
+
+def book_metadata(book, art=None):
+    """Exact book identity for a report: SHA-256 over the same canonical JSON routen_test hashes."""
+    payload = json.dumps(book.to_json(), sort_keys=True, ensure_ascii=False).encode("utf-8")
+    if art is None:
+        art = "neutral" if str(getattr(book, "origin", "")).lower().startswith("neutral") else "trained"
+    return {"art": art, "sha256": sha256(payload).hexdigest()}
 
 
 def wilson_upper(wins, games, z=1.96):
@@ -106,6 +115,7 @@ def main(argv=None):
     ki_lernen._init_worker(str(args.deck), tuple(str(path) for path in paths))
     engine, deck = ki_lernen._ENGINE, ki_lernen._DECK
     book = Playbook.neutral(sorted(set(deck.main + deck.extra)))
+    book_info = book_metadata(book)
 
     if args.diff:
         rows = decision_diff(engine, deck, ki_lernen._DECKS[1], book, range(args.seed, args.seed + args.duels))
@@ -135,7 +145,7 @@ def main(argv=None):
             lower = wilson_lower(stats["wins"], stats["games"])
             upper = wilson_upper(stats["wins"], stats["games"])
             rows.append({"deck": args.deck.stem, "opponent": name, "policy": label, **stats,
-                         "lower": round(lower, 3), "upper": round(upper, 3)})
+                         "buch": book_info, "lower": round(lower, 3), "upper": round(upper, 3)})
     stamp = f"{datetime.now():%Y-%m-%d %H:%M:%S}"
     with csv.open("a", encoding="utf-8", newline="") as file:
         if new_file:
@@ -143,7 +153,9 @@ def main(argv=None):
         for row in rows:
             file.write(f"{stamp},{row['deck']},{row['opponent']},{row['policy']},{row['games']},{row['wins']},"
                        f"{row['lower']},{row['upper']},{row['attacks']},{row['lost']},{row['handtraps']}\n")
-    lines = [f"# Duell-Liga: {args.deck.stem}", "", f"{stamp} · {args.duels} Seeds je Gegner und Policy", "",
+    lines = [f"# Duell-Liga: {args.deck.stem}", "",
+             f"**Buch:** {book_info['art']} · SHA-256 `{book_info['sha256']}`", "",
+             f"{stamp} · {args.duels} Seeds je Gegner und Policy", "",
              "| Gegner | Policy | Siege | 95%-Intervall | Angriffe | verloren | Handtraps |",
              "|---|---|---|---|---|---|---|"]
     for row in rows:

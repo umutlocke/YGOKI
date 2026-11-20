@@ -24,21 +24,24 @@ from ygo_agent.arena.messages import (AnnounceCard, BattleAction, IdleAction, Se
                                       SortChain)
 from ygo_agent.arena.policies import RandomPolicy
 from ygo_agent.core.constants import (LOCATION_DECK, LOCATION_HAND, LOCATION_MZONE, LOCATION_SZONE,
-                                      POS_FACEUP_ATTACK, POS_FACEUP_DEFENSE, TYPE_MONSTER)
+                                      PHASE_BATTLE, PHASE_END, PHASE_MAIN1, PHASE_MAIN2,
+                                      POS_DEFENSE, POS_FACEDOWN, POS_FACEUP_ATTACK, POS_FACEUP_DEFENSE,
+                                      TYPE_MONSTER)
 
 ACTIONS = ("summon", "special", "activate", "mset", "sset")
 GOOD_HINTS = {506, 508, 509, 510, 514, 518, 522, 523, 527, 529}       # search, summon, set, equip, to field
 COST_HINTS = {500, 501, 503, 504, 507, 511, 512, 513, 519, 531, 532, 533}  # tribute, discard, banish, material
 HOSTILE_HINTS = {502, 505, 520, 528, 530, 549, 551}                    # destroy, bounce, control, target
 TARGET_HINTS = {514, 575}          # Effect Veiler / Infinite Impermanence: target the chained monster
-PHASE_MAIN1, PHASE_BATTLE, PHASE_MAIN2, PHASE_END = 0x04, 0x08, 0x10, 0x200
 LOCATION_GRAVE, LOCATION_REMOVED = 0x10, 0x20
 STEP_GROUP = {"N": "N", "S": "S", "A": "E", "K": "E", "Z": "Z", "M": "M"}
 GROUPS_IDLE = {"summon": "N", "special": "S", "activate": "E", "sset": "Z", "mset": "M"}
 ACTIONS_PER_TURN = 18
 REPEATS_PER_TURN = 3
-# P3-Messschalter: Die Effekt-Sperre lässt sich für dieselben Seeds abschalten.
-EFFECT_RULES = os.environ.get("YGOKI_P3_EFFEKT", "1") != "0"
+# P5/P6: Die Engine-Beschreibung ist nicht je Effekt eindeutig (Borreload Fatalflare Dragon und Miracle
+# Ejector liefern für mehrere getrennte Effekte dieselbe ID 221). Die Sperre ist deshalb standardmäßig aus
+# und bleibt nur für Messungen mit YGOKI_P3_EFFEKT=1 einschaltbar.
+EFFECT_RULES = os.environ.get("YGOKI_P3_EFFEKT", "0") == "1"
 _HARD_OPT = {}
 
 
@@ -281,6 +284,15 @@ def handtrap_blocked(team, controllers, handtrap_links):
     return any(own and controller == team for own, controller in zip(handtrap_links, controllers))
 
 
+def chain_handtrap_state(view):
+    """Controllers and hand-trap flags of the existing chain links, oldest first.
+
+    The currently offered cards are not part of this state: the same chain history must give the same
+    filter answer, whatever the engine happens to offer in this prompt."""
+    links = _chain_links(view)
+    return [controller for controller, _ in links], [card_sense(view, code)[0] for _, code in links]
+
+
 def _last_link_controller(view):
     links = _chain_controllers(view)
     return links[-1] if links else None
@@ -454,26 +466,101 @@ class PlaybookPolicy(RandomPolicy):
             hand = view.location(view.team, LOCATION_HAND)
             self.opening = [card.code for card in hand if card and card.code]
 
-    def _attack_of(self, view, code):
+    @staticmethod
+    def _field_card(view, card):
+        """The public field card behind a CardRef, or None when the prompt has no field position.
+
+        SelectCard/CardRef carries code, controller, location, sequence and position, but no ATK/DEF. A battle
+        target must therefore be resolved through the same public field state the engine shows both players;
+        otherwise every hidden CardRef looks like 0 ATK and Hint 549 cannot rank the targets.
+        """
+        ref = card if hasattr(card, "controller") and hasattr(card, "location") else None
+        if ref is None:
+            return None
+        try:
+            row = view.location(ref.controller, ref.location)
+            if 0 <= ref.sequence < len(row):
+                return row[ref.sequence]
+        except Exception:   # noqa: BLE001 - a failed query must never stop a duel
+            pass
+        return None
+
+    @staticmethod
+    def _code_of(view, card):
+        """Code of the public field card behind a CardRef, else the reference's own code."""
+        field_card = PlaybookPolicy._field_card(view, card)
+        if field_card is not None:
+            return getattr(field_card, "code", 0) or 0
+        try:
+            return int(getattr(card, "code", card) or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    def _attack_of(self, view, card):
+        """Current ATK from the public field (player/zone/sequence), not the printed card data."""
+        field_card = self._field_card(view, card)
+        if field_card is not None:
+            return getattr(field_card, "attack", 0) or 0
+        code = self._code_of(view, card)
         data = view.cards.get(code) if code else None
         return getattr(data, "attack", 0) or 0
+
+    def _defense_of(self, view, card):
+        """Current DEF from the public field, with the same fallback as _attack_of."""
+        field_card = self._field_card(view, card)
+        if field_card is not None:
+            return getattr(field_card, "defense", 0) or 0
+        code = self._code_of(view, card)
+        data = view.cards.get(code) if code else None
+        return getattr(data, "defense", 0) or 0
+
+    def _position_of(self, view, card):
+        """Public battle position; a CardRef's own position is only a fallback."""
+        field_card = self._field_card(view, card)
+        if field_card is not None:
+            return getattr(field_card, "position", 0) or 0
+        return getattr(card, "position", 0) or 0
+
+    def _hostile_key(self, view, card, mine):
+        """Rank an opponent target by public ATK/DEF, never by the ATK-less CardRef.
+
+        Destroy/bounce/control effects (502/505/520 and the other HOSTILE_HINTS) want the most
+        threatening open card. Face-down cards keep their printed/fallback values but are still
+        valid targets; the public position only breaks ties in favour of a face-up body.
+        """
+        if mine:
+            return (1, self.weight(self._code_of(view, card)), 0)
+        attack = self._attack_of(view, card)
+        defense = self._defense_of(view, card)
+        position = self._position_of(view, card)
+        face_up = 0 if position & (POS_FACEUP_ATTACK | POS_FACEUP_DEFENSE) else 1
+        return (0, face_up, -max(attack, defense), -attack)
 
     def _opponent_monsters(self, view):
         return opponent_monsters(view)
 
     @staticmethod
     def _beats(attack, card):
-        """True when this attack destroys the target without losing the attacker."""
-        if getattr(card, "position", 0) & 0x8:          # face-up or face-down Defense Position
+        """True when this attack destroys the target without losing the attacker.
+
+        POS_DEFENSE covers face-up defense (0x4) and face-down defense (0x8). A face-down card's
+        ATK/DEF are not public, so it is not treated as a safe target.
+        """
+        position = getattr(card, "position", 0) or 0
+        if position & POS_FACEDOWN:
+            return False
+        if position & POS_DEFENSE:
             return attack > (getattr(card, "defense", 0) or 0)
-        return attack > (getattr(card, "attack", 0) or 0)
+        if position & POS_FACEUP_ATTACK:
+            return attack > (getattr(card, "attack", 0) or 0)
+        return False
 
     def _choose_attack(self, view, attackable):
         """Direct attacks first; otherwise only an attack that wins its battle. None instead of a suicide attack."""
         targets = self._opponent_monsters(view)
         direct = best = None
         for index, command in enumerate(attackable):
-            attack = self._attack_of(view, command.code)
+            attack = self._attack_of(view, command)
             if getattr(command, "direct_attack", False):
                 if direct is None or attack > direct[0]:
                     direct = (attack, index)
@@ -506,24 +593,28 @@ class PlaybookPolicy(RandomPolicy):
                 return (-2, wanted.index(card.code))
             if cost and mine and card.code in self.avoid:
                 return (2, own_value(card))
+            code = self._code_of(view, card)
             if hint in TARGET_HINTS and preferred_target and not mine and (
-                    card.code == preferred_target or getattr(card, "base_code", 0) == preferred_target):
+                    code == preferred_target or getattr(card, "base_code", 0) == preferred_target):
                 return (-4, 0)   # the opponent's monster whose effect is on the chain
             if hint == 549:
-                # Attack only what this attacker beats; among those, the strongest.
-                defense = bool(getattr(card, "position", 0) & 0x8)
-                value = (getattr(card, "defense", 0) if defense else getattr(card, "attack", 0)) or 0
+                # Attack only what this attacker beats; face-down targets are unknown. CardRefs carry no
+                # ATK/DEF, so both values come from the public field card behind the reference.
+                position = self._position_of(view, card)
+                if not mine and position & POS_FACEDOWN:
+                    return (3, 0)
+                defense = bool(position & POS_DEFENSE)
+                value = self._defense_of(view, card) if defense else self._attack_of(view, card)
                 if mine:
                     return (1, own_value(card))
                 return (0 if (self._attacker_atk and self._attacker_atk > value) else 3,
-                        -self._attack_of(view, card.code))
+                        -self._attack_of(view, card))
             if hint in HOSTILE_HINTS:
-                return (0 if not mine else 1, -self._attack_of(view, card.code) if not mine else own_value(card))
+                return self._hostile_key(view, card, mine)
             if hint in COST_HINTS and not (card.location == LOCATION_DECK and mine):
                 if not route_cost and any(other.controller != view.team for other in cards):
                     # banish/GY/deck selection that offers their cards is an effect against the opponent
-                    return (0 if not mine else 1,
-                            -self._attack_of(view, card.code) if not mine else own_value(card))
+                    return self._hostile_key(view, card, mine)
                 if mine and card.location == LOCATION_HAND and card_sense(view, card.code)[0]:
                     return (0.5, own_value(card))     # keep hand traps for the opponent's turn
                 return (0 if mine else 1, own_value(card))
@@ -576,20 +667,29 @@ class PlaybookPolicy(RandomPolicy):
             return 0
         return found[0] if found else 0
 
-    def _opt_key(self, code, description):
-        """Lock key for a hard once-per-turn clause. Card activation and effect activation are separate."""
-        description = int(description or 0)
-        return ("Effekt", code, description) if description > 0 else ("Karte", code)
+    def _opt_key(self, code, description, card_activation=False):
+        """Lock key for a hard once-per-turn clause.
 
-    def _opt_blocked(self, code, description):
+        Description 0 is only a card activation when the caller knows it is one. An effect prompt without an
+        ID is unknown (None): assigning it to the card would block a different, still legal effect.
+        """
+        description = int(description or 0)
+        if card_activation and description == 0:
+            return ("Karte", code)
+        if description > 0:
+            return ("Effekt", code, description)
+        return None
+
+    def _opt_blocked(self, code, description, card_activation=False):
         if not EFFECT_RULES:
             return False
-        key = self._opt_key(code, description)
-        return key[0] in _hard_opt(code) and key in self.opt_used
+        key = self._opt_key(code, description, card_activation)
+        return key is not None and key[0] in _hard_opt(code) and key in self.opt_used
 
-    def _mark_opt(self, code, description):
-        if EFFECT_RULES:
-            self.opt_used.add(self._opt_key(code, description))
+    def _mark_opt(self, code, description, card_activation=False):
+        key = self._opt_key(code, description, card_activation)
+        if EFFECT_RULES and key is not None:
+            self.opt_used.add(key)
 
     def _idle_allowed(self, name, code, view):
         """Card-text rules: hand traps are never summoned or set, and used in your own turn only as an answer."""
@@ -650,7 +750,9 @@ class PlaybookPolicy(RandomPolicy):
                     key = (name, card.code, getattr(card, "description", 0))
                     if self.repeats[key] >= REPEATS_PER_TURN or not self._idle_allowed(name, card.code, view):
                         continue
-                    if name == "activate" and self._opt_blocked(card.code, key[2]):
+                    card_activation = name == "activate" and not (
+                        getattr(view.cards.get(card.code), "type", 0) & TYPE_MONSTER)
+                    if name == "activate" and self._opt_blocked(card.code, key[2], card_activation):
                         continue
                     score = book.bias[name] + self.weight(card.code) + bonus.get(card.code, 0.0) + rng.gauss(0, 0.05)
                     score += route_bonus.get((GROUPS_IDLE.get(name, ""), card.code), 0.0)
@@ -674,7 +776,7 @@ class PlaybookPolicy(RandomPolicy):
                                             "sset": "Z"}[name], code))
                     if name == "activate":
                         self.activated[code] += 1
-                        self._mark_opt(code, key[2])
+                        self._mark_opt(code, key[2], card_activation)
                     return p.respond(action, index)
             self._log_turn(view)
             if p.can_battle_phase and view.turn > 1:
@@ -710,7 +812,7 @@ class PlaybookPolicy(RandomPolicy):
             if p.forced:
                 return self._chain(p, ranked[0], view, theirs, end_phase)
             route_cards = self._route_cards() if not theirs and self.routes else set()
-            links = None
+            links, handtrap_links = chain_handtrap_state(view)
             for index in ranked:
                 code = p.chains[index].code
                 if self._opt_blocked(code, getattr(p.chains[index], "description", 0)):
@@ -720,12 +822,9 @@ class PlaybookPolicy(RandomPolicy):
                 if code in route_cards:
                     chance = 1.0
                 if handtrap or theirs:
-                    if links is None:
-                        links = _chain_controllers(view)
                     last = links[-1] if links else None
                     opponent_link = last is not None and last != view.team
-                    if handtrap and handtrap_blocked(view.team, links,
-                                                     [card_sense(view, card.code)[0] for card in p.chains]):
+                    if handtrap and handtrap_blocked(view.team, links, handtrap_links):
                         continue          # our own link is last, or an own hand trap already answered
                     if handtrap and not theirs:
                         # own turn: hand traps only answer the opponent (or Imperm-style on their monster)

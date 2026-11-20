@@ -164,6 +164,12 @@ def book_key(book):
     return sha256(json.dumps(book, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
+def block_release(record, reason):
+    """Record why a candidate may not be released; a later successful check clears the reason."""
+    record["release_blocked"] = reason
+    return False
+
+
 def points(result, side):
     if result["winner"] is None:
         return 0.5
@@ -268,6 +274,8 @@ class Trainer:
                            "valid": 0, "invalid": 0, "history": [], "exams": [], "judge_findings": [],
                            "qwen": [], "state": "läuft"}
         self.start_book = Playbook.neutral(self.codes).to_json()
+        self.record.setdefault("start_book_art", "neutral")
+        self.record.setdefault("start_book_sha256", book_key(self.start_book))
         # Kombo-Gedächtnis: what earlier trainings of this deck list discovered is taught to every new player.
         self.library = kombos.load(self.playbook_key)
         remembered = kombos.best_lines(self.library)
@@ -493,9 +501,11 @@ class Trainer:
         # Detached snapshot: to_json() shares the mutable combo list with the playbook, and learn_combos()
         # later changes the population. The exam must keep - and hash - the exact book it measured.
         champion = json.loads(json.dumps(champ.to_json(), ensure_ascii=False))
-        # Every exam plays the same seeds: the ratings of two exams differ only because the champion differs,
-        # not because one exam drew easier hands (paired comparison, much less noise between exams).
-        rng = random.Random(f"{self.args.seed}:pruefung")
+        # The regular exam keeps the same seeds, so two exams differ because of the champion (paired progress
+        # comparison). The frozen final exam uses its own fresh seed stream; otherwise the same measurement
+        # would be counted twice and a release could ride on one lucky sample.
+        rng = random.Random(self.exam_seed_stream(frozen, index))
+        margin = getattr(self.args, "release_margin", 0.5)
         tasks = []
         for opponent in ("REF", self.start_book):
             for block in range(self.args.exam_blocks):
@@ -556,13 +566,19 @@ class Trainer:
                 "beeinflussen. Erfinde keine Regeln.", judge, obj(erklaerung=TEXT), self.args.seed + index)
             judge["qwen"] = explanation
         noise = None
-        if getattr(self.args, "noise_probes", 0) >= 2 and total >= self.args.target and integrity:
-            noise = self.noise_floor(pool, champion, self.args.noise_probes)
+        if (getattr(self.args, "noise_probes", 0) >= 2 and total >= self.args.target + margin
+                and integrity):
+            noise = self.noise_floor(pool, champion, self.args.noise_probes, index)
             self.status(f"Rauschboden der Prüfnote ({noise['probes']} Wiederholungen): "
                         f"Streuung {noise['sd']:.2f}, Spanne {noise['range']:.2f}")
+        book_hash = book_key(champion)
+        book_art = "neutral" if str(champion.get("origin", "")).lower().startswith("neutral") else (
+            "released" if self.record.get("released") else "kandidat")
         exam = {"round": index, "generation": self.record["generation"], "valid_training": self.record["valid"],
-                "rating": total, "parts": parts, "champion_sha256": book_key(champion),
-                "champion_frozen": frozen_book, "noise": noise,
+                "rating": total, "parts": parts, "champion_sha256": book_hash,
+                "book_sha256": book_hash, "book_art": book_art,
+                "champion_frozen": frozen_book,
+                "seed_stream": "abschluss" if frozen_book else "pruefung", "noise": noise,
                 "vs_reference": dict(zip(("points", "games"), score(vs_ref))),
                 "vs_start": dict(zip(("points", "games"), score(vs_start))),
                 "second": dict(zip(("points", "games"), score(vs_field or vs_ref, True))),
@@ -570,19 +586,30 @@ class Trainer:
                 "gauntlet_matchups": matchups,
                 "provisional": not vs_field,
                 "judge": judge, "champion": champion}
-        exam["combos"] = self.learn_combos(valid, index)
+        exam["combos"] = self.exam_combos(frozen_book, valid, index)
         exam["routes"] = route_summary([r for r in all_results if r["valid"]])
         exam["reviewers"] = self.reviewers(exam)
         self.record["exams"].append(exam)
         self._last_exam_games = [r for r in valid]
         return exam
 
-    def noise_floor(self, pool, champion, probes):
+    def exam_seed_stream(self, frozen, index):
+        """Seed stream of an exam: paired for the progress exam, fresh for the frozen final exam."""
+        return f"{self.args.seed}:abschluss:{index}" if frozen else f"{self.args.seed}:pruefung"
+
+    def exam_combos(self, frozen, games, index):
+        """The final exam must not feed its combos back into the population it is judging."""
+        if frozen:
+            return {"skipped": "Abschlussprüfung: keine Kombos ins Lernen"}
+        return self.learn_combos(games, index)
+
+    def noise_floor(self, pool, champion, probes, exam_index=None):
         """Repeat the full exam on fresh seeds for the SAME playbook. The spread of those ratings is the noise
         floor: an improvement smaller than this cannot be told apart from luck."""
-        ratings, parts_all = [], []
+        ratings, parts_all, checks = [], [], []
+        base = exam_index if exam_index is not None else len(self.record["exams"]) + 1
         for probe in range(probes):
-            rng = random.Random(f"{self.args.seed}:rauschen:{len(self.record['exams']) + 1}:{probe}")
+            rng = random.Random(f"{self.args.seed}:rauschen:{base}:{probe}")
             tasks = []
             for opponent in ("REF", self.start_book):
                 for block in range(self.args.exam_blocks):
@@ -612,8 +639,12 @@ class Trainer:
                 total, parts = rating(score(vs_ref), score(vs_start), score(vs_ref, True), integrity)
             ratings.append(total)
             parts_all.append(parts)
+            checks.append({"probe": probe, "rating": round(total, 3), "clear": integrity,
+                           "invalid": sum(not r["valid"] for r in results + vs_field)})
         return {"probes": probes, "ratings": ratings, "mean": round(statistics.mean(ratings), 3),
                 "sd": round(statistics.stdev(ratings), 3), "range": round(max(ratings) - min(ratings), 3),
+                "clear": all(check["clear"] for check in checks),
+                "invalid": sum(check["invalid"] for check in checks), "probes_detail": checks,
                 "teilnoten_streuung": {key: round(statistics.stdev([p[key] for p in parts_all]), 3)
                                        for key in parts_all[0]}}
 
@@ -670,26 +701,40 @@ class Trainer:
 
     def released(self):
         exams = self.record["exams"]
-        if self.record["valid"] < self.args.min_duels or len(exams) < 2:
-            return False
+        if len(exams) < 2:
+            return block_release(self.record, f"Für eine Freigabe fehlen Prüfrunden ({len(exams)} von mindestens 2).")
+        if self.record["valid"] < self.args.min_duels:
+            return block_release(self.record, f"Zu wenige gültige Trainingsduelle: {self.record['valid']} von "
+                               f"mindestens {self.args.min_duels}.")
         if getattr(self.qwen, "attempted", False) and not self.qwen.enabled:
-            self.record["release_blocked"] = ("KI-Coach angefordert, aber nicht verfügbar: "
-                                              + (getattr(self.qwen, "error", None) or "unbekannter Fehler"))
-            return False
+            return block_release(self.record, "KI-Coach angefordert, aber nicht verfügbar: "
+                               + (getattr(self.qwen, "error", None) or "unbekannter Fehler"))
         recent = exams[-2:]
         if all(exam.get("champion") for exam in recent) and book_key(recent[-1]["champion"]) != book_key(recent[-2]["champion"]):
-            self.record["release_blocked"] = "Die letzten zwei Prüfrunden bewerten unterschiedliche Playbooks."
-            return False
+            return block_release(self.record, "Die letzten zwei Prüfrunden bewerten unterschiedliche Playbooks.")
+        final = recent[-1]
+        if not final.get("champion_frozen") or final.get("seed_stream") != "abschluss":
+            return block_release(self.record, "Die Abschlussprüfung lief nicht auf frischen, eingefrorenen Seeds.")
         margin = getattr(self.args, "release_margin", 0.5)   # exam noise (SD ~0.6) must not decide a release
-        for exam in recent:
-            if exam["rating"] < self.args.target + margin or not exam["judge"]["clear"]:
-                return False
-            if self.qwen.enabled:
-                # all three reviewer roles must have answered, each with at least REVIEW_MIN
-                # (a single 7 or a missing answer blocks the release; runs with --ohne-qwen skip this check)
-                grades = [review["note"] for review in exam["reviewers"]]
-                if len(grades) < REVIEWER_ROLES or min(grades) < REVIEW_MIN:
-                    return False
+        if final["rating"] < self.args.target + margin:
+            return block_release(self.record, f"Prüfnote {final['rating']:.2f}/10 liegt unter Ziel {self.args.target:.2f} "
+                               f"plus Marge {margin:.2f} ({self.args.target + margin:.2f}/10).")
+        if not final["judge"]["clear"]:
+            findings = final["judge"].get("findings") or []
+            detail = f" Erste Befunde: {'; '.join(findings[:3])}" if findings else ""
+            return block_release(self.record, "Judge/Headjudge meldet einen Befund (Integrität nicht klar)." + detail)
+        if self.qwen.enabled:
+            # all three reviewer roles must have answered, each with at least REVIEW_MIN
+            # (a single 7 or a missing answer blocks the release; runs with --ohne-qwen skip this check)
+            grades = [review["note"] for review in final["reviewers"]]
+            if len(grades) < REVIEWER_ROLES:
+                return block_release(self.record, f"Nur {len(grades)} von {REVIEWER_ROLES} Reviewer-Rollen haben geantwortet.")
+            if min(grades) < REVIEW_MIN:
+                return block_release(self.record, f"Reviewer-Note {min(grades):.1f}/10 liegt unter {REVIEW_MIN}/10.")
+        noise = final.get("noise")
+        if not noise or noise.get("mean", 0.0) < self.args.target or not noise.get("clear"):
+            return block_release(self.record, "Rauschboden fehlt, liegt im Mittel unter dem Ziel oder "
+                               "enthält einen Integritätsbefund.")
         self.record.pop("release_blocked", None)
         return True
 
@@ -700,8 +745,8 @@ class Trainer:
         frozen = None
         if self.record["exams"]:
             last = self.record["exams"][-1]
-            if (last["rating"] >= self.args.target and last["judge"]["clear"]
-                    and not last.get("champion_frozen")):
+            if (last["rating"] >= self.args.target + getattr(self.args, "release_margin", 0.5)
+                    and last["judge"]["clear"] and not last.get("champion_frozen")):
                 frozen = last["champion"]
                 self.status("Prüfrunde prüft den eingefrorenen Champion der letzten Runde")
         return self.exam(pool, frozen=frozen)
@@ -840,6 +885,7 @@ class Trainer:
         dead = sorted((r for r in main_rows if r["tot_auf_der_hand"]),
                       key=lambda r: -r["tot_auf_der_hand"] / max(r["in_starthand"], 1))[:6]
         data = {"deck": self.deck.name, "freigegeben": self.record.get("released"), "ende": self.record["end_reason"],
+                "buch": {"art": last.get("book_art"), "sha256": last.get("book_sha256")},
                 "note": last["rating"], "teilnoten": last["parts"], "rauschboden": last.get("noise"),
                 "siegquote_pruefung": round(overall, 3),
                 "pruefspiele": count, "staerkste_starthandkarten": strong, "schwaechste_starthandkarten": weak,
@@ -882,6 +928,7 @@ def markdown(record, data, rows):
              f"({record['end_reason']}) · **Note:** {last['rating']:.1f}/10 · "
              f"{record['valid']} gültige Trainingsduelle in {record['generation']} Generationen "
              f"mit {record['players']} Spieler-KIs.", "",
+             f"**Buch:** {last.get('book_art') or 'unbekannt'} · SHA-256 `{last.get('book_sha256') or '—'}`", "",
              "## Teilnoten (gemessen)", "",
              *(f"- {name.capitalize()}: {value:.1f}/10" for name, value in last["parts"].items()), "",
              *((f"Rauschboden: Streuung ±{last['noise']['sd']:.2f} bei {last['noise']['probes']} Wiederholungen "

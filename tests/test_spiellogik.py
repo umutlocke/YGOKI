@@ -2,12 +2,14 @@
 
 from dataclasses import dataclass
 import random
+from types import SimpleNamespace
 
 from kartenrollen import classify
-from ygo_agent.arena.messages import SelectOption, SortChain
+from ygo_agent.arena.messages import CardRef, SelectCard, SelectOption, SortChain
+from ygo_agent.core.constants import PHASE_BATTLE, PHASE_BATTLE_STEP, PHASE_MAIN2
 
-from playbook import (Playbook, PlaybookPolicy, handtrap_blocked, handtrap_timing_ok,
-                      target_activation_ok)
+from playbook import (Playbook, PlaybookPolicy, chain_handtrap_state, handtrap_blocked,
+                      handtrap_timing_ok, target_activation_ok)
 from player_policy import HAND_TRAPS
 
 LOCATION_MZONE, LOCATION_GRAVE = 0x04, 0x10   # same values as ygo_agent.core.constants (tests run without engine)
@@ -41,22 +43,24 @@ class Duel:
     def __init__(self, chain=(), phase=0):
         self._chain = [Link(controller, code) for controller, code in chain]
         self.phase = phase
+        self._select_hint = {}
 
     def field_state(self):
         return type("State", (), {"chain": self._chain})()
 
 
 class View:
-    def __init__(self, team, cards, chain=(), monsters=()):
+    def __init__(self, team, cards, chain=(), monsters=(), own=()):
         self.team = team
         self.turn_player = team
         self.cards = {card.code: card for card in cards}
         self._monsters = list(monsters)
+        self._own = list(own)
         self._duel = Duel(chain)
 
     def location(self, team, zone):
-        if team != self.team and zone == LOCATION_MZONE:
-            return list(self._monsters)
+        if zone == LOCATION_MZONE:
+            return list(self._monsters if team != self.team else self._own)
         return []
 
 
@@ -77,6 +81,16 @@ def test_handtrap_nach_eigenem_letzten_glied_blockiert():
 
 def test_zweite_eigene_handtrap_blockiert():
     assert handtrap_blocked(0, [1, 0], [False, True]) is True
+
+
+def test_handtrap_filter_nutzt_die_kettenhistorie():
+    ash = Card(14558127, controller=0)
+    opponent = Card(222, controller=1)
+    view = View(0, [ash, opponent], chain=[(1, opponent.code), (0, ash.code)])
+    controllers, flags = chain_handtrap_state(view)
+    assert controllers == [1, 0]
+    assert flags == [False, True]
+    assert handtrap_blocked(0, controllers, flags) is True
 
 
 # -- F2: Imperm (575) und Veiler (514) ---------------------------------------------------------------
@@ -106,6 +120,68 @@ def test_angriff_waehlt_das_besiegbare_monster():
     assert order[0] == 1, "das 1000-ATK-Monster ist besiegbar, das 3000-ATK-Monster nicht"
 
 
+def test_angriffsziel_549_liest_echte_selectcard_cardrefs():
+    # Der echte Prompt enthält nur CardRefs (Code/Position), keine ATK/DEF. Der öffentliche Feldzustand
+    # liefert 3000 und 1000; 1500 ATK darf deshalb nur die 1000 wählen.
+    attacker = Card(1500, controller=0, attack=1500, position=0x1)
+    big = Card(3000, controller=1, attack=3000, position=0x1)
+    small = Card(1000, controller=1, attack=1000, position=0x1)
+    view = View(0, [attacker, big, small], monsters=[big, small], own=[attacker])
+    view._duel._select_hint[view.team] = b"\x00\x00\x00" + (549).to_bytes(8, "little")
+    refs = [CardRef(3000, 1, LOCATION_MZONE, 0, 0x1), CardRef(1000, 1, LOCATION_MZONE, 1, 0x1)]
+    prompt = SelectCard(0, False, 1, 1, refs)
+    book = policy(1500)
+    book._attacker_atk = 1500
+    answer = book(prompt, view)
+    assert prompt.decode_response(answer) == {"indices": [1]}
+
+
+def _select_with_refs(hint, refs, monsters):
+    view = View(0, [Card(ref.code, controller=1, attack=ref.position, position=ref.position) for ref in refs],
+                monsters=monsters)
+    view._duel._select_hint[view.team] = b"\x00\x00\x00" + int(hint).to_bytes(8, "little")
+    prompt = SelectCard(0, False, 1, 1, refs)
+    return view, prompt
+
+
+def test_zerstoeren_502_liest_ziel_atk_aus_dem_oeffentlichen_feld():
+    big = Card(3000, controller=1, attack=3000, position=0x1)
+    small = Card(1000, controller=1, attack=1000, position=0x1)
+    refs = [CardRef(3000, 1, LOCATION_MZONE, 0, 0x1), CardRef(1000, 1, LOCATION_MZONE, 1, 0x1)]
+    view, prompt = _select_with_refs(502, refs, [big, small])
+    answer = policy(3000, 1000)(prompt, view)
+    assert prompt.decode_response(answer) == {"indices": [0]}
+
+
+def test_zurueck_505_liest_ziel_atk_aus_dem_oeffentlichen_feld():
+    big = Card(3000, controller=1, attack=3000, position=0x1)
+    small = Card(1000, controller=1, attack=1000, position=0x1)
+    refs = [CardRef(3000, 1, LOCATION_MZONE, 0, 0x1), CardRef(1000, 1, LOCATION_MZONE, 1, 0x1)]
+    view, prompt = _select_with_refs(505, refs, [big, small])
+    answer = policy(3000, 1000)(prompt, view)
+    assert prompt.decode_response(answer) == {"indices": [0]}
+
+
+def test_kontrolle_520_liest_ziel_atk_aus_dem_oeffentlichen_feld():
+    big = Card(3000, controller=1, attack=3000, position=0x1)
+    small = Card(1000, controller=1, attack=1000, position=0x1)
+    refs = [CardRef(3000, 1, LOCATION_MZONE, 0, 0x1), CardRef(1000, 1, LOCATION_MZONE, 1, 0x1)]
+    view, prompt = _select_with_refs(520, refs, [big, small])
+    answer = policy(3000, 1000)(prompt, view)
+    assert prompt.decode_response(answer) == {"indices": [0]}
+
+
+def test_veiler_514_und_imperm_575_waehlen_das_kettenziel_mit_cardrefs():
+    big = Card(111, controller=1, attack=3000, position=0x1)
+    small = Card(222, controller=1, attack=1000, position=0x1)
+    refs = [CardRef(111, 1, LOCATION_MZONE, 0, 0x1), CardRef(222, 1, LOCATION_MZONE, 1, 0x1)]
+    for hint in (514, 575):
+        view, prompt = _select_with_refs(hint, refs, [big, small])
+        view._duel._chain = [Link(1, 222)]
+        answer = policy(111, 222)(prompt, view)
+        assert prompt.decode_response(answer) == {"indices": [1]}, hint
+
+
 def test_kein_angriff_ohne_besiegbares_ziel():
     killer = Card(3000, controller=1, attack=3000)
     view = View(0, [killer], monsters=[killer])
@@ -122,6 +198,34 @@ def test_angriff_wird_gemeldet_wenn_ein_ziel_besiegbar_ist():
     book = policy(999)
     assert book._choose_attack(view, [attacker]) == 0
     assert book._attacker_atk == 2500
+
+
+def test_offene_verteidigung_zaehlt_mit_def_und_ist_angreifbar():
+    # 1500 ATK gegen 3000 ATK / 500 DEF in offener Verteidigung: der Angriff gewinnt.
+    defender = Card(3000, controller=1, attack=3000, defense=500, position=0x4)
+    attacker = Card(1500, controller=0, attack=1500, position=0x1)
+    view = View(0, [attacker, defender], monsters=[defender], own=[attacker])
+    command = SimpleNamespace(code=1500, controller=0, location=LOCATION_MZONE, sequence=0,
+                              direct_attack=False)
+    book = policy(1500)
+    assert book._choose_attack(view, [command]) == 0
+
+
+def test_verdecktes_ziel_bleibt_unbekannt():
+    hidden = Card(4444, controller=1, attack=3000, defense=100, position=0x8)
+    attacker = Card(1500, controller=0, attack=3000, position=0x1)
+    view = View(0, [attacker, hidden], monsters=[hidden], own=[attacker])
+    command = SimpleNamespace(code=1500, controller=0, location=LOCATION_MZONE, sequence=0,
+                              direct_attack=False)
+    assert policy(1500)._choose_attack(view, [command]) is None
+
+
+def test_angriff_nimmt_die_oeffentliche_feld_atk():
+    printed = Card(999, controller=0, attack=1000, position=0x1)
+    field = Card(999, controller=0, attack=2500, position=0x1)
+    view = View(0, [printed], own=[field])
+    command = SimpleNamespace(code=999, controller=0, location=LOCATION_MZONE, sequence=0)
+    assert policy(999)._attack_of(view, command) == 2500
 
 
 # -- F3: Hints nach Besitzer -------------------------------------------------------------------------------
@@ -212,16 +316,20 @@ MAXX_TEXT = "During either player's turn: You can send this card from your hand 
 def test_main_phase_karte_ist_in_main2_erlaubt_und_in_battle_nicht():
     card = Card(27204311, text=NIBIRU_TEXT)
     view = View(0, [card])
-    view._duel.phase = 0x10          # Main Phase 2
+    view._duel.phase = PHASE_MAIN2
     assert handtrap_timing_ok(view, card.code) is True
-    view._duel.phase = 0x08          # Battle Phase
+    view._duel.phase = PHASE_BATTLE
+    assert handtrap_timing_ok(view, card.code) is False
+    view._duel.phase = PHASE_BATTLE_STEP
     assert handtrap_timing_ok(view, card.code) is False
 
 
 def test_maxx_c_bleibt_in_der_battle_phase_erlaubt():
     card = Card(23434538, text=MAXX_TEXT)
     view = View(0, [card])
-    view._duel.phase = 0x08
+    view._duel.phase = PHASE_BATTLE
+    assert handtrap_timing_ok(view, card.code) is True
+    view._duel.phase = PHASE_BATTLE_STEP
     assert handtrap_timing_ok(view, card.code) is True
 
 
