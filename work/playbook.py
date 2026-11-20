@@ -24,6 +24,7 @@ from ygo_agent.arena.messages import (AnnounceCard, BattleAction, IdleAction, Se
                                       SortChain)
 from ygo_agent.arena.policies import RandomPolicy
 from ygo_agent.core.constants import (LOCATION_DECK, LOCATION_HAND, LOCATION_MZONE, LOCATION_SZONE,
+                                      PHASE_BATTLE, PHASE_END, PHASE_MAIN1, PHASE_MAIN2,
                                       POS_FACEUP_ATTACK, POS_FACEUP_DEFENSE, TYPE_MONSTER)
 
 ACTIONS = ("summon", "special", "activate", "mset", "sset")
@@ -31,7 +32,6 @@ GOOD_HINTS = {506, 508, 509, 510, 514, 518, 522, 523, 527, 529}       # search, 
 COST_HINTS = {500, 501, 503, 504, 507, 511, 512, 513, 519, 531, 532, 533}  # tribute, discard, banish, material
 HOSTILE_HINTS = {502, 505, 520, 528, 530, 549, 551}                    # destroy, bounce, control, target
 TARGET_HINTS = {514, 575}          # Effect Veiler / Infinite Impermanence: target the chained monster
-PHASE_MAIN1, PHASE_BATTLE, PHASE_MAIN2, PHASE_END = 0x04, 0x08, 0x10, 0x200
 LOCATION_GRAVE, LOCATION_REMOVED = 0x10, 0x20
 STEP_GROUP = {"N": "N", "S": "S", "A": "E", "K": "E", "Z": "Z", "M": "M"}
 GROUPS_IDLE = {"summon": "N", "special": "S", "activate": "E", "sset": "Z", "mset": "M"}

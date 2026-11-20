@@ -81,7 +81,11 @@ def _install_engine_stubs():
             TYPE_EFFECT=0x20, TYPE_PENDULUM=0x1000000, TYPE_SKILL=0x2000000,
             TYPE_MONSTER=0x1, TYPE_NORMAL=0x0, TYPE_SPELL=0x2, TYPE_TRAP=0x4,
             LOCATION_DECK=0x01, LOCATION_HAND=0x02, LOCATION_MZONE=0x04, LOCATION_SZONE=0x08,
-            POS_FACEUP_ATTACK=0x1, POS_FACEUP_DEFENSE=0x2, WIN_REASON_NAMES={})
+            POS_FACEUP_ATTACK=0x1, POS_FACEDOWN_ATTACK=0x2, POS_FACEUP_DEFENSE=0x4,
+            POS_FACEDOWN_DEFENSE=0x8, POS_DEFENSE=0xC, POS_FACEDOWN=0xA,
+            PHASE_MAIN1=0x04, PHASE_BATTLE_START=0x08, PHASE_BATTLE_STEP=0x10, PHASE_DAMAGE=0x20,
+            PHASE_DAMAGE_CAL=0x40, PHASE_BATTLE=0x80, PHASE_MAIN2=0x100, PHASE_END=0x200,
+            WIN_REASON_NAMES={})
     _module("ygo_agent.core.cards", CardDatabase=type("CardDatabase", (), {}),
             CardData=type("CardData", (), {}), cdb_rows=lambda *args, **kwargs: [])
 

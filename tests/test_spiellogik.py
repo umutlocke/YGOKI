@@ -5,6 +5,7 @@ import random
 
 from kartenrollen import classify
 from ygo_agent.arena.messages import SelectOption, SortChain
+from ygo_agent.core.constants import PHASE_BATTLE, PHASE_BATTLE_STEP, PHASE_MAIN2
 
 from playbook import (Playbook, PlaybookPolicy, handtrap_blocked, handtrap_timing_ok,
                       target_activation_ok)
@@ -212,16 +213,20 @@ MAXX_TEXT = "During either player's turn: You can send this card from your hand 
 def test_main_phase_karte_ist_in_main2_erlaubt_und_in_battle_nicht():
     card = Card(27204311, text=NIBIRU_TEXT)
     view = View(0, [card])
-    view._duel.phase = 0x10          # Main Phase 2
+    view._duel.phase = PHASE_MAIN2
     assert handtrap_timing_ok(view, card.code) is True
-    view._duel.phase = 0x08          # Battle Phase
+    view._duel.phase = PHASE_BATTLE
+    assert handtrap_timing_ok(view, card.code) is False
+    view._duel.phase = PHASE_BATTLE_STEP
     assert handtrap_timing_ok(view, card.code) is False
 
 
 def test_maxx_c_bleibt_in_der_battle_phase_erlaubt():
     card = Card(23434538, text=MAXX_TEXT)
     view = View(0, [card])
-    view._duel.phase = 0x08
+    view._duel.phase = PHASE_BATTLE
+    assert handtrap_timing_ok(view, card.code) is True
+    view._duel.phase = PHASE_BATTLE_STEP
     assert handtrap_timing_ok(view, card.code) is True
 
 
