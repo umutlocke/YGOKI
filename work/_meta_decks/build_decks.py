@@ -111,6 +111,23 @@ DECKS = [
         "Ketu, Rahu, Arthalion) statt klassischem Branded-Despia; Side-Deck der Quelle "
         "enthaelt fuenf unbenannte Platzhalter (149694341 ff.) und ist unvollstaendig.",
     ),
+    DeckSpec(
+        "Radiant Typhoon", "radiant-typhoon-745273", "TCG", "Top 4", "Bonn WCQ Regional",
+        "15.11.2026", "446", "bonn-wcq-regional-5322",
+        "Eigenstaendiger Radiant-Typhoon-Topcut; nicht Umuts Sky-Striker- oder Branded-Deck.",
+        swaps={"side": {24203749: [34267821, 34267821, 34267821],
+                         2729965: [8267140, 8267140, 8267140]}},
+    ),
+    DeckSpec(
+        "Ars Magna Maliss", "ars-magna-maliss-743378", "TCG", "Top 8", "Wien WCQ Regional",
+        "07.11.2026", "?", "wien-wcq-regional-5274",
+        "Maliss/Ars-Magna-Hybrid; weder Maliss noch Ars Magna sind in Umuts App-Sammlung.",
+    ),
+    DeckSpec(
+        "Radiant Typhoon Blitzclique", "radiant-typhoon-blitzclique-743479", "TCG", "Top 4",
+        "Bologna WCQ Regional", "08.11.2026", "115", "bologna-wcq-regional-5280",
+        "Radiant-Typhoon-Engine mit Blitzclique; Umut hat weder Blitzclique noch Radiant Typhoon.",
+    ),
     # OCG: seven most recent top-cut lists; only the five non-duplicate lists are built.
     DeckSpec(
         "Mitsurugi Light and Darkness Ritual", "mitsurugi-light-and-darkness-ritual-744943", "OCG",
@@ -223,6 +240,35 @@ DECKS = [
         "Elegant Egotist, Instant Kill Dance, Forbidden Spell Dance, Rakshasa Formation, "
         "Dramatic Rescue) in der gepinnten Kartenbank nur OCG/Vorschau; eine TCG-Fassung "
         "waere kein Harpie-Amazoness-Deck mehr.",
+    ),
+    DeckSpec(
+        "Dark Magician Witchcrafter Fairy Tail", "dark-magician-witchcrafter-fairy-tail-744003", "OCG",
+        "Runner-Up", "Waseda Festival CS", "08.11.2026", "?", "waseda-festival-cs-5296",
+        "Dark-Magician-Witchcrafter-Fairy-Tail; Umut hat Magistus/Fairy Tail, aber kein "
+        "Dark-Magician- oder Witchcrafter-Deck.",
+        swaps={
+            "main": {22623509: [21522601], 88570003: [46986414], 6958567: [57916305],
+                     23434538: [14558127],
+                     41350417: [82404868, 82404868, 82404868],
+                     71599345: [84211599, 35261759, 35261759]},
+            "extra": {27519978: [54757758], 37818794: [69946549]},
+            "side": {101403021: [15693423, 15693423], 2729965: [8267140, 8267140],
+                     90846359: [40605147], 58921041: [40605147]},
+        },
+    ),
+    DeckSpec(
+        "Mitsurugi Light and Darkness Ritual (32nd Wayo CS)", "mitsurugi-light-and-darkness-ritual-744064", "OCG",
+        "Top 4", "32nd Wayo CS (3-person team tournament)", "08.11.2026", "~34",
+        "32nd-wayo-cs-3-person-team-tournament-5299",
+        "Naechstplatzierte Mitsurugi-Variante; keine weitere nicht-duplikative OCG-Archetyp-Liste "
+        "in den Top-Cuts. Die TCG-Fassung ersetzt Ame no Habakiri und Griffoh wie beim Mogi-Cup-Deck.",
+        swaps={
+            "main": {13332685: [82782870, 55397172, 17954937],
+                     23434538: [14558127],
+                     97462632: [97462632, 97268402, 24299458]},
+            "extra": {90091224: [16195942], 66011101: [6983839], 79606837: [50091196]},
+            "side": {24203749: [34267821, 34267821, 34267821], 2729965: [8267140, 8267140]},
+        },
     ),
 ]
 

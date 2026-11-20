@@ -1,0 +1,63 @@
+{
+ "deck": "Ars Magna Maliss",
+ "quelle": "work/_meta_decks/guides/ars_magna_maliss.md",
+ "routes": [
+  {
+   "name": "Meta Ars Magna Maliss · Underground → White Rabbit → Link Disciple",
+   "priority": 6,
+   "goal": "Underground bannt March Hare; White Rabbit ist der zweite Körper, Link Disciple öffnet die Link-Leiter. Die Dormouse-/MTP-Folgelinie steht optional im Guide.",
+   "quelle": "https://ygoprodeck.com/deck/ars-magna-maliss-743378; Kartentexte (Underground 68337209, Dormouse 32061192, White Rabbit 69272449, March Hare 20938824, MTP-07 94722358)",
+   "hand": [
+    68337209,
+    69272449,
+    94722358,
+    93453053,
+    14558127
+   ],
+   "steps": [
+    {
+     "code": 68337209,
+     "do": "E",
+     "pick": [
+      20938824
+     ],
+     "note": "Underground aktivieren; March Hare aus dem Deck bannen"
+    },
+    {
+     "code": 69272449,
+     "do": "N",
+     "note": "White Rabbit normal beschwören"
+    },
+    {
+     "code": 32995276,
+     "do": "S",
+     "note": "Link Disciple als Link-1 beschwören"
+    },
+    {
+     "code": 94722358,
+     "do": "E",
+     "pick": [
+      32061192
+     ],
+     "optional": true,
+     "note": "MTP-07: Maliss suchen und eine Karte bannen"
+    },
+    {
+     "code": 32061192,
+     "do": "S",
+     "optional": true,
+     "note": "Dormouse aus dem Banishment zurückholen"
+    },
+    {
+     "code": 21848500,
+     "do": "E",
+     "pick": [
+      32061192
+     ],
+     "optional": true,
+     "note": "Hearts Crypter: verbannte Maliss-Karte zurückmischen"
+    }
+   ]
+  }
+ ]
+}
