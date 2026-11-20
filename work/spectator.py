@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from deck_check import SOURCES, audit, read_ydk
 from duel_formats import select_format
+from kettendaten import KettenStapel
 from player_policy import policy_for, released_strategy
 from preview_cards import REGISTRY, registered, with_previews
 from windows_duel import check_result, script_ids
@@ -37,12 +38,16 @@ class Spectator(DuelObserver):
 
     def __init__(self, strategies):
         self.strategies = strategies
+        self.chain = KettenStapel()
+        self.chain_events = []
+        self.chain_log = []
         self.events = []
         self.history = []        # every event of the duel, for the saved log
         self.actions = []        # what the app animates: {kind, player, loc, seq, text}
 
     def on_start(self, duel):
         self.duel = duel
+        self.chain.set_names({side: duel.names[side] for side in (0, 1)})
         self.events.append(f"{duel.names[0]} beginnt.")
 
     def on_message(self, view, event):
@@ -66,8 +71,42 @@ class Spectator(DuelObserver):
             where = {2: " von der Hand", 0x10: " aus dem Friedhof", 0x20: " aus dem Verbannt-Stapel"}.get(
                 event.location.location, "")
             self.events.append(f"Kette {event.chain_count} · {names[event.controller]} aktiviert {name}{where}.")
+            link = self.chain.activate(event.code, event.controller, event.location.location,
+                                       event.location.sequence, event.description, name=name,
+                                       player=names[event.controller])
+            self.chain_events.append({"kind": "activate", "chain_count": event.chain_count,
+                                      "link": link})
             self.act("activate", event.location, f"Kette {event.chain_count} · {names[event.controller]}: {name}{where}",
-                     chain=event.chain_count)
+                     chain=event.chain_count, chain_data=link)
+        elif kind == Msg.BECOME_TARGET:
+            targets = []
+            for location in event.cards:
+                card = self.duel.view_card(None, location.controller, location.location, location.sequence)
+                targets.append({"code": card.code if card and card.code else 0,
+                                "name": self.duel.engine.cards.name(card.code) if card and card.code else "Karte",
+                                "controller": location.controller, "location": location.location,
+                                "sequence": location.sequence})
+            self.chain.target(targets)
+            self.chain_events.append({"kind": "target", "targets": targets})
+        elif kind == Msg.CHAIN_SOLVING:
+            self.chain.solving(event.chain_count)
+            self.chain_events.append({"kind": "solving", "chain_count": event.chain_count})
+        elif kind == Msg.CHAIN_SOLVED:
+            self.chain.solved(event.chain_count)
+            self.chain_events.append({"kind": "solved", "chain_count": event.chain_count})
+        elif kind == Msg.CHAIN_NEGATED:
+            self.chain.negated(event.chain_count)
+            self.chain_events.append({"kind": "negated", "chain_count": event.chain_count})
+            self.events.append(f"Kette {event.chain_count} · Effekt negiert.")
+        elif kind == Msg.CHAIN_DISABLED:
+            self.chain.negated(event.chain_count, disabled=True)
+            self.chain_events.append({"kind": "disabled", "chain_count": event.chain_count})
+            self.events.append(f"Kette {event.chain_count} · Effekt annulliert.")
+        elif kind == Msg.CHAIN_END:
+            finished = self.chain.ended()
+            if finished:
+                self.chain_events.append({"kind": "end", "chain": finished})
+                self.events.append(self.chain.summary(finished))
         elif kind == Msg.SET:
             self.events.append(f"{names[event.location.controller]} setzt eine Karte.")
             self.act("set", event.location, f"{names[event.location.controller]} setzt eine Karte")
@@ -135,7 +174,10 @@ class Spectator(DuelObserver):
             })
         frame = {"turn": duel.turn, "active": duel.turn_player, "phase_id": duel.phase,
                  "phase": PHASES.get(duel.phase, "Start"), "players": players,
+                 "chain": self.chain.snapshot(), "chain_events": self.chain_events,
                  "events": self.events, "actions": self.actions}
+        self.chain_log.extend(self.chain_events)
+        self.chain_events = []
         self.events = []
         self.actions = []
         return frame
@@ -155,11 +197,15 @@ def _safe(name):
 
 
 def save_duel(decks, strategies, seed, observer, replay=None, winner=None, finished=True):
-    """Store a watched duel as replay (.yrpX, open with EDOPro) and readable log (Verlauf.txt)."""
+    """Store a watched duel as replay (.yrpX, open with EDOPro), readable log and structured chains."""
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     folder = SAVED / f"{stamp}-{_safe(decks[0].name)}-vs-{_safe(decks[1].name)}"
     folder.mkdir(parents=True, exist_ok=True)
     events = observer.history + observer.events
+    chains = list(observer.chain.history)
+    if observer.chain.links:
+        chains.append(observer.chain.snapshot())
+    chain_events = list(getattr(observer, "chain_log", [])) + list(getattr(observer, "chain_events", []))
     head = [f"Duell: {decks[0].name} gegen {decks[1].name}", f"Datum: {datetime.now():%d.%m.%Y %H:%M}",
             f"Seed: {seed}", f"Strategie {decks[0].name}: {strategies[0]}",
             f"Strategie {decks[1].name}: {strategies[1]}",
@@ -167,9 +213,15 @@ def save_duel(decks, strategies, seed, observer, replay=None, winner=None, finis
     (folder / "Verlauf.txt").write_text("\n".join(head + events) + "\n", encoding="utf-8")
     if replay:
         (folder / "Replay.yrpX").write_bytes(replay)
+    (folder / "Ketten.json").write_text(json.dumps({
+        "decks": [d.name for d in decks], "seed": seed, "chains": chains,
+        "ereignisse": chain_events,
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
     (folder / "Ergebnis.json").write_text(json.dumps(
         {"decks": [d.name for d in decks], "strategies": strategies, "seed": seed, "winner": winner,
-         "finished": finished, "events": len(events), "replay": bool(replay)}, ensure_ascii=False, indent=2),
+         "finished": finished, "events": len(events), "chains": len(chains),
+         "chain_events": len(chain_events), "ketten": "Ketten.json",
+         "replay": bool(replay)}, ensure_ascii=False, indent=2),
         encoding="utf-8")
     return folder
 

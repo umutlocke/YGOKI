@@ -376,9 +376,13 @@ def ui_contract():
     missing = sorted(references - set(names) - generated)
     if missing:
         raise ValueError("C# verweist auf fehlende XAML-Namen: " + ", ".join(missing))
-    required = {"WebUrls", "WebState", "WebStart", "WebApply", "WebReport"}
+    required = {"WebUrls", "WebState", "WebStart", "WebApply", "WebReport",
+                "WatchChains", "WatchChainPanel", "WatchChainLinks", "WatchChainTitle"}
     if required - set(names):
-        raise ValueError("Web-Analyse-UI fehlt: " + ", ".join(sorted(required - set(names))))
+        raise ValueError("UI-Elemente fehlen: " + ", ".join(sorted(required - set(names))))
+    xaml = (native / "MainWindow.xaml").read_text(encoding="utf-8")
+    if 'x:Key="WatchChainLink"' not in xaml:
+        raise ValueError("Ketten-Vorlage WatchChainLink fehlt in MainWindow.xaml.")
 
     build = (native / "build.ps1").read_text(encoding="utf-8")
     sources = sorted(path.name for path in native.glob("*.cs"))

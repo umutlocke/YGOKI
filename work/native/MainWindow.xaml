@@ -40,6 +40,30 @@
         </DockPanel>
       </Border>
     </DataTemplate>
+    <DataTemplate x:Key="WatchChainLink">
+      <Border Margin="0,0,0,4" Padding="7,5" Background="#121826" BorderBrush="{Binding Border}"
+              BorderThickness="1" CornerRadius="4">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="24"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <TextBlock Text="{Binding Number}" FontWeight="Bold" Foreground="{StaticResource Accent}"
+                     VerticalAlignment="Top"/>
+          <StackPanel Grid.Column="1" Margin="0,0,7,0">
+            <TextBlock Text="{Binding Title}" Foreground="{Binding PlayerBrush}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+            <TextBlock Text="{Binding Effect}" Foreground="{StaticResource Muted}" FontSize="11"
+                       TextWrapping="Wrap" MaxHeight="32" TextTrimming="CharacterEllipsis"/>
+            <TextBlock Text="{Binding Target}" Foreground="#D5B8FF" FontSize="11" TextWrapping="Wrap"/>
+          </StackPanel>
+          <Border Grid.Column="2" Background="{Binding StateBackground}" CornerRadius="3" Padding="5,2"
+                  VerticalAlignment="Top">
+            <TextBlock Text="{Binding State}" Foreground="{Binding StateBrush}" FontSize="10"/>
+          </Border>
+        </Grid>
+      </Border>
+    </DataTemplate>
     <Style x:Key="WatchPhaseChip" TargetType="TextBlock">
       <Setter Property="Foreground" Value="{StaticResource Muted}"/>
       <Setter Property="Background" Value="#20283A"/>
@@ -335,6 +359,8 @@
             <StackPanel Margin="0,0,10,0"><TextBlock Text="Deck B" Style="{StaticResource LabelText}"/><ComboBox x:Name="WatchRight" Width="212"/></StackPanel>
             <StackPanel Margin="0,0,10,0"><TextBlock Text="Format" Style="{StaticResource LabelText}"/><ComboBox x:Name="WatchFormat" Width="103"/></StackPanel>
             <StackPanel Margin="0,0,10,0"><TextBlock Text="Tempo" Style="{StaticResource LabelText}"/><ComboBox x:Name="WatchSpeed" Width="94"/></StackPanel>
+            <CheckBox x:Name="WatchChains" Content="Ketten anzeigen" IsChecked="True"
+                      Foreground="#E6E9F2" VerticalAlignment="Bottom" Margin="0,0,10,7"/>
           </WrapPanel>
           <WrapPanel Margin="0,10,0,0">
             <Button x:Name="WatchStart" Content="Duell starten" Style="{StaticResource PrimaryButton}"/>
@@ -391,6 +417,17 @@
         <Border Grid.Column="2" Style="{StaticResource Panel}">
           <DockPanel>
             <TextBlock DockPanel.Dock="Top" Text="Duellverlauf" Style="{StaticResource SectionTitle}"/>
+            <Border x:Name="WatchChainPanel" DockPanel.Dock="Top" Visibility="Collapsed"
+                    Background="#151B28" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                    CornerRadius="5" Padding="7" Margin="0,0,0,8">
+              <DockPanel>
+                <TextBlock x:Name="WatchChainTitle" DockPanel.Dock="Top" Text="Kette"
+                           Foreground="{StaticResource Accent}" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                <ScrollViewer MaxHeight="250" VerticalScrollBarVisibility="Auto">
+                  <ItemsControl x:Name="WatchChainLinks" ItemTemplate="{StaticResource WatchChainLink}"/>
+                </ScrollViewer>
+              </DockPanel>
+            </Border>
             <ListBox x:Name="WatchLog" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
               <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap"/></DataTemplate></ListBox.ItemTemplate>
             </ListBox>

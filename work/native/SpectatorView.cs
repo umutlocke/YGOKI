@@ -18,6 +18,65 @@ namespace YgoKi
         public CardRow Art { get; set; }
     }
 
+    sealed class WatchChainLink
+    {
+        public WatchChainLink(Dictionary<string, object> data)
+        {
+            Number = "#" + data["number"];
+            Title = data.Text("player") + " · " + data.Text("name") + " (" + data.Text("zone") + ")";
+            Effect = data.Text("effect") ?? "Effekttext fehlt";
+            string state = data.Text("state") ?? "offen";
+            State = data.Text("state_label") ?? state;
+            object targetsValue = data.Get("targets");
+            var targets = targetsValue as object[];
+            Target = targets == null || targets.Length == 0 ? "kein Ziel" :
+                "Ziel: " + String.Join(", ", targets.Select(Json.Object).Select(item => item.Text("name")));
+            int controller = data.Get("controller") == null ? 0 : Convert.ToInt32(data["controller"]);
+            PlayerBrush = new SolidColorBrush(controller == 0 ? Color.FromRgb(0x9E, 0xC5, 0xFF)
+                                                               : Color.FromRgb(0xFF, 0xC1, 0x9A));
+            if (state == "negiert")
+            {
+                StateBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0x9A, 0xA8));
+                StateBackground = new SolidColorBrush(Color.FromRgb(0x4A, 0x1B, 0x26));
+                Border = StateBrush;
+            }
+            else if (state == "annulliert")
+            {
+                StateBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0xC1, 0x73));
+                StateBackground = new SolidColorBrush(Color.FromRgb(0x43, 0x2C, 0x16));
+                Border = StateBrush;
+            }
+            else if (state == "aufgeloest")
+            {
+                StateBrush = new SolidColorBrush(Color.FromRgb(0xA8, 0xE6, 0xB4));
+                StateBackground = new SolidColorBrush(Color.FromRgb(0x1B, 0x3A, 0x26));
+                Border = new SolidColorBrush(Color.FromRgb(0x3E, 0x80, 0x52));
+            }
+            else if (state == "loest_auf")
+            {
+                StateBrush = new SolidColorBrush(Color.FromRgb(0xD5, 0xB8, 0xFF));
+                StateBackground = new SolidColorBrush(Color.FromRgb(0x2D, 0x24, 0x48));
+                Border = StateBrush;
+            }
+            else
+            {
+                StateBrush = new SolidColorBrush(Color.FromRgb(0x9E, 0xC5, 0xFF));
+                StateBackground = new SolidColorBrush(Color.FromRgb(0x1A, 0x2A, 0x45));
+                Border = new SolidColorBrush(Color.FromRgb(0x3E, 0x67, 0x9A));
+            }
+        }
+
+        public string Number { get; private set; }
+        public string Title { get; private set; }
+        public string Effect { get; private set; }
+        public string Target { get; private set; }
+        public string State { get; private set; }
+        public Brush PlayerBrush { get; private set; }
+        public Brush StateBrush { get; private set; }
+        public Brush StateBackground { get; private set; }
+        public Brush Border { get; private set; }
+    }
+
     sealed partial class Desktop
     {
         private readonly DispatcherTimer watchTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
@@ -29,8 +88,13 @@ namespace YgoKi
         private static readonly string[] PileKinds = { "Deck", "Extra", "Grave", "Banished" };
         private static readonly string[] PileLabels = { "Deck", "Extra Deck", "Friedhof", "Verbannt" };
         private bool watchRunning, watchPaused, watchPolling, watchWaiting;
+        private bool watchChainEnabled = true;
         private int watchSerial, watchGeneration;
+        private int watchChainGeneration;
         private DateTime watchNextAfter;
+        private ItemsControl ChainList { get { return Find<ItemsControl>("WatchChainLinks"); } }
+        private Border ChainPanel { get { return Find<Border>("WatchChainPanel"); } }
+        private TextBlock ChainTitle { get { return Text("WatchChainTitle"); } }
         private static readonly int[] WatchDelays = { 900, 420, 210, 85 };
         private static readonly string[] WatchPhases = { "Draw", "Standby", "Main1", "Battle", "Main2", "End" };
         private static readonly int[] WatchPhaseMasks = { 1, 2, 4, 248, 256, 512 };
@@ -41,6 +105,8 @@ namespace YgoKi
             Combo("WatchFormat").SelectedIndex = 0;
             Combo("WatchSpeed").ItemsSource = new[] { "Langsam", "Normal", "Schnell", "Sehr schnell" };
             Combo("WatchSpeed").SelectedIndex = 1;
+            Find<CheckBox>("WatchChains").Checked += delegate { SetChainVisible(true); };
+            Find<CheckBox>("WatchChains").Unchecked += delegate { SetChainVisible(false); };
             OnClickAsync("WatchStart", StartWatch);
             OnClick("WatchPause", () => PauseWatch(!watchPaused));
             OnClickAsync("WatchNext", AdvanceWatch);
@@ -81,6 +147,10 @@ namespace YgoKi
             foreach (var key in fieldSlots.Keys.ToArray()) SetZone(key, null, false, null);
             Text("WatchAction").Text = "Noch keine Aktion";
             Text("WatchAction").Foreground = (Brush)window.FindResource("Muted");
+            ChainList.ItemsSource = null;
+            ChainTitle.Text = "Kette";
+            ChainPanel.Visibility = Visibility.Collapsed;
+            watchChainGeneration++;
             foreach (string side in new[] { "Top", "Bottom" })
             {
                 for (int index = 0; index < PileKinds.Length; index++) SetPile(side, PileKinds[index], PileLabels[index], null);
@@ -240,6 +310,7 @@ namespace YgoKi
             }
             for (int place = 0; place < 2; place++) SetZone("XE" + place, extra[place], true, owner[place]);
             AnimateActions(frame.Array("actions"));
+            RenderChain(frame);
             var log = Find<ListBox>("WatchLog");
             foreach (object entry in frame.Array("events"))
             {
@@ -247,6 +318,62 @@ namespace YgoKi
                 log.Items.Add(entry);
             }
             if (log.Items.Count > 0) log.ScrollIntoView(log.Items[log.Items.Count - 1]);
+        }
+
+        private void SetChainVisible(bool enabled)
+        {
+            watchChainEnabled = enabled;
+            if (!enabled)
+            {
+                watchChainGeneration++;
+                ChainPanel.Visibility = Visibility.Collapsed;
+                return;
+            }
+            if (ChainList.Items.Count > 0) ChainPanel.Visibility = Visibility.Visible;
+        }
+
+        private void RenderChain(Dictionary<string, object> frame)
+        {
+            if (!watchChainEnabled) return;
+            object raw = frame.Get("chain");
+            if (raw == null) return;
+            var chain = Json.Object(raw);
+            int count = chain.Get("count") == null ? 0 : Convert.ToInt32(chain["count"]);
+            if (count <= 0) return;
+            var links = (chain.Get("links") as object[] ?? new object[0])
+                .Select(Json.Object).Select(data => new WatchChainLink(data)).ToArray();
+            ChainList.ItemsSource = links;
+            ChainTitle.Text = chain.Text("title") ?? "Kette";
+            ChainPanel.BeginAnimation(UIElement.OpacityProperty, null);
+            ChainPanel.Opacity = 1;
+            ChainPanel.Visibility = Visibility.Visible;
+            int generation = ++watchChainGeneration;
+            bool open = Object.Equals(chain.Get("open"), true);
+            if (open)
+            {
+                // offen: bleibt stehen, bis der naechste Frame kommt
+            }
+            else
+            {
+                HideClosedChain(generation);
+            }
+        }
+
+        private async void HideClosedChain(int generation)
+        {
+            await Task.Delay(1300);
+            if (generation != watchChainGeneration || !watchRunning) return;
+            var fade = new DoubleAnimation(1.0, 0.0, new Duration(TimeSpan.FromMilliseconds(260)));
+            fade.Completed += delegate
+            {
+                if (generation == watchChainGeneration)
+                {
+                    ChainPanel.Visibility = Visibility.Collapsed;
+                    ChainPanel.Opacity = 1;
+                    ChainList.ItemsSource = null;
+                }
+            };
+            ChainPanel.BeginAnimation(UIElement.OpacityProperty, fade);
         }
 
         private void MarkPhase(int phase)
@@ -559,6 +686,24 @@ namespace YgoKi
                 await AdvanceWatch();
                 await WaitForWatchFrame(previous);
             }
+            for (int step = 0; step < 60; step++)
+            {
+                if (ChainPanel.Visibility == Visibility.Visible && ChainList.Items.Count >= 2) break;
+                int previous = watchSerial;
+                await AdvanceWatch();
+                await WaitForWatchFrame(previous);
+            }
+            Expect(ChainPanel.Visibility == Visibility.Visible && ChainList.Items.Count > 0,
+                "Der Kettenstapel wurde im Zuschauen nicht sichtbar.");
+            Expect(ChainTitle.Text.Contains("Kette"), "Der Kettenstapel hat keinen Titel.");
+            var chainLinks = ChainList.Items.Cast<WatchChainLink>().ToArray();
+            Expect(chainLinks.All(link => !String.IsNullOrEmpty(link.Number) && !String.IsNullOrEmpty(link.Title)),
+                "Kettenglieder ohne Nummer oder Karte.");
+            Screenshot(System.IO.Path.Combine(directory, "kette.png"));
+            Find<CheckBox>("WatchChains").IsChecked = false;
+            Expect(ChainPanel.Visibility == Visibility.Collapsed, "Der Schalter Ketten anzeigen versteckt den Stapel nicht.");
+            Find<CheckBox>("WatchChains").IsChecked = true;
+            Expect(ChainPanel.Visibility == Visibility.Visible, "Der Schalter Ketten anzeigen zeigt den Stapel nicht.");
             Expect(Find<ListBox>("WatchLog").Items.Count > 0 && Text("WatchBottomName").Text.Contains("LP"),
                 "Beim Zuschauen fehlen Duellverlauf oder Lebenspunkte.");
             foreach (string side in new[] { "Top", "Bottom" })
