@@ -3,9 +3,9 @@
 - Quelle: [YGOPRODeck-Deckseite](https://ygoprodeck.com/deck/ars-magna-maliss-743378) (abgerufen 20.11.2026)
 - Turnier: [Wien WCQ Regional](https://ygoprodeck.com/tournament/wien-wcq-regional-5274) · 07.11.2026 · ? Teilnehmer · **Top 8**
 - Format der Quelle: TCG
-- Import: ja
+- Import: Reserve
 
-> Maliss/Ars-Magna-Hybrid; weder Maliss noch Ars Magna sind in Umuts App-Sammlung.
+> Reserve R9: aeltere Top-8-Liste (07.11.2026). Sie weicht den beiden Pflichtlisten Branded Dracotail und Radiant Typhoon Sky Striker und bleibt als Nachrücker dokumentiert.
 
 ## Geprüfte Deckliste
 

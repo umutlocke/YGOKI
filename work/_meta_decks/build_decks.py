@@ -38,6 +38,7 @@ class DeckSpec:
     note: str = ""
     swaps: dict[str, dict[int, list[int]]] = field(default_factory=dict)
     overrides: dict[str, dict[int, int]] = field(default_factory=dict)
+    reserve: bool = False
 
 
 DECKS = [
@@ -100,16 +101,22 @@ DECKS = [
     DeckSpec(
         "Radiant Typhoon Sky Striker", "radiant-typhoon-sky-striker-745551", "TCG", "Top 8",
         "Lima WCQ Regional", "15.11.2026", "~200", "lima-wcq-regional-5325",
-        "NICHT IMPORTIERT: derselbe Sky-Striker-Archetyp wie Umuts 'Sky Striker.ydk'. "
-        "Unterschied: Radiant-Typhoon-Engine (Swen, Eldam, Vision, Chant) und 3x Zero.",
+        "Pflichtliste R9: Sky-Striker-Kern mit Radiant-Typhoon-Engine (Swen, Eldam, Vision, Chant) "
+        "und 3x Zero; die Quelle ist vollstaendig TCG-legal und braucht keine Ersetzung.",
     ),
     DeckSpec(
         "Branded Dracotail", "branded-dracotail-745063", "TCG", "Top 4", "Toronto WCQ Regional",
         "14.11.2026", "~250", "toronto-wcq-regional-5313",
-        "NICHT IMPORTIERT: derselbe Branded-Archetyp wie Umuts 'Branded.ydk'. "
-        "Unterschied: Dracotail-Engine (Faimena, Lukias, Mululu, Urgula, Pan, Sting, Flame, "
-        "Ketu, Rahu, Arthalion) statt klassischem Branded-Despia; Side-Deck der Quelle "
-        "enthaelt fuenf unbenannte Platzhalter (149694341 ff.) und ist unvollstaendig.",
+        "Pflichtliste R9: Branded-Kern mit Dracotail-Engine (Faimena, Lukias, Mululu, Urgula, "
+        "Pan, Sting, Flame, Ketu, Rahu, Arthalion). Fuenf unbenannte Side-Platzhalter "
+        "(149694341 ff.) werden durch TCG-legale Standard-Sidekarten ersetzt.",
+        swaps={
+            "side": {149694341: [27204311, 27204311, 27204311],
+                     149694343: [73642296, 73642296, 73642296],
+                     149694344: [15693423, 15693423, 15693423],
+                     149694346: [8267140, 8267140, 8267140],
+                     149694347: [43898403, 43898403, 43898403]},
+        },
     ),
     DeckSpec(
         "Radiant Typhoon", "radiant-typhoon-745273", "TCG", "Top 4", "Bonn WCQ Regional",
@@ -121,12 +128,16 @@ DECKS = [
     DeckSpec(
         "Ars Magna Maliss", "ars-magna-maliss-743378", "TCG", "Top 8", "Wien WCQ Regional",
         "07.11.2026", "?", "wien-wcq-regional-5274",
-        "Maliss/Ars-Magna-Hybrid; weder Maliss noch Ars Magna sind in Umuts App-Sammlung.",
+        "Reserve R9: aeltere Top-8-Liste (07.11.2026). Sie weicht den beiden Pflichtlisten "
+        "Branded Dracotail und Radiant Typhoon Sky Striker und bleibt als Nachrücker dokumentiert.",
+        reserve=True,
     ),
     DeckSpec(
         "Radiant Typhoon Blitzclique", "radiant-typhoon-blitzclique-743479", "TCG", "Top 4",
         "Bologna WCQ Regional", "08.11.2026", "115", "bologna-wcq-regional-5280",
-        "Radiant-Typhoon-Engine mit Blitzclique; Umut hat weder Blitzclique noch Radiant Typhoon.",
+        "Reserve R9: Hybrid aus zwei bereits aktiven Engines (Radiant Typhoon und Blitzclique); "
+        "weicht den beiden Pflichtlisten und bleibt als Nachrücker dokumentiert.",
+        reserve=True,
     ),
     # OCG: seven most recent top-cut lists; only the five non-duplicate lists are built.
     DeckSpec(
@@ -149,7 +160,9 @@ DECKS = [
         "Mitsurugi Azamina Light and Darkness Ritual", "mitsurugi-azamina-light-and-darkness-ritual-744122",
         "OCG", "Top 8", "VNC 2026 Ho Chi Minh City", "31.10.2026", "~97",
         "vnc-2026-ho-chi-minh-city-5301",
-        "60-Karten-Mischung aus Mitsurugi, Azamina und Light-and-Darkness-Ritual; nicht in Umuts Sammlung.",
+        "Reserve R9: dritte Mitsurugi-Variante und aeltere Top-8-Liste (31.10.2026); weicht den "
+        "Pflichtlisten Magistus Dracotail und Harpie Amazoness und bleibt als Nachrücker dokumentiert.",
+        reserve=True,
         swaps={
             "main": {24203749: [97045737, 97045737, 97045737],
                      88570003: [46986414],
@@ -227,19 +240,45 @@ DECKS = [
         "Magistus Dracotail Fairy Tail", "magistus-dracotail-fairy-tail-744945", "OCG",
         "Top 4", "28th Mogi Cup Individual Competition", "14.11.2026", "48",
         "28th-mogi-cup-individual-competition-5337",
-        "NICHT IMPORTIERT: derselbe Magistus/Fairy-Tail-Archetyp wie Umuts "
-        "'Magistus Fairy Tail.ydk'. Unterschied: Dracotail-Engine (Faimena, Ketu) und "
-        "zusaetzliche Fairy-Tail-Ball/Once-Upon-Konsistenz.",
+        "Pflichtliste R9: Magistus/Fairy-Tail-Kern mit Dracotail-Engine (Faimena, Ketu). "
+        "Die OCG-only-Karte Verre, the Maid of Endymion wird durch Witchcrafter Madame Verre "
+        "ersetzt; Maxx C, die fehlende Power of the Duelist, Charmer Quartet und Appointer "
+        "weichen TCG-legalen Karten.",
+        swaps={
+            "main": {22623509: [21522601], 23434538: [14558128],
+                     71599345: [38943357, 38943357]},
+            "extra": {27519978: [35877582]},
+            "side": {2729965: [8267140, 8267140], 43262273: [73642296]},
+        },
     ),
     DeckSpec(
         "Harpie Amazoness", "harpie-amazoness-744944", "OCG", "Top 4",
         "28th Mogi Cup Individual Competition", "14.11.2026", "48",
         "28th-mogi-cup-individual-competition-5337",
-        "NICHT IMPORTIERT: derselbe Harpie/Amazoness-Archetyp wie Umuts "
-        "'Harpie Amazoness.ydk'. Zusaetzlich sind sechs Kernkarten (Alluring Dance, "
-        "Elegant Egotist, Instant Kill Dance, Forbidden Spell Dance, Rakshasa Formation, "
-        "Dramatic Rescue) in der gepinnten Kartenbank nur OCG/Vorschau; eine TCG-Fassung "
-        "waere kein Harpie-Amazoness-Deck mehr.",
+        "Pflichtliste R9, OCG-only-Kern klar gekennzeichnet: Alluring Dance, Elegant Egotist, "
+        "Instant Kill Dance, Forbidden Spell Dance, Rakshasa Formation, Dramatic Rescue, "
+        "Elegant Tri-Mirror, Necromancer of Dragon Magic, Triangle Ecstasy Harpie Lady Sisters "
+        "und Amazoness Swordmaster sind in der gepinnten Bank nur OCG/Vorschau. Die TCG-Fassung "
+        "ersetzt sie durch klassische Harpie-/Amazoness-Karten (Perfumer, Channeler, Harpist, "
+        "Elegant Egotist, Amazoness Village, Onslaught, Cyber Slash, Conductor, Pet Liger King, "
+        "Empress) und bleibt dadurch spielbar.",
+        swaps={
+            "main": {70612015: [39392286, 39392286, 39392286],
+                     44618916: [84539520, 84539520],
+                     64972181: [90238142, 90238142, 90238142],
+                     17101624: [56585883, 56585883],
+                     23434538: [14558127],
+                     57283005: [712559, 712559],
+                     21899906: [90219263],
+                     5059914: [83407038, 83407038, 83407038]},
+            "extra": {50277355: [85696777], 22011594: [63261835],
+                      74997493: [23965033], 27533198: [85909450],
+                      90139089: [59353647], 33198837: [4591250],
+                      76636978: [63261835], 84815190: [38342335]},
+            "side": {2729965: [8267140, 8267140, 8267140],
+                     65681983: [43898403], 58921041: [15693423],
+                     83326048: [43898403]},
+        },
     ),
     DeckSpec(
         "Dark Magician Witchcrafter Fairy Tail", "dark-magician-witchcrafter-fairy-tail-744003", "OCG",
@@ -260,8 +299,9 @@ DECKS = [
         "Mitsurugi Light and Darkness Ritual (32nd Wayo CS)", "mitsurugi-light-and-darkness-ritual-744064", "OCG",
         "Top 4", "32nd Wayo CS (3-person team tournament)", "08.11.2026", "~34",
         "32nd-wayo-cs-3-person-team-tournament-5299",
-        "Naechstplatzierte Mitsurugi-Variante; keine weitere nicht-duplikative OCG-Archetyp-Liste "
-        "in den Top-Cuts. Die TCG-Fassung ersetzt Ame no Habakiri und Griffoh wie beim Mogi-Cup-Deck.",
+        "Reserve R9: vierte Mitsurugi-Variante; weicht den Pflichtlisten und bleibt als Nachrücker "
+        "dokumentiert. Die TCG-Fassung ersetzt Ame no Habakiri und Griffoh wie beim Mogi-Cup-Deck.",
+        reserve=True,
         swaps={
             "main": {13332685: [82782870, 55397172, 17954937],
                      23434538: [14558127],
@@ -331,7 +371,7 @@ def source_note(spec: DeckSpec, cards, html: str, sections: dict[str, list[int]]
         f"- Turnier: [{spec.event}]({YGO}/tournament/{spec.tournament_slug}) · {spec.date} · "
         f"{spec.players} Teilnehmer · **{spec.placement}**",
         f"- Format der Quelle: {spec.group}",
-        f"- Import: {'ja' if spec.name in {d.name for d in DECKS if d.slug not in _SKIP} else 'nein'}",
+        f"- Import: {'nein' if spec.slug in _SKIP else ('Reserve' if spec.reserve else 'ja')}",
         "",
     ]
     if spec.note:
@@ -381,10 +421,7 @@ def source_note(spec: DeckSpec, cards, html: str, sections: dict[str, list[int]]
     return "\n".join(lines)
 
 
-_SKIP = {
-    "angelechy-745558", "radiant-typhoon-sky-striker-745551", "branded-dracotail-745063",
-    "magistus-dracotail-fairy-tail-744945", "harpie-amazoness-744944",
-}
+_SKIP = {"angelechy-745558"}
 
 
 def main():
@@ -395,8 +432,10 @@ def main():
     for spec in DECKS:
         html = (RAW / f"{spec.slug}.html").read_text("utf-8", errors="ignore")
         sections = parse_sections(html)
-        # Drop YGOPRODeck's unlabelled side-deck placeholders, if any.
-        sections["side"] = [c for c in sections["side"] if cards.get(engine_code(c, cards)) is not None]
+        # Drop YGOPRODeck's unlabelled side-deck placeholders unless a replacement is declared.
+        declared_side = set(spec.swaps.get("side", {}))
+        sections["side"] = [c for c in sections["side"]
+                            if cards.get(engine_code(c, cards)) is not None or c in declared_side]
         final = {key: replace_section(sections[key], spec.swaps.get(key, {}), spec.overrides.get(key, {}))
                  for key in sections}
         note = source_note(spec, cards, html, sections, final)
@@ -405,19 +444,34 @@ def main():
             note_path.write_text(note, encoding="utf-8")
             overview[spec.group].append((spec, "nicht importiert", note_path.name))
             continue
-        path = OUT / spec.group / f"{spec.slug}.ydk"
+        folder = OUT / spec.group / ("_reserve" if spec.reserve else "")
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"{spec.slug}.ydk"
         path.write_text(ydk_text(final), encoding="utf-8")
-        note_path = OUT / spec.group / f"{spec.slug}.md"
+        note_path = folder / f"{spec.slug}.md"
         note_path.write_text(note, encoding="utf-8")
-        overview[spec.group].append((spec, f"{len(final['main'])}/{len(final['extra'])}/{len(final['side'])}",
-                                     path.name))
+        if spec.reserve:   # a former active list must not linger in the 7+7 folder
+            (OUT / spec.group / f"{spec.slug}.ydk").unlink(missing_ok=True)
+            (OUT / spec.group / f"{spec.slug}.md").unlink(missing_ok=True)
+        overview[spec.group].append((spec, "Reserve" if spec.reserve else
+                                     f"{len(final['main'])}/{len(final['extra'])}/{len(final['side'])}",
+                                     ("_reserve/" if spec.reserve else "") + path.name))
 
     for group, rows in overview.items():
-        lines = [f"# {group}-Meta-Decks · Runde 8", "",
+        active = [row for row in rows if row[1] not in ("Reserve", "nicht importiert")]
+        others = [row for row in rows if row[1] in ("Reserve", "nicht importiert")]
+        lines = [f"# {group}-Meta-Decks · Runde 9", "",
                  "Quellenstand 20.11.2026. Jede Zeile nennt Platzierung, Turnier, Datum und die Quelldatei.",
-                 "", "| Deck | Platzierung | Turnier | Datum | Datei |", "|---|---|---|---|---|"]
-        for spec, status, filename in rows:
+                 f"Aktiv: **{len(active)}** Listen (Ziel 7).", "",
+                 "| Deck | Platzierung | Turnier | Datum | Datei |", "|---|---|---|---|---|"]
+        for spec, status, filename in active:
             lines.append(f"| {spec.name} | {spec.placement} | {spec.event} | {spec.date} | `{filename}` |")
+        if others:
+            lines += ["", "## Reserve und nicht importiert", "",
+                      "| Deck | Status | Platzierung | Turnier | Datum | Datei |", "|---|---|---|---|---|---|"]
+            for spec, status, filename in others:
+                lines.append(f"| {spec.name} | {status} | {spec.placement} | {spec.event} | {spec.date} | "
+                             f"`{filename}` |")
         lines += ["", "Die Deckseiten und Turnierseiten sind in den jeweiligen `.md`-Quellen verlinkt.", ""]
         (OUT / group / "QUELLEN.md").write_text("\n".join(lines), encoding="utf-8")
     print("geschrieben:", ", ".join(str(p.relative_to(ROOT)) for p in OUT.rglob("*.ydk")))

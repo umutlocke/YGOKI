@@ -3,9 +3,9 @@
 - Quelle: [YGOPRODeck-Deckseite](https://ygoprodeck.com/deck/magistus-dracotail-fairy-tail-744945) (abgerufen 20.11.2026)
 - Turnier: [28th Mogi Cup Individual Competition](https://ygoprodeck.com/tournament/28th-mogi-cup-individual-competition-5337) · 14.11.2026 · 48 Teilnehmer · **Top 4**
 - Format der Quelle: OCG
-- Import: nein
+- Import: ja
 
-> NICHT IMPORTIERT: derselbe Magistus/Fairy-Tail-Archetyp wie Umuts 'Magistus Fairy Tail.ydk'. Unterschied: Dracotail-Engine (Faimena, Ketu) und zusaetzliche Fairy-Tail-Ball/Once-Upon-Konsistenz.
+> Pflichtliste R9: Magistus/Fairy-Tail-Kern mit Dracotail-Engine (Faimena, Ketu). Die OCG-only-Karte Verre, the Maid of Endymion wird durch Witchcrafter Madame Verre ersetzt; Maxx C, die fehlende Power of the Duelist, Charmer Quartet und Appointer weichen TCG-legalen Karten.
 
 ## Auffällige Karten der Quelle
 
@@ -15,6 +15,15 @@
 - **1× Charmer Quartet in Bloom** (`27519978`): TCG-Limit 0.
 - **Spatial Trunade** (`2729965`): nur OCG.
 - **1× Appointer of the Red Lotus** (`43262273`): TCG-Limit 0.
+
+## TCG-Anpassung
+
+- main: 1× `22623509` (Verre, the Maid of Endymion) → 1× `21522601` (Witchcrafter Madame Verre)
+- main: 1× `23434538` (Maxx "C") → 1× `14558128` (Ash Blossom & Joyous Spring)
+- main: 2× `71599345` (Passcode 71599345) → 2× `38943357` (Spell Power Mastery)
+- extra: 1× `27519978` (Charmer Quartet in Bloom) → 1× `35877582` (Aiwass, the Magistus Spell Spirit)
+- side: 2× `2729965` (Spatial Trunade) → 2× `8267140` (Cosmic Cyclone)
+- side: 1× `43262273` (Appointer of the Red Lotus) → 1× `73642296` (Ghost Belle & Haunted Mansion)
 
 ## Geprüfte Deckliste
 

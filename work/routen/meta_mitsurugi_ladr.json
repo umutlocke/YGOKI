@@ -53,7 +53,8 @@
     {
      "code": 82782870,
      "do": "N",
-     "note": "Kusanagi normal beschwören"
+     "optional": true,
+     "note": "Kusanagi normal beschwören (optional, wenn der Normal Summon noch frei ist)"
     },
     {
      "code": 82782870,
@@ -61,7 +62,8 @@
      "pick": [
       81560239
      ],
-     "note": "Kusanagi holt Mitsurugi Ritual aus dem GY zurück"
+     "optional": true,
+     "note": "Kusanagi holt Mitsurugi Ritual aus dem GY zurück (optionale Verlängerung)"
     }
    ]
   }

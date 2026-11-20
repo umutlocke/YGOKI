@@ -4,7 +4,7 @@
 
 Die gesonderten europäischen Ausnahmen zur Kartenzulassung wurden hier nicht geprüft. [Konami TCG Europa](https://www.yugioh-card.com/eu/play/card-legality/)
 
-## ars-magna-maliss-743378
+## blitzclique-745416
 
 Main 40 · Extra 15 · Side 15
 
@@ -12,7 +12,7 @@ Main 40 · Extra 15 · Side 15
 - **Kartenpool** – kein Befund
 - **Skripte** – kein Befund
 
-## blitzclique-745416
+## branded-dracotail-745063
 
 Main 40 · Extra 15 · Side 15
 
@@ -36,7 +36,7 @@ Main 40 · Extra 15 · Side 15
 - **Kartenpool** – kein Befund
 - **Skripte** – kein Befund
 
-## radiant-typhoon-blitzclique-743479
+## radiant-typhoon-sky-striker-745551
 
 Main 40 · Extra 15 · Side 15
 
@@ -76,6 +76,14 @@ Main 42 · Extra 15 · Side 15
 - **Kartenpool** – kein Befund
 - **Skripte** – kein Befund
 
+## harpie-amazoness-744944
+
+Main 40 · Extra 15 · Side 15
+
+- **Deckregeln und Banliste** – kein Befund
+- **Kartenpool** – kein Befund
+- **Skripte** – kein Befund
+
 ## light-and-darkness-ritual-clown-crew-744112
 
 Main 51 · Extra 15 · Side 15
@@ -84,17 +92,9 @@ Main 51 · Extra 15 · Side 15
 - **Kartenpool** – kein Befund
 - **Skripte** – kein Befund
 
-## mitsurugi-azamina-light-and-darkness-ritual-744122
+## magistus-dracotail-fairy-tail-744945
 
-Main 60 · Extra 15 · Side 15
-
-- **Deckregeln und Banliste** – kein Befund
-- **Kartenpool** – kein Befund
-- **Skripte** – kein Befund
-
-## mitsurugi-light-and-darkness-ritual-744064
-
-Main 41 · Extra 15 · Side 11
+Main 42 · Extra 15 · Side 15
 
 - **Deckregeln und Banliste** – kein Befund
 - **Kartenpool** – kein Befund

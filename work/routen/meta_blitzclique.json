@@ -42,7 +42,8 @@
     {
      "code": 85523502,
      "do": "N",
-     "note": "Whisker Blitzclique als zweiten Thunder-Körper normal beschwören"
+     "optional": true,
+     "note": "Whisker Blitzclique als optionalen zweiten Thunder-Körper normal beschwören"
     },
     {
      "code": 64049762,

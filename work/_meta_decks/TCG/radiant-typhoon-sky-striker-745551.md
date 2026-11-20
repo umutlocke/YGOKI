@@ -3,9 +3,9 @@
 - Quelle: [YGOPRODeck-Deckseite](https://ygoprodeck.com/deck/radiant-typhoon-sky-striker-745551) (abgerufen 20.11.2026)
 - Turnier: [Lima WCQ Regional](https://ygoprodeck.com/tournament/lima-wcq-regional-5325) · 15.11.2026 · ~200 Teilnehmer · **Top 8**
 - Format der Quelle: TCG
-- Import: nein
+- Import: ja
 
-> NICHT IMPORTIERT: derselbe Sky-Striker-Archetyp wie Umuts 'Sky Striker.ydk'. Unterschied: Radiant-Typhoon-Engine (Swen, Eldam, Vision, Chant) und 3x Zero.
+> Pflichtliste R9: Sky-Striker-Kern mit Radiant-Typhoon-Engine (Swen, Eldam, Vision, Chant) und 3x Zero; die Quelle ist vollstaendig TCG-legal und braucht keine Ersetzung.
 
 ## Geprüfte Deckliste
 

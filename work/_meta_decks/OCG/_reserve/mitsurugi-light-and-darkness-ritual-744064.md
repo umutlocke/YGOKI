@@ -3,9 +3,9 @@
 - Quelle: [YGOPRODeck-Deckseite](https://ygoprodeck.com/deck/mitsurugi-light-and-darkness-ritual-744064) (abgerufen 20.11.2026)
 - Turnier: [32nd Wayo CS (3-person team tournament)](https://ygoprodeck.com/tournament/32nd-wayo-cs-3-person-team-tournament-5299) · 08.11.2026 · ~34 Teilnehmer · **Top 4**
 - Format der Quelle: OCG
-- Import: ja
+- Import: Reserve
 
-> Naechstplatzierte Mitsurugi-Variante; keine weitere nicht-duplikative OCG-Archetyp-Liste in den Top-Cuts. Die TCG-Fassung ersetzt Ame no Habakiri und Griffoh wie beim Mogi-Cup-Deck.
+> Reserve R9: vierte Mitsurugi-Variante; weicht den Pflichtlisten und bleibt als Nachrücker dokumentiert. Die TCG-Fassung ersetzt Ame no Habakiri und Griffoh wie beim Mogi-Cup-Deck.
 
 ## Auffällige Karten der Quelle
 

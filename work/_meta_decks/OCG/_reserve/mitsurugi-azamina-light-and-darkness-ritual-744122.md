@@ -3,9 +3,9 @@
 - Quelle: [YGOPRODeck-Deckseite](https://ygoprodeck.com/deck/mitsurugi-azamina-light-and-darkness-ritual-744122) (abgerufen 20.11.2026)
 - Turnier: [VNC 2026 Ho Chi Minh City](https://ygoprodeck.com/tournament/vnc-2026-ho-chi-minh-city-5301) · 31.10.2026 · ~97 Teilnehmer · **Top 8**
 - Format der Quelle: OCG
-- Import: ja
+- Import: Reserve
 
-> 60-Karten-Mischung aus Mitsurugi, Azamina und Light-and-Darkness-Ritual; nicht in Umuts Sammlung.
+> Reserve R9: dritte Mitsurugi-Variante und aeltere Top-8-Liste (31.10.2026); weicht den Pflichtlisten Magistus Dracotail und Harpie Amazoness und bleibt als Nachrücker dokumentiert.
 
 ## Auffällige Karten der Quelle
 

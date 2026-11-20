@@ -3,9 +3,9 @@
 - Quelle: [YGOPRODeck-Deckseite](https://ygoprodeck.com/deck/radiant-typhoon-blitzclique-743479) (abgerufen 20.11.2026)
 - Turnier: [Bologna WCQ Regional](https://ygoprodeck.com/tournament/bologna-wcq-regional-5280) · 08.11.2026 · 115 Teilnehmer · **Top 4**
 - Format der Quelle: TCG
-- Import: ja
+- Import: Reserve
 
-> Radiant-Typhoon-Engine mit Blitzclique; Umut hat weder Blitzclique noch Radiant Typhoon.
+> Reserve R9: Hybrid aus zwei bereits aktiven Engines (Radiant Typhoon und Blitzclique); weicht den beiden Pflichtlisten und bleibt als Nachrücker dokumentiert.
 
 ## Geprüfte Deckliste
 

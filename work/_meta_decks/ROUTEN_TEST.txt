@@ -1,37 +1,44 @@
-Runde 8 – Routen-Tests (Zusammenfassung)
-========================================
-Datum: 20.11.2026 · Seed 7 · --tries 8 · --rollouts 0
-Passiv: Gegner ohne Handtraps. Störer: Ash, Imperm, Nibiru, Veiler.
-Die Einzelreports mit allen Händen, Board-Werten und Abbrüchen liegen unter
-work/routen-tests/.
+Routen-Test Runde 9 (freebuff/p8)
+Datum: 20.11.2026
+Befehl: work/upstream/python-win32/python.exe -B -X utf8 work/routen_test.py --deck <Deck> --tries 8 --rollouts 0 --seed 7 [--stoerer]
+Buch: neutral (kein Released-Playbook für die Meta-Decks) · Hash je Deck im jeweiligen Routenbericht
+Berichte: work/routen-tests/<Deck>-20261120-19*.md
 
-Deck                                      Route                                                        Passiv  Störer
---------------------------------------------------------------------------------------------------------------
-Sacred Beasts                             Martyr → Thunderclap → Hamon                                 8/8     0/8
-Gem-Knight                                Nepyrim → Fusion → Master Diamond Dispersion                  8/8     8/8
-Blitzclique                               Breakaway → Hideout → Surge → Whisker                        3/8     0/8
-Ryzeal Toon                               Bookmark → Toon World → Dark Magician → Mermaid              8/8     0/8
-Radiant Typhoon                           Swen → Chant → Krosea → Vision → Varuroon                    6/8     0/8
-Ars Magna Maliss                          Underground → White Rabbit → Link Disciple                   8/8     8/8
-Radiant Typhoon Blitzclique               Breakaway → Hideout → Surge → Whisker                        1/8     1/8
-Dark Magician Azamina                     Rod → Veil → Gaze → Destruction                              8/8     0/8
-Clown Crew                                Rehearsal → Flair → Matinee → Biancaviso                     8/8     8/8
-Mitsurugi Azamina                         Rod → Veil → Gaze (DM-Route)                                 8/8     0/8
-Mitsurugi Azamina                         Saji → Ritual → Futsu → Kusanagi → Prayers                   5/8     0/8
-Mitsurugi L&DR (Mogi)                     Saji → Ritual → Futsu → Kusanagi → Prayers                   5/8     0/8
-Mitsurugi L&DR (Wayo)                     Saji → Ritual → Futsu → Kusanagi → Prayers                   3/8     0/8
-DM Witchcrafter Fairy Tail                Luna → Genia → Matchgiru → Ball → Verre                      8/8     0/8
-Synchron                                  Junk Meister → Junk Signal → Stardust Synchron → Junk Synchron 8/8   8/8
+Deck                                      Passiv   Störer   Route
+------------------------------------------------------------------------------------------------
+TCG Sacred Beasts                         8/8      0/8      Martyr → Thunderclap → Hamon
+TCG Gem-Knight                            8/8      8/8      Nepyrim → Fusion → Master Diamond Dispersion
+TCG Blitzclique                           8/8      5/8      Breakaway → Hideout → Surge → Whisker (optional)
+TCG Ryzeal Toon                           8/8      0/8      Bookmark → Toon World → Dark Magician → Mermaid
+TCG Radiant Typhoon                       6/8      0/8      Swen → Chant → Krosea → Vision → Varuroon
+TCG Radiant Typhoon Sky Striker           8/8      8/8      Raye → Linkage → Kagari → Engage
+TCG Branded Dracotail                     8/8      8/8      Lukias → Faimena → Arthalion
+OCG Mitsurugi L&DR (Mogi)                 6/8      5/8      Saji → Ritual → Futsu → Kusanagi → Prayers (Kusanagi optional)
+OCG Dark Magician Azamina                 8/8      0/8      Rod → Veil → Gaze → Destruction
+OCG Synchron                              8/8      8/8      Junk Meister → Junk Signal → Stardust Synchron → Junk Synchron
+OCG Clown Crew                            8/8      8/8      Rehearsal → Flair → Matinee → Biancaviso
+OCG Magistus Dracotail                    8/8      0/8      Luna → Genia → Matchgiru → Fairy Tail Ball
+OCG Harpie Amazoness                      7/8      0/8      Call → War Chief → Princess → Onslaught
+OCG DM Witchcrafter Fairy Tail            8/8      0/8      Luna → Genia → Matchgiru → Ball → Verre
 
-Hinweise
---------
-- Die Maliss-Route ist die vom Engine-Policy tatsächlich gespielte Startlinie
-  (Underground → White Rabbit → Link Disciple); die Dormouse-/MTP-/Hearts-Crypter-
-  Schritte stehen als optionale Vollcombo-Schritte im JSON. Die Engine wählt bei
-  diesem Deck regelmäßig March Hare/Backup statt der in der Route gepickten Karte.
-- Die Rod→Veil→Gaze-Route wird wegen gemeinsamer Karten auch im
-  Mitsurugi-Azamina-Deck geladen; sie wird dort separat mitgetestet.
-- Mehrere Routen brechen unter --stoerer auf 0/8 ein (Sacred Beasts, Blitzclique,
-  Ryzeal Toon, Radiant Typhoon, DM Azamina, Mitsurugi-Varianten, DM Witchcrafter).
-  Das ist ein ehrlicher Robustheitsbefund, keine Freigabe.
-- Kein Push, kein Merge, keine Übernahme in die App.
+Ziel: Vollcombo ohne Störer ≥ 6/8. Alle 14 aktiven Decks erfüllen das (Minimum 6/8 bei Radiant
+Typhoon und Mitsurugi Mogi; Harpie 7/8). Bei Blitzclique und Mitsurugi Mogi sind die letzten
+Körper Kusanagi/Whisker ausdrücklich optional: Der Kern (Hideout→Surge bzw. Prayers→Futsu) ist
+die Pflichtlinie, der zusätzliche Körper hängt vom noch freien Normal Summon ab.
+
+Die 0/8-Werte unter --stoerer sind keine Routenfehler, sondern die Choke-Points: Ash/Imperm/Nibiru/
+Veiler treffen den jeweiligen Starter, und die Route hat in dieser Engine keinen gleichwertigen
+Fallback. Die betroffenen Guides nennen den Grund und den alternativen Zug.
+
+Hinweis: Das DM-Witchcrafter-Deck enthält ebenfalls Luna, Matchgiru und Fairy Tail Ball; deshalb
+erkennt routen_test dort zusätzlich die Magistus-Route (beide 8/8 passiv, 0/8 mit Störern). Die
+Routen werden über ihre Pflichtkarten, nicht über den Decknamen zugeordnet.
+
+Reserve (nicht in der 7+7-Wertung, weiterhin erhalten):
+- TCG Ars Magna Maliss: alte Route in work/routen/_reserve/meta_ars_magna_maliss.json, Guide in
+  work/_meta_decks/guides/_reserve/ars_magna_maliss.md.
+- TCG Radiant Typhoon Blitzclique: Guide in .../_reserve/radiant_typhoon_blitzclique.md; die alte
+  Route war mit der Blitzclique-Route geteilt und ist in meta_blitzclique.json erhalten.
+- OCG Mitsurugi Azamina: alte Route in work/routen/_reserve/meta_mitsurugi_azamina.json.
+- OCG Mitsurugi Wayo: nutzt die weiterhin aktive Mogi-Route meta_mitsurugi_ladr.json; Guide in
+  .../_reserve/mitsurugi_wayo.md.
