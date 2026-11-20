@@ -20,6 +20,7 @@ WORK = Path(__file__).resolve().parent
 sys.path.insert(0, str(WORK))
 
 import training_jobs  # noqa: E402
+from deck_check import visible_deck  # noqa: E402
 
 FOLDER = WORK / "warteschlange"
 JOBS = FOLDER / "auftraege.json"
@@ -62,6 +63,16 @@ def _write(jobs):
     temporary.replace(JOBS)
 
 
+def _paths(job):
+    if job["kind"] == "training":
+        return [job.get("deck") or ""]
+    return [path for path, _ in job.get("field") or []]
+
+
+def _allowed(job):
+    return all(visible_deck(path) for path in _paths(job))
+
+
 def log(message):
     FOLDER.mkdir(parents=True, exist_ok=True)
     with LOG.open("a", encoding="utf-8") as file:
@@ -80,6 +91,9 @@ def add(items):
         for item in items:
             if item["kind"] not in ("training", "turnier"):
                 raise ValueError("Unbekannte Auftragsart.")
+            if not _allowed(item):
+                raise ValueError("Sicherungsdateien (.vorher-) und der Material-Ordner gehören nicht in die "
+                                 "Warteschlange.")
             jobs.append({"id": uuid.uuid4().hex[:10], "kind": item["kind"], "title": item["title"],
                          "deck": item.get("deck"), "field": item.get("field"), "settings": item.get("settings", {}),
                          "state": "wartet", "added": datetime.now().isoformat(timespec="seconds")})
@@ -188,6 +202,10 @@ def run():
             waiting = next((job for job in _read() if job["state"] == "wartet"), None)
             if waiting is None:
                 break
+            if not _allowed(waiting):
+                log(f"{waiting['title']}: nicht gestartet – Sicherungsdatei oder Material-Ordner.")
+                _update(waiting["id"], state="fehler", error="Sicherungsdatei oder Material-Ordner")
+                continue
             try:
                 folder = _launch(waiting)
             except Exception as error:

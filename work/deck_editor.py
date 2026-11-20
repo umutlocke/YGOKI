@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from deck_check import (
     SOURCES, WORK, DeckInspection, engine_code, normalized_limits, parse_ydk_data, read_sources,
-    requires_script, scope_problem, validate_deck,
+    requires_script, scope_problem, validate_deck, visible_deck,
 )
 from comparison_jobs import Comparisons
 from duel_formats import LIST_FILES, POOLS, select_format
@@ -131,11 +131,14 @@ class Editor:
         originals, seen = [], set()
         for folder in self.original_dirs:
             for path in sorted(folder.glob("*.ydk"), key=lambda file: file.name.casefold()):
+                if not visible_deck(path):
+                    continue
                 if path.stem.casefold() not in seen:
                     seen.add(path.stem.casefold())
                     originals.append(path)
         originals.sort(key=lambda file: file.name.casefold())
-        saved = sorted(self.save_dir.glob("*.ydk"), key=lambda file: file.name.casefold())
+        saved = sorted((path for path in self.save_dir.glob("*.ydk") if visible_deck(path)),
+                       key=lambda file: file.name.casefold())
         return ([{"name": path.stem, "source": "original"} for path in originals]
                 + [{"name": path.stem, "source": "saved"} for path in saved])
 
@@ -159,6 +162,8 @@ class Editor:
         if source not in ("original", "saved"):
             raise ValueError("Unbekannte Deckquelle.")
         name = filename_stem(name)
+        if ".vorher-" in name.casefold():
+            raise ValueError("Sicherungsdateien sind keine Decks.")
         if source == "saved":
             return self.save_dir / f"{name}.ydk"
         for directory in self.original_dirs:

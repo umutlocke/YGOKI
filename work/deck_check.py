@@ -10,6 +10,15 @@ import sys
 
 WORK = Path(__file__).resolve().parent
 SOURCES = WORK / "upstream"
+
+
+def visible_deck(path):
+    """Sicherungsdateien (.vorher-…) und alles im Material-Ordner gehören nie in Deckauswahl, Warteschlange
+    oder Turnierfeld – sonst tauchen Sicherungen als eigene Decks auf."""
+    path = Path(path)
+    if ".vorher-" in path.name.casefold():
+        return False
+    return not any(part.casefold() == "material" for part in path.parts)
 sys.path.insert(0, str(SOURCES / "ygo-agent"))
 
 from ygo_agent.arena.deck import AllowedCards, Deck

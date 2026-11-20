@@ -17,7 +17,8 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter, defaultdict
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+from concurrent.futures.process import BrokenProcessPool
 from csv import DictWriter
 from datetime import datetime
 from hashlib import sha256
@@ -33,7 +34,7 @@ import traceback
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from deck_check import SOURCES, WORK, audit, read_ydk  # noqa: E402
+from deck_check import SOURCES, WORK, audit, read_ydk, visible_deck  # noqa: E402
 from playbook import Playbook, PlaybookPolicy, mutate  # noqa: E402
 from playbook_store import best_playbook  # noqa: E402
 from obsidian_export import quiet_export  # noqa: E402
@@ -42,9 +43,52 @@ RUNS = WORK / "turniere"
 PLAYBOOKS = WORK / "playbooks"
 DECISION_LIMIT = 20_000
 
+# Worker-Begrenzung: gemessen am 20.11.2026 mit der 32-Bit-Laufzeit der App: ein Worker braucht nach dem Laden
+# des Feldes rund 45 MB und wächst um etwa 0,5 MB je Match. Ein 2500er-Turnier mit 12 Runden kommt damit auf
+# rund 300-400 MB je Worker. 24 Worker je Turnier waren bei zwei gleichzeitigen Turnieren zu viel (34 GB RAM).
+MAX_WORKERS = 24
+LARGE_TOURNAMENT = 1000
+LARGE_WORKERS = 12
+WORKER_MEMORY_MB = 400
+CHUNK_SIZE = 4
+HANG_SECONDS = 300      # so lange ohne ein fertiges Match gilt der Pool als hängend
+ISOLATED_SECONDS = 180  # Zeitlimit für ein einzelnes Match im frischen Prozess
+STATE_FILE = "Zwischenstand.json"
+
 # --------------------------------------------------------------------------------------------------------
 # Engine with every deck of the field
 # --------------------------------------------------------------------------------------------------------
+
+
+def total_memory_mb():
+    """Physischer Arbeitsspeicher in MB; None, wenn er nicht ermittelbar ist."""
+    try:
+        import ctypes
+
+        class Status(ctypes.Structure):
+            _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                        ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                        ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                        ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                        ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+        status = Status()
+        status.dwLength = ctypes.sizeof(status)
+        if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+            return None
+        return int(status.ullTotalPhys // 2**20)
+    except (AttributeError, OSError, ValueError):
+        return None
+
+
+def auto_workers(players):
+    """Worker-Zahl für ein Turnier: große Felder werden bewusst kleiner gefahren."""
+    workers = max(1, min(MAX_WORKERS, (os.cpu_count() or 2) - 2))
+    if players >= LARGE_TOURNAMENT:
+        workers = min(workers, LARGE_WORKERS)
+    memory = total_memory_mb()
+    if memory:
+        workers = min(workers, max(1, int(memory * 0.5 // WORKER_MEMORY_MB)))
+    return workers
 
 
 def load_field(paths):
@@ -102,8 +146,27 @@ def play_match(task):
     return {"valid": True, "winner": match.winner, "games": len(match.games), "score": f"{wins[0]}-{wins[1]}"}
 
 
+def crash_result(error):
+    return {"valid": False, "winner": None, "games": 0, "error": error[:300]}
+
+
+def play_chunk(payload):
+    """Mehrere Matches in einem Worker-Auftrag. Der Marker nennt den Stapel, damit nach einem Absturz die
+    betroffenen Matches bekannt sind; ein Absturz verliert so höchstens einen kleinen Stapel."""
+    marker, chunk_id, tasks = payload
+    if marker:
+        try:
+            Path(marker, f"worker-{os.getpid()}.txt").write_text(str(chunk_id), encoding="utf-8")
+        except OSError:
+            pass
+    return [play_match(task) for task in tasks]
+
+
 class SerialPool:
-    def __init__(self, workers, initializer, initargs):
+    restarts = 0
+    hangs = 0
+
+    def __init__(self, workers, initializer, initargs, marker_dir=None):
         initializer(*initargs)
 
     def __enter__(self):
@@ -112,8 +175,171 @@ class SerialPool:
     def __exit__(self, *exc):
         return False
 
-    def map(self, function, items, chunksize=1):
-        return map(function, items)
+    def map(self, tasks):
+        results = []
+        for task in tasks:
+            try:
+                results.append(play_match(task))
+            except Exception as error:  # a broken duel must not end the tournament
+                results.append(crash_result(f"{type(error).__name__}: {error}"))
+        return results
+
+
+class WorkerPool:
+    """Prozess-Pool, der einen abgestürzten Worker überlebt.
+
+    Die Matches laufen in kleinen Stapeln. Stirbt ein Worker oder antwortet der Pool HANG_SECONDS lang nicht,
+    wird er abgebrochen und die betroffenen Stapel werden einzeln in frischen Prozessen wiederholt. Ein Match,
+    das dabei erneut abstürzt oder hängt, wird als ungültig gewertet und im Turnier als Befund geführt, statt
+    das ganze Turnier zu beenden. Der Pool lebt nur eine Turnierrunde (siehe Tournament.run), damit der Speicher
+    nicht über die Runden wächst.
+    """
+
+    def __init__(self, workers, initializer=None, initargs=(), job=play_chunk, marker_dir=None):
+        self.workers = max(1, int(workers))
+        self.initializer = initializer
+        self.initargs = initargs
+        self.job = job
+        self.marker_dir = Path(marker_dir) if marker_dir else None
+        if self.marker_dir:
+            self.marker_dir.mkdir(parents=True, exist_ok=True)
+        self.executor = None
+        self.restarts = 0
+        self.hangs = 0
+        self._start()
+
+    def _start(self):
+        self.executor = ProcessPoolExecutor(self.workers, initializer=self.initializer, initargs=self.initargs)
+
+    def _stop(self):
+        executor, self.executor = self.executor, None
+        if executor is not None:
+            executor.shutdown(wait=True, cancel_futures=True)
+
+    def _kill(self):
+        """Bricht einen hängenden oder abgestürzten Pool ab, ohne auf seine Prozesse zu warten."""
+        executor, self.executor = self.executor, None
+        if executor is None:
+            return
+        for process in list(getattr(executor, "_processes", {}).values()):
+            try:
+                process.kill()
+            except OSError:
+                pass
+        try:
+            executor.shutdown(wait=False, cancel_futures=True)
+        except Exception:  # noqa: BLE001 - a broken pool may raise anything here
+            pass
+
+    def restart(self):
+        self._kill()
+        self.restarts += 1
+        self._start()
+
+    def close(self):
+        self._stop()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+        return False
+
+    def map(self, tasks):
+        results = [None] * len(tasks)
+        pending = list(range(len(tasks)))
+        for _ in range(3):
+            if not pending:
+                break
+            pending = self._pass(tasks, results, pending)
+        for index in pending:
+            results[index] = crash_result("Worker ist wiederholt abgestürzt; Match als ungültig gewertet.")
+        return results
+
+    def _pass(self, tasks, results, pending):
+        chunks = [pending[index:index + CHUNK_SIZE] for index in range(0, len(pending), CHUNK_SIZE)]
+        marker = str(self.marker_dir) if self.marker_dir else None
+        if self.marker_dir:
+            for path in self.marker_dir.glob("worker-*.txt"):
+                path.unlink(missing_ok=True)   # Marker gelten nur für diesen Durchgang
+        futures = {self.executor.submit(self.job, (marker, number, [tasks[index] for index in chunk])): chunk
+                   for number, chunk in enumerate(chunks)}
+        broken, done = False, set()
+        while len(done) < len(futures):
+            left = [future for future in futures if future not in done]
+            finished, _ = wait(left, timeout=HANG_SECONDS, return_when=FIRST_COMPLETED)
+            if not finished:
+                self.hangs += 1
+                broken = True
+                self._kill()
+                break
+            for future in finished:
+                done.add(future)
+                if broken:
+                    continue
+                try:
+                    answers = future.result()
+                except BrokenProcessPool:
+                    broken = True
+                    self._kill()
+                    continue
+                for index, result in zip(futures[future], answers):
+                    results[index] = result
+        if not broken:
+            return [index for index in pending if results[index] is None]
+        # Ein Worker ist gestorben. Die Marker der Prozesse nennen die zuletzt begonnenen Stapel; genau die
+        # werden jetzt Match für Match in frischen Prozessen wiederholt.
+        unfinished = [chunk for future, chunk in futures.items() if any(results[index] is None for index in chunk)]
+        suspects = set(self._suspects()) or {number for number, chunk in enumerate(chunks)
+                                             if any(results[index] is None for index in chunk)}
+        first = [chunk for number, chunk in enumerate(chunks) if number in suspects]
+        self.restart()
+        misses = 0
+        for chunk in first:
+            for index in chunk:
+                if results[index] is not None:
+                    continue
+                answer, crashed = self._isolated(tasks[index])
+                results[index] = answer
+                misses = misses + 1 if crashed else 0
+                if misses >= 3:   # die Umgebung selbst ist kaputt: nicht weiter einzeln probieren
+                    break
+            if misses >= 3:
+                break
+        self.restart()
+        return [index for chunk in unfinished for index in chunk if results[index] is None]
+
+    def _suspects(self):
+        if not self.marker_dir:
+            return []
+        found = set()
+        for path in self.marker_dir.glob("worker-*.txt"):
+            try:
+                found.add(int(path.read_text(encoding="utf-8").strip()))
+            except (OSError, ValueError):
+                continue
+        return sorted(found)
+
+    def _isolated(self, task):
+        executor = ProcessPoolExecutor(1, initializer=self.initializer, initargs=self.initargs)
+        marker = str(self.marker_dir) if self.marker_dir else None
+        try:
+            return executor.submit(self.job, (marker, -1, [task])).result(timeout=ISOLATED_SECONDS)[0], False
+        except TimeoutError:
+            self.hangs += 1
+            for process in list(getattr(executor, "_processes", {}).values()):
+                try:
+                    process.kill()
+                except OSError:
+                    pass
+            return crash_result("Match reagiert nicht (Zeitlimit im Einzelprozess); als ungültig gewertet."), True
+        except BrokenProcessPool:
+            return crash_result("Worker-Prozess abgestürzt; Match als ungültig gewertet."), True
+        except Exception as error:
+            return crash_result(f"{type(error).__name__}: {error}"), True
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
 
 
 # --------------------------------------------------------------------------------------------------------
@@ -191,12 +417,18 @@ class Tournament:
             raise ValueError("Das Feld braucht mindestens zwei Decks.")
         if any(entry["share"] <= 0 for entry in self.entries):
             raise ValueError("Jeder Anteil muss größer als 0 sein.")
+        for entry in self.entries:
+            if not visible_deck(entry["deck"]):
+                raise ValueError(f"Sicherungsdatei oder Material-Ordner im Feld: {entry['deck']}")
         self.paths = [entry["deck"] for entry in self.entries]
         self.engine, inspected = load_field(self.paths)
         self.names = [item.deck.name or Path(path).stem for item, path in zip(inspected, self.paths)]
-        self.rng = random.Random(args.seed)
         self.folder = Path(args.run_dir or RUNS / f"YCS-{args.players}-{datetime.now():%Y%m%d-%H%M%S}").resolve()
-        self.folder.mkdir(parents=True, exist_ok=True)
+        state = self._resume_state() if getattr(args, "resume", False) else None
+        if state:
+            self.args.players = int(state["record"]["players"])
+            self.args.seed = int(state["seed"])
+        self.rng = random.Random(self.args.seed)
         self.books, self.trained = [], []
         for item in inspected:
             key = sha256(item.normalized.encode("utf-8")).hexdigest()
@@ -207,22 +439,48 @@ class Tournament:
             else:
                 self.books.append(Playbook.neutral(sorted(set(item.deck.main + item.deck.extra))))
                 self.trained.append(None)
-        seats = distribute([e["share"] for e in self.entries], args.players, self.rng)
-        self.players = []
-        for pid, deck in enumerate(seats):
-            book = self.books[deck] if args.spread == 0 else mutate(self.books[deck], self.rng, args.spread, "Spieler")
-            self.players.append({"id": pid + 1, "deck": deck, "book": book.to_json(), "points": 0, "wins": 0,
-                                 "losses": 0, "draws": 0, "opponents": [], "bye": False})
-        self.rounds = args.rounds or swiss_rounds(args.players)
-        self.cut = auto_top_cut(args.players) if args.top_cut < 0 else args.top_cut
-        self.cut = min(self.cut, 2 ** int(math.log2(max(args.players, 1))))
-        self.record = {"field": [{"deck": n, "path": p, "share": e["share"], "trained_rating": t}
-                                 for n, p, e, t in zip(self.names, self.paths, self.entries, self.trained)],
-                       "players": args.players, "swiss_rounds": self.rounds, "top_cut": self.cut,
-                       "seed": args.seed, "spread": args.spread,
-                       "started": datetime.now().isoformat(timespec="seconds"), "round": 0, "matches": 0,
-                       "duels": 0, "invalid": 0, "findings": [], "matchups": {}, "top": [], "state": "läuft"}
+        self.folder.mkdir(parents=True, exist_ok=True)
         self.matchups = defaultdict(lambda: [0, 0, 0])   # (deck a, deck b) -> wins a, wins b, draws
+        self.resumed = state is not None
+        if state:
+            self.record = state["record"]
+            self.players = state["players"]
+            books = json.loads((self.folder / "Spieler.json").read_text(encoding="utf-8"))["books"]
+            if len(books) != len(self.players):
+                raise ValueError("Spieler.json passt nicht zum Zwischenstand.")
+            for player, book in zip(self.players, books):
+                player["book"] = book
+            for key, value in state["matchups"]:
+                self.matchups[(int(key[0]), int(key[1]))] = list(value)
+            self.rng.setstate((state["rng"][0], tuple(state["rng"][1]), state["rng"][2]))
+            self.rounds = int(self.record["swiss_rounds"])
+            self.cut = int(self.record["top_cut"])
+            self.trained = [item.get("trained_rating") for item in self.record["field"]]
+            self.start_round = int(state["round"]) + 1
+            self.record["state"] = "läuft"
+            self.record.pop("error", None)
+            # Ein abgebrochener Top Cut wird neu gespielt; die Schweizer Tabelle bleibt erhalten.
+            for player in self.players:
+                player.pop("placed", None)
+            self.record["top"] = []
+        else:
+            seats = distribute([e["share"] for e in self.entries], args.players, self.rng)
+            self.players = []
+            for pid, deck in enumerate(seats):
+                book = self.books[deck] if args.spread == 0 else mutate(self.books[deck], self.rng, args.spread, "Spieler")
+                self.players.append({"id": pid + 1, "deck": deck, "book": book.to_json(), "points": 0, "wins": 0,
+                                     "losses": 0, "draws": 0, "opponents": [], "bye": False})
+            self.rounds = args.rounds or swiss_rounds(args.players)
+            self.cut = auto_top_cut(args.players) if args.top_cut < 0 else args.top_cut
+            self.cut = min(self.cut, 2 ** int(math.log2(max(args.players, 1))))
+            self.record = {"field": [{"deck": n, "path": p, "share": e["share"], "trained_rating": t}
+                                     for n, p, e, t in zip(self.names, self.paths, self.entries, self.trained)],
+                           "players": args.players, "swiss_rounds": self.rounds, "top_cut": self.cut,
+                           "seed": args.seed, "spread": args.spread,
+                           "started": datetime.now().isoformat(timespec="seconds"), "round": 0, "matches": 0,
+                           "duels": 0, "invalid": 0, "findings": [], "matchups": {}, "top": [], "state": "läuft"}
+            self.start_round = 1
+            self.save_books()
         self.qwen_model = None
         if not args.ohne_qwen:
             try:
@@ -232,7 +490,8 @@ class Tournament:
                 print(f"Hinweis: KI-Coach nicht verfügbar, Turnier läuft ohne Kommentar: {error}", flush=True)
                 self.record["qwen_error"] = str(error)
         self.record["model"] = self.qwen_model
-        self.status("Turnier startet")
+        self.record["workers"] = args.workers
+        self.status("Turnier wird fortgesetzt" if self.resumed else "Turnier startet")
 
     # -- helpers ------------------------------------------------------------------------------------------
     def status(self, message, state=None):
@@ -249,18 +508,57 @@ class Tournament:
     def stop_requested(self):
         return (self.folder / "STOP").exists()
 
+    # -- state -------------------------------------------------------------------------------------------
+    def save_books(self):
+        save(self.folder / "Spieler.json", {"books": [player["book"] for player in self.players]})
+
+    def save_state(self):
+        """Zwischenstand nach jeder Runde: Spieler, Paarungen, Zähler und RNG-Stand für das Fortsetzen."""
+        state = self.rng.getstate()
+        players = [{key: value for key, value in player.items() if key != "book"} for player in self.players]
+        merge = [[list(key), list(value)] for key, value in self.matchups.items()]
+        save(self.folder / STATE_FILE, {"version": 1, "seed": self.args.seed, "field": list(self.paths),
+                                        "round": int(self.record["round"]), "players": players, "matchups": merge,
+                                        "record": self.record, "rng": [state[0], list(state[1]), state[2]]})
+
+    def _resume_state(self):
+        if self.args.run_dir:
+            path = self.folder / STATE_FILE
+        else:
+            candidates = sorted(RUNS.glob("*/" + STATE_FILE), key=lambda item: item.stat().st_mtime, reverse=True)
+            path = None
+            for item in candidates:
+                try:
+                    data = json.loads(item.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    continue
+                if data.get("record", {}).get("state") != "beendet":
+                    path, self.folder = item, item.parent
+                    break
+            if path is None:
+                raise ValueError("Kein unterbrochenes Turnier gefunden. Bitte --run-dir angeben.")
+        if not path.is_file():
+            raise ValueError(f"Zwischenstand fehlt: {path}")
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if data.get("version") != 1:
+            raise ValueError("Unbekannter Zwischenstand.")
+        if [str(value) for value in data.get("field", [])] != self.paths:
+            raise ValueError("Der Zwischenstand gehört zu einem anderen Feld.")
+        return data
+
     def play(self, pool, pairs, phase):
         tasks = [(self.players[a]["book"], self.players[b]["book"], self.players[a]["deck"],
                   self.players[b]["deck"], self.rng.getrandbits(62)) for a, b in pairs]
-        results = list(pool.map(play_match, tasks, chunksize=max(1, len(tasks) // (self.args.workers * 8) or 1)))
-        for (a, b), result in zip(pairs, results):
+        results = pool.map(tasks)
+        for (a, b), task, result in zip(pairs, tasks, results):
             self.record["matches"] += 1
             self.record["duels"] += result["games"]
             if not result["valid"]:
                 self.record["invalid"] += 1
                 if len(self.record["findings"]) < 30:
                     self.record["findings"].append({"phase": phase, "decks": [self.names[self.players[a]["deck"]],
-                                                    self.names[self.players[b]["deck"]]], "error": result["error"]})
+                                                    self.names[self.players[b]["deck"]]], "seed": task[4],
+                                                    "error": result["error"]})
             da, db = self.players[a]["deck"], self.players[b]["deck"]
             if da != db:
                 key, flip = ((da, db), False) if da < db else ((db, da), True)
@@ -343,32 +641,49 @@ class Tournament:
         return None
 
     # -- run ---------------------------------------------------------------------------------------------
+    def _new_pool(self):
+        pool_type = WorkerPool if self.args.workers > 1 else SerialPool
+        return pool_type(self.args.workers, initializer=_init_worker, initargs=(self.paths,),
+                         marker_dir=self.folder / "worker")
+
     def run(self):
         started = time.time()
         reason = "fertig"
-        pool_type = ProcessPoolExecutor if self.args.workers > 1 else SerialPool
+        restarts = hangs = 0
         champion = None
-        with pool_type(self.args.workers, initializer=_init_worker, initargs=(self.paths,)) as pool:
-            for number in range(1, self.rounds + 1):
-                if self.stop_requested():
-                    reason = "auf Wunsch beendet"
-                    break
-                self.record["round"] = number
-                self.status(f"Schweizer Runde {number} von {self.rounds} läuft")
+        for number in range(self.start_round, self.rounds + 1):
+            if self.stop_requested():
+                reason = "auf Wunsch beendet"
+                break
+            self.record["round"] = number - 1
+            self.save_state()   # RNG-Stand vor der Paarung: ein Neustart spielt dieselben Paare und Seeds
+            self.record["round"] = number
+            self.status(f"Schweizer Runde {number} von {self.rounds} läuft")
+            with self._new_pool() as pool:   # je Runde frische Prozesse: kein Speicherwachstum über Runden
                 self.swiss_round(pool, number)
-                leader = self.standings()[0]
-                self.status(f"Runde {number} fertig: {self.record['matches']} Matches, {self.record['duels']} Duelle, "
-                            f"Spitze {leader['points']} Punkte ({self.names[leader['deck']]})")
-            seeded = self.standings()
-            for place, player in enumerate(seeded, 1):
-                player["swiss_place"] = place
-            if self.cut and reason == "fertig":
+            restarts += pool.restarts
+            hangs += pool.hangs
+            self.save_state()
+            leader = self.standings()[0]
+            self.status(f"Runde {number} fertig: {self.record['matches']} Matches, {self.record['duels']} Duelle, "
+                        f"Spitze {leader['points']} Punkte ({self.names[leader['deck']]})")
+        seeded = self.standings()
+        for place, player in enumerate(seeded, 1):
+            player["swiss_place"] = place
+        if self.cut and reason == "fertig":
+            with self._new_pool() as pool:
                 champion = self.top_cut(pool, seeded)
-                if champion is None:
-                    reason = "auf Wunsch beendet"
+            restarts += pool.restarts
+            hangs += pool.hangs
+            if champion is None:
+                reason = "auf Wunsch beendet"
+        self.record["worker_abstuerze"] = restarts
+        self.record["worker_haenger"] = hangs
         self.record["seconds"] = round(time.time() - started)
         self.record["end_reason"] = reason
         self.record["champion"] = champion["id"] if champion else None
+        self.record["state"] = "beendet" if reason == "fertig" else "unterbrochen"
+        self.save_state()
         self.report(seeded, champion)
         if self.qwen_model:
             self.status("Qwen schreibt Feedback zu jedem Deck")
@@ -479,7 +794,9 @@ class Tournament:
         for m in sorted(matchups.values(), key=lambda m: -abs(m["quote_a"] - 0.5))[:12]:
             lines.append(f"- {m['a']} gegen {m['b']}: {m['quote_a']:.0%} für {m['a']} "
                          f"({m['siege_a']}-{m['siege_b']}-{m['unentschieden']})")
-        lines += ["", "## Judge", "", f"{r['invalid']} Matches mit Engine-Befund (als Unentschieden gewertet)."]
+        lines += ["", "## Judge", "", f"{r['invalid']} Matches mit Engine-Befund (als Unentschieden gewertet).",
+                  f"{r.get('worker_abstuerze', 0)} Worker-Abstürze und {r.get('worker_haenger', 0)} Pool-Hänger, "
+                  "jeweils mit neuem Prozess-Pool fortgesetzt."]
         lines += [f"- {f['phase']}: {' vs '.join(f['decks'])} · {f['error']}" for f in r["findings"][:10]]
         if r.get("qwen"):
             lines += ["", "## Turnierkommentar (Qwen)", "", r["qwen"]["bericht"], "", r["qwen"]["auffaelligkeiten"]]
@@ -556,7 +873,9 @@ class Tournament:
         if r.get("qwen"):
             out.append(f"<h2>Turnierkommentar (Qwen)</h2><p>{escape(r['qwen']['bericht'])}</p>"
                        f"<p>{escape(r['qwen']['auffaelligkeiten'])}</p>")
-        out.append(f"<h2>Judge</h2><p>{r['invalid']} Matches mit Engine-Befund (als Unentschieden gewertet).</p>"
+        out.append(f"<h2>Judge</h2><p>{r['invalid']} Matches mit Engine-Befund (als Unentschieden gewertet); "
+                   f"{r.get('worker_abstuerze', 0)} Worker-Abstürze und {r.get('worker_haenger', 0)} Pool-Hänger "
+                   "mit neuem Prozess-Pool fortgesetzt.</p>"
                    "<p><small>Es spielen KIs, keine Menschen. Side Deck wird noch nicht gewechselt. Drucken → "
                    "„Als PDF speichern“ erzeugt ein PDF. Rohdaten: Decks.csv, Matchups.csv, Tabelle.csv, "
                    "Ergebnis.json.</small></p></body></html>")
@@ -571,13 +890,18 @@ def main():
     parser.add_argument("--rounds", type=int, default=0, help="0 = automatisch nach Spielerzahl")
     parser.add_argument("--top-cut", type=int, default=-1, help="-1 = automatisch, 0 = kein Top Cut")
     parser.add_argument("--spread", type=float, default=0.3, help="Streuung der Spielerstärke (0 = alle gleich)")
-    parser.add_argument("--workers", type=int, default=max(1, min(24, (os.cpu_count() or 2) - 2)))
+    parser.add_argument("--workers", type=int, default=0,
+                        help="0 = automatisch (große Felder werden auf 12 begrenzt, Speicher je Worker 400 MB)")
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--ohne-qwen", action="store_true")
     parser.add_argument("--run-dir", type=Path)
+    parser.add_argument("--resume", action="store_true",
+                        help="unterbrochenes Turnier aus dem Zwischenstand fortsetzen (mit --run-dir)")
     args = parser.parse_args()
     if args.players < 4 or args.players > 20000:
         parser.error("--players muss zwischen 4 und 20000 liegen.")
+    if args.workers <= 0:
+        args.workers = auto_workers(args.players)
     if args.seed is None:
         args.seed = random.SystemRandom().getrandbits(31)
     tournament = None
@@ -589,8 +913,14 @@ def main():
         traceback.print_exc()
         if tournament:
             tournament.record["error"] = traceback.format_exc()
+            tournament.record["state"] = "unterbrochen"
+            try:
+                tournament.save_state()
+            except Exception:  # noqa: BLE001 - the state is a convenience, the report below must still be written
+                pass
             save(tournament.folder / "Ergebnis.json", tournament.record)
-            tournament.status(f"Fehler: {error}", "fehler")
+            tournament.status(f"Abgebrochen: {error}. Zwischenstand gespeichert, mit --resume fortsetzbar.",
+                              "unterbrochen")
         return 1
     return 0
 
