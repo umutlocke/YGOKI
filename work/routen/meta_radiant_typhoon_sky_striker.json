@@ -1,0 +1,19 @@
+{
+ "deck": "Radiant Typhoon Sky Striker",
+ "quelle": "work/_meta_decks/guides/radiant_typhoon_sky_striker.md",
+ "routes": [
+  {
+   "name": "Meta Radiant Typhoon Sky Striker · Raye → Linkage → Kagari → Engage",
+   "priority": 6,
+   "goal": "Raye normal beschwören, mit Linkage Kagari aus dem Extra holen, Kagari nimmt Linkage zurück und Engage sucht den nächsten Sky-Striker-Namen.",
+   "quelle": "https://ygoprodeck.com/deck/radiant-typhoon-sky-striker-745551; Kartentexte (Raye 26077387, Linkage 9726840, Kagari 63288573, Engage 63166095)",
+   "hand": [26077387, 9726840, 63166095, 98338152, 14558128],
+   "steps": [
+    {"code": 26077387, "do": "N", "note": "Raye normal beschwören"},
+    {"code": 9726840, "do": "E", "pick": [63288573], "note": "Linkage: Raye als Kosten senden, Kagari ins Extra-Monster-Feld beschwören"},
+    {"code": 63288573, "do": "E", "pick": [9726840], "note": "Kagari nimmt Linkage aus dem Friedhof zurück"},
+    {"code": 63166095, "do": "E", "pick": [26077387], "note": "Engage sucht Raye für den nächsten Zug"}
+   ]
+  }
+ ]
+}

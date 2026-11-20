@@ -1,0 +1,64 @@
+{
+ "deck": "Radiant Typhoon",
+ "quelle": "work/_meta_decks/guides/radiant_typhoon.md",
+ "routes": [
+  {
+   "name": "Meta Radiant Typhoon · Swen → Chant → Krosea → Vision → Varuroon",
+   "priority": 6,
+   "goal": "Swen sucht Vision, Chant sucht Krosea; Krosea kommt als Quick-Play-Special, sucht Ascendance; Vision zieht und Varuroon setzt Mandate.",
+   "quelle": "https://ygoprodeck.com/deck/radiant-typhoon-745273; Kartentexte (Swen 80538047, Chant 67115133, Krosea 16922142, Vision 20508881, Varuroon 39341885)",
+   "hand": [
+    80538047,
+    16922142,
+    5318639,
+    25940932,
+    14558128
+   ],
+   "steps": [
+    {
+     "code": 80538047,
+     "do": "N",
+     "pick": [
+      67115133
+     ],
+     "note": "Swen normal; Chant suchen"
+    },
+    {
+     "code": 67115133,
+     "do": "E",
+     "pick": [
+      20508881
+     ],
+     "note": "Chant aktivieren; Ascendance suchen"
+    },
+    {
+     "code": 16922142,
+     "do": "S",
+     "note": "Krosea als Quick-Play-Special beschwören"
+    },
+    {
+     "code": 16922142,
+     "do": "E",
+     "pick": [
+      25940932
+     ],
+     "note": "Krosea sucht Vision"
+    },
+    {
+     "code": 20508881,
+     "do": "E",
+     "note": "Vision aktivieren: zwei ziehen, eine Karte abwerfen"
+    },
+    {
+     "code": 39341885,
+     "do": "E",
+     "pick": [
+      5318639
+     ],
+     "optional": true,
+     "note": "Varuroon sucht MST und setzt bei Vision Mandate face-up"
+    }
+   ]
+  }
+ ]
+}

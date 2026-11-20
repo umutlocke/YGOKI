@@ -20,6 +20,7 @@ Routen-Vorschlag.json (the best lines written as routes; copy the ones you like 
 
 from __future__ import annotations
 
+from collections import Counter
 import argparse
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import replace
@@ -169,14 +170,23 @@ class Stoerer(Passive):
     """Opponent in the first turn with hand traps: answers the first legal chance with each of them. This is a
     simple, aggressive opponent (no waiting for a better target); it measures how robust a line is."""
 
+    def __init__(self, seed=None, handtraps=STOERER):
+        super().__init__(seed)
+        self.handtraps = frozenset(int(code) for code in handtraps)
+        self.used = Counter()
+
     def __call__(self, p, view):
         if isinstance(p, SelectChain):
             for index, chain in enumerate(p.chains):
-                if chain.code in STOERER:
+                if chain.code in self.handtraps:
+                    self.used[chain.code] += 1
                     return p.respond(index)
             return p.respond(0 if p.forced and p.chains else None)
         if isinstance(p, SelectEffectYn):
-            return p.respond(getattr(p.card, "code", 0) in STOERER)
+            code = getattr(p.card, "code", 0)
+            if code in self.handtraps:
+                self.used[code] += 1
+            return p.respond(code in self.handtraps)
         if isinstance(p, SelectCard) and p.cards:
             theirs = [i for i, card in enumerate(p.cards) if card.controller != view.team]
             if theirs and len(theirs) >= p.min:
@@ -184,9 +194,10 @@ class Stoerer(Passive):
         return super().__call__(p, view)
 
 
-def stoerer_deck(deck):
+def stoerer_deck(deck, handtraps=STOERER):
     """Copy of the deck whose top five are the opponent's hand traps (three copies of each in the Main Deck)."""
-    main = [code for code in STOERER for _ in range(3)] + list(deck.main)[:max(0, 40 - 3 * len(STOERER))]
+    handtraps = tuple(handtraps)
+    main = [code for code in handtraps for _ in range(3)] + list(deck.main)[:max(0, 40 - 3 * len(handtraps))]
     return replace(deck, main=main)
 
 
@@ -345,18 +356,20 @@ def _init_worker(deck_path):
     _DECK = inspected.deck
 
 
-def play_turn(book_json, seed, stack, prefix, style=0, stoerer=False):
+def play_turn(book_json, seed, stack, prefix, style=0, stoerer=False, stoerer_karte=None):
     """Play the first turn with `prefix` (answers for the first own decisions), then the playbook.
     Returns score, details, the own decisions [{data, label, options, kind, phase}] and the opening hand.
-    stoerer=True: the opponent holds Ash, Imperm, Nibiru and Veiler and uses them (see Stoerer)."""
+    stoerer=True: the opponent holds Ash, Imperm, Nibiru and Veiler and uses them (see Stoerer).
+    stoerer_karte=<code>: the opponent holds only that one card (for the handtrap matrix)."""
     book = Playbook.from_json(book_json)
     base = PlaybookPolicy(book, seed + 7919 * style)   # style: another way the playbook continues
-    opponent = Stoerer(seed + 1) if stoerer else Passive(seed + 1)
+    handtraps = (int(stoerer_karte),) if stoerer_karte else STOERER
+    opponent = Stoerer(seed + 1, handtraps) if stoerer else Passive(seed + 1)
     stacks = {0: list(stack)} if stack else {}
     other = _DECK
     if stoerer:
-        other = stoerer_deck(_DECK)
-        stacks[1] = list(STOERER) + [other.main[3 * len(STOERER)]]
+        other = stoerer_deck(_DECK, handtraps)
+        stacks[1] = list(handtraps) + [other.main[3 * len(handtraps)]]
     duel = Duel(_ENGINE, DuelConfig(rules="mr5", max_retries=0), (_DECK, other), ("Solver", "Gegner"),
                 seed=seed, stack=stacks or None)
     views = (SeatView(duel, 0), SeatView(duel, 1))
@@ -388,6 +401,7 @@ def play_turn(book_json, seed, stack, prefix, style=0, stoerer=False):
                                   else None, **_describe(p, data)})
             step = duel.respond(data)
         score, details = board_score(views[0])
+        details = {**details, "stoerer_uses": dict(getattr(opponent, "used", {}))}
         global LAST_POLICY
         LAST_POLICY = base
     finally:

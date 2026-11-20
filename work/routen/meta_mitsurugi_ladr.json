@@ -1,0 +1,71 @@
+{
+ "deck": "Mitsurugi Light and Darkness Ritual",
+ "quelle": "https://ygoprodeck.com/deck/mitsurugi-light-and-darkness-ritual-744943 (Runner-Up Mogi Cup 14.11.2026); Linie aus den Kartentexten von Saji und Mitsurugi Ritual",
+ "routes": [
+  {
+   "name": "Meta Mitsurugi · Saji → Ritual → Futsu → Kusanagi → Prayers",
+   "priority": 4,
+   "goal": "Saji sucht Mitsurugi Ritual; Ritual beschwört Futsu; Futsu sucht Kusanagi; Kusanagi holt Saji aus dem GY, Prayers öffnet die zweite Ritualrunde.",
+   "quelle": "https://ygoprodeck.com/deck/mitsurugi-light-and-darkness-ritual-744943; Kartentexte (Saji 18176525, Ritual 81560239, Futsu 55397172)",
+   "hand": [
+    45171524,
+    18176525,
+    81560239,
+    55397172,
+    14558127
+   ],
+   "steps": [
+    {
+     "code": 45171524,
+     "do": "E",
+     "cost": [
+      18176525
+     ],
+     "pick": [
+      82782870
+     ],
+     "note": "Prayers tributet Saji, sucht und beschwört Kusanagi"
+    },
+    {
+     "code": 18176525,
+     "do": "E",
+     "pick": [
+      17954937
+     ],
+     "note": "Saji-Tribut-Effekt sucht Great Purification"
+    },
+    {
+     "code": 81560239,
+     "do": "E",
+     "pick": [
+      55397172
+     ],
+     "note": "Ritual beschwört Futsu aus dem Deck"
+    },
+    {
+     "code": 55397172,
+     "do": "E",
+     "pick": [
+      40543231
+     ],
+     "note": "Futsu sucht Aramasa"
+    },
+    {
+     "code": 82782870,
+     "do": "N",
+     "optional": true,
+     "note": "Kusanagi normal beschwören (optional, wenn der Normal Summon noch frei ist)"
+    },
+    {
+     "code": 82782870,
+     "do": "E",
+     "pick": [
+      81560239
+     ],
+     "optional": true,
+     "note": "Kusanagi holt Mitsurugi Ritual aus dem GY zurück (optionale Verlängerung)"
+    }
+   ]
+  }
+ ]
+}

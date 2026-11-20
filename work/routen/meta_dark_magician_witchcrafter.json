@@ -1,0 +1,61 @@
+{
+ "deck": "Dark Magician Witchcrafter Fairy Tail",
+ "quelle": "work/_meta_decks/guides/dark_magician_witchcrafter.md",
+ "routes": [
+  {
+   "name": "Meta DM Witchcrafter · Luna → Genia → Matchgiru → Ball → Verre",
+   "priority": 6,
+   "goal": "Luna sucht Genia; Genia kommt über ihren Effekt, Matchgiru sucht Fairy Tail Ball, Ball und Creation öffnen die Fairy-Tail-/Witchcrafter-Folgerunde.",
+   "quelle": "https://ygoprodeck.com/deck/dark-magician-witchcrafter-fairy-tail-744003; Kartentexte (Luna 86937530, Genia 40041559, Matchgiru 19144622, Ball 56725612, Wiccat 27632520)",
+   "hand": [
+    86937530,
+    19144622,
+    56725612,
+    57916305,
+    14558127
+   ],
+   "steps": [
+    {
+     "code": 86937530,
+     "do": "N",
+     "pick": [
+      40041559
+     ],
+     "note": "Luna normal; Genia suchen"
+    },
+    {
+     "code": 40041559,
+     "do": "E",
+     "pick": [
+      34755994
+     ],
+     "note": "Genia-Effekt: Artemis als Ziel, Genia spezialbeschwören"
+    },
+    {
+     "code": 19144622,
+     "do": "E",
+     "pick": [
+      56725612
+     ],
+     "note": "Matchgiru-Effekt; Fairy Tail Ball suchen"
+    },
+    {
+     "code": 56725612,
+     "do": "E",
+     "pick": [
+      55623480
+     ],
+     "note": "Fairy Tail Ball aktivieren; Fairy Tail - Snow suchen"
+    },
+    {
+     "code": 57916305,
+     "do": "E",
+     "pick": [
+      21522601
+     ],
+     "note": "Witchcrafter Creation sucht Madame Verre"
+    }
+   ]
+  }
+ ]
+}

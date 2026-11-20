@@ -1,0 +1,19 @@
+{
+ "deck": "Magistus Dracotail Fairy Tail",
+ "quelle": "work/_meta_decks/guides/magistus_dracotail_fairy_tail.md",
+ "routes": [
+  {
+   "name": "Meta Magistus Dracotail · Luna → Genia → Matchgiru → Fairy Tail Ball",
+   "priority": 6,
+   "goal": "Luna sucht Genia, Genia macht Luna zur Spellcasterin und kommt selbst, Matchgiru sucht Fairy Tail Ball; Ball öffnet die Fairy-Tail-Folgerunde.",
+   "quelle": "https://ygoprodeck.com/deck/magistus-dracotail-fairy-tail-744945; Kartentexte (Luna 86937530, Genia 40041559, Matchgiru 19144622, Ball 56725612)",
+   "hand": [86937530, 19144622, 56725612, 42544773, 14558127],
+   "steps": [
+    {"code": 86937530, "do": "N", "pick": [40041559], "note": "Luna normal; Genia suchen"},
+    {"code": 40041559, "do": "E", "note": "Genia über ihren Hand-Effekt mit Luna als Ziel beschwören"},
+    {"code": 19144622, "do": "E", "pick": [56725612], "note": "Matchgiru spezialbeschwören; Fairy Tail Ball suchen"},
+    {"code": 56725612, "do": "E", "pick": [55623480], "note": "Fairy Tail Ball aktivieren; Snow als Folgespiel suchen"}
+   ]
+  }
+ ]
+}

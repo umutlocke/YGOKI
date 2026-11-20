@@ -1,0 +1,64 @@
+{
+ "deck": "Synchron",
+ "quelle": "https://ygoprodeck.com/deck/synchron-744077 (Top 4 3rd Motsu-kai 08.11.2026); Linie aus den Kartentexten von Junk Meister und Junk Signal",
+ "routes": [
+  {
+   "name": "Meta Synchron · Junk Meister → Junk Signal → Stardust Synchron → Junk Synchron",
+   "priority": 4,
+   "goal": "Junk Meister sucht Junk Signal; Signal tributet ihn und beschwört Stardust Synchron; Stardust sucht das zweite Signal, Junk Synchron öffnet die Synchro-Leiter.",
+   "quelle": "https://ygoprodeck.com/deck/synchron-744077; Kartentexte (Junk Meister 73218792, Junk Signal 26387390)",
+   "hand": [
+    73218792,
+    63977008,
+    9742784,
+    26387390,
+    14558127
+   ],
+   "steps": [
+    {
+     "code": 73218792,
+     "do": "E",
+     "note": "Junk Meister aktivieren und spezialbeschwören"
+    },
+    {
+     "code": 73218792,
+     "do": "E",
+     "pick": [
+      26387390
+     ],
+     "note": "Junk Meister sucht Junk Signal"
+    },
+    {
+     "code": 26387390,
+     "do": "E",
+     "pick": [
+      37799519
+     ],
+     "note": "Junk Signal tributet Junk Meister, beschwört Stardust Synchron"
+    },
+    {
+     "code": 37799519,
+     "do": "E",
+     "pick": [
+      26387390
+     ],
+     "note": "Stardust Synchron sucht Junk Signal"
+    },
+    {
+     "code": 63977008,
+     "do": "N",
+     "note": "Junk Synchron normal beschwören"
+    },
+    {
+     "code": 63977008,
+     "do": "E",
+     "pick": [
+      9742784
+     ],
+     "optional": true,
+     "note": "Junk Synchron holt Jet Synchron aus dem GY"
+    }
+   ]
+  }
+ ]
+}

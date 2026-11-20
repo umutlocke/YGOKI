@@ -1,0 +1,20 @@
+{
+ "deck": "Harpie Amazoness",
+ "quelle": "work/_meta_decks/guides/harpie_amazoness.md",
+ "routes": [
+  {
+   "name": "Meta Harpie Amazoness · Call → War Chief → Princess → Onslaught",
+   "priority": 6,
+   "goal": "Amazoness Call sucht das Dorf, War Chief setzt Onslaught, Princess sucht die nächste Amazoness-Spell und steht mit dem Dorf als Schutzbrett.",
+   "quelle": "https://ygoprodeck.com/deck/harpie-amazoness-744944; Kartentexte (Call 57312333, Village 712559, War Chief 50486289, Princess 84539520, Onslaught 83407038)",
+   "hand": [57312333, 50486289, 84539520, 83407038, 39392286],
+   "steps": [
+    {"code": 57312333, "do": "E", "pick": [712559], "note": "Amazoness Call sucht Amazoness Village"},
+    {"code": 712559, "do": "E", "note": "Amazoness Village aktivieren"},
+    {"code": 50486289, "do": "S", "note": "War Chief ohne eigene Monster spezialbeschwören"},
+    {"code": 50486289, "do": "E", "pick": [83407038], "note": "War Chief setzt Amazoness Onslaught"},
+    {"code": 84539520, "do": "N", "pick": [57312333], "note": "Princess normal; Amazoness Call für den nächsten Zug suchen"}
+   ]
+  }
+ ]
+}

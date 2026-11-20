@@ -1,0 +1,19 @@
+{
+ "deck": "Branded Dracotail",
+ "quelle": "work/_meta_decks/guides/branded_dracotail.md",
+ "routes": [
+  {
+   "name": "Meta Branded Dracotail · Lukias → Faimena → Arthalion",
+   "priority": 6,
+   "goal": "Lukias sucht einen Dracotail-Namen, Faimena fusioniert Lukias und einen Hand-Dracotail zu Arthalion; Arthalion gibt die Handmaterialien zurück und ist das Fusion-Endboard.",
+   "quelle": "https://ygoprodeck.com/deck/branded-dracotail-745063; Kartentexte (Lukias 75003700, Faimena 1498449, Arthalion 33760966)",
+   "hand": [75003700, 1498449, 44482554, 6153210, 14558128],
+   "steps": [
+    {"code": 75003700, "do": "N", "note": "Lukias normal beschwören"},
+    {"code": 75003700, "do": "E", "pick": [44482554], "note": "Lukias sucht Dracotail Pan als zweites Material"},
+    {"code": 1498449, "do": "E", "pick": [33760966], "note": "Faimena abwerfen; Lukias + Pan zu Dracotail Arthalion fusionieren"},
+    {"code": 33760966, "do": "E", "pick": [44482554], "note": "Arthalion-Effekt: ein Handmaterial zurück auf die Hand nehmen"}
+   ]
+  }
+ ]
+}
