@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 import random
+from types import SimpleNamespace
 
 from kartenrollen import classify
 from ygo_agent.arena.messages import SelectOption, SortChain
@@ -48,16 +49,17 @@ class Duel:
 
 
 class View:
-    def __init__(self, team, cards, chain=(), monsters=()):
+    def __init__(self, team, cards, chain=(), monsters=(), own=()):
         self.team = team
         self.turn_player = team
         self.cards = {card.code: card for card in cards}
         self._monsters = list(monsters)
+        self._own = list(own)
         self._duel = Duel(chain)
 
     def location(self, team, zone):
-        if team != self.team and zone == LOCATION_MZONE:
-            return list(self._monsters)
+        if zone == LOCATION_MZONE:
+            return list(self._monsters if team != self.team else self._own)
         return []
 
 
@@ -123,6 +125,34 @@ def test_angriff_wird_gemeldet_wenn_ein_ziel_besiegbar_ist():
     book = policy(999)
     assert book._choose_attack(view, [attacker]) == 0
     assert book._attacker_atk == 2500
+
+
+def test_offene_verteidigung_zaehlt_mit_def_und_ist_angreifbar():
+    # 1500 ATK gegen 3000 ATK / 500 DEF in offener Verteidigung: der Angriff gewinnt.
+    defender = Card(3000, controller=1, attack=3000, defense=500, position=0x4)
+    attacker = Card(1500, controller=0, attack=1500, position=0x1)
+    view = View(0, [attacker, defender], monsters=[defender], own=[attacker])
+    command = SimpleNamespace(code=1500, controller=0, location=LOCATION_MZONE, sequence=0,
+                              direct_attack=False)
+    book = policy(1500)
+    assert book._choose_attack(view, [command]) == 0
+
+
+def test_verdecktes_ziel_bleibt_unbekannt():
+    hidden = Card(4444, controller=1, attack=3000, defense=100, position=0x8)
+    attacker = Card(1500, controller=0, attack=3000, position=0x1)
+    view = View(0, [attacker, hidden], monsters=[hidden], own=[attacker])
+    command = SimpleNamespace(code=1500, controller=0, location=LOCATION_MZONE, sequence=0,
+                              direct_attack=False)
+    assert policy(1500)._choose_attack(view, [command]) is None
+
+
+def test_angriff_nimmt_die_oeffentliche_feld_atk():
+    printed = Card(999, controller=0, attack=1000, position=0x1)
+    field = Card(999, controller=0, attack=2500, position=0x1)
+    view = View(0, [printed], own=[field])
+    command = SimpleNamespace(code=999, controller=0, location=LOCATION_MZONE, sequence=0)
+    assert policy(999)._attack_of(view, command) == 2500
 
 
 # -- F3: Hints nach Besitzer -------------------------------------------------------------------------------

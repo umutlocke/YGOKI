@@ -25,7 +25,8 @@ from ygo_agent.arena.messages import (AnnounceCard, BattleAction, IdleAction, Se
 from ygo_agent.arena.policies import RandomPolicy
 from ygo_agent.core.constants import (LOCATION_DECK, LOCATION_HAND, LOCATION_MZONE, LOCATION_SZONE,
                                       PHASE_BATTLE, PHASE_END, PHASE_MAIN1, PHASE_MAIN2,
-                                      POS_FACEUP_ATTACK, POS_FACEUP_DEFENSE, TYPE_MONSTER)
+                                      POS_DEFENSE, POS_FACEDOWN, POS_FACEUP_ATTACK, POS_FACEUP_DEFENSE,
+                                      TYPE_MONSTER)
 
 ACTIONS = ("summon", "special", "activate", "mset", "sset")
 GOOD_HINTS = {506, 508, 509, 510, 514, 518, 522, 523, 527, 529}       # search, summon, set, equip, to field
@@ -454,7 +455,27 @@ class PlaybookPolicy(RandomPolicy):
             hand = view.location(view.team, LOCATION_HAND)
             self.opening = [card.code for card in hand if card and card.code]
 
-    def _attack_of(self, view, code):
+    def _attack_of(self, view, card):
+        """Current ATK from the public field (player/zone/sequence), not the printed card data."""
+        ref = card if hasattr(card, "controller") and hasattr(card, "sequence") else None
+        code = getattr(ref, "code", 0) if ref is not None else getattr(card, "code", card)
+        try:
+            code = int(code or 0)
+        except (TypeError, ValueError):
+            code = 0
+        if ref is not None:
+            try:
+                row = view.location(ref.controller, ref.location)
+                if 0 <= ref.sequence < len(row) and row[ref.sequence]:
+                    return getattr(row[ref.sequence], "attack", 0) or 0
+            except Exception:   # noqa: BLE001 - a failed query must never stop a duel
+                pass
+        try:
+            for field_card in view.location(view.team, LOCATION_MZONE):
+                if field_card and field_card.code == code:
+                    return getattr(field_card, "attack", 0) or 0
+        except Exception:   # noqa: BLE001 - a failed query must never stop a duel
+            pass
         data = view.cards.get(code) if code else None
         return getattr(data, "attack", 0) or 0
 
@@ -463,17 +484,26 @@ class PlaybookPolicy(RandomPolicy):
 
     @staticmethod
     def _beats(attack, card):
-        """True when this attack destroys the target without losing the attacker."""
-        if getattr(card, "position", 0) & 0x8:          # face-up or face-down Defense Position
+        """True when this attack destroys the target without losing the attacker.
+
+        POS_DEFENSE covers face-up defense (0x4) and face-down defense (0x8). A face-down card's
+        ATK/DEF are not public, so it is not treated as a safe target.
+        """
+        position = getattr(card, "position", 0) or 0
+        if position & POS_FACEDOWN:
+            return False
+        if position & POS_DEFENSE:
             return attack > (getattr(card, "defense", 0) or 0)
-        return attack > (getattr(card, "attack", 0) or 0)
+        if position & POS_FACEUP_ATTACK:
+            return attack > (getattr(card, "attack", 0) or 0)
+        return False
 
     def _choose_attack(self, view, attackable):
         """Direct attacks first; otherwise only an attack that wins its battle. None instead of a suicide attack."""
         targets = self._opponent_monsters(view)
         direct = best = None
         for index, command in enumerate(attackable):
-            attack = self._attack_of(view, command.code)
+            attack = self._attack_of(view, command)
             if getattr(command, "direct_attack", False):
                 if direct is None or attack > direct[0]:
                     direct = (attack, index)
@@ -510,13 +540,16 @@ class PlaybookPolicy(RandomPolicy):
                     card.code == preferred_target or getattr(card, "base_code", 0) == preferred_target):
                 return (-4, 0)   # the opponent's monster whose effect is on the chain
             if hint == 549:
-                # Attack only what this attacker beats; among those, the strongest.
-                defense = bool(getattr(card, "position", 0) & 0x8)
+                # Attack only what this attacker beats; face-down targets are unknown.
+                position = getattr(card, "position", 0) or 0
+                if not mine and position & POS_FACEDOWN:
+                    return (3, 0)
+                defense = bool(position & POS_DEFENSE)
                 value = (getattr(card, "defense", 0) if defense else getattr(card, "attack", 0)) or 0
                 if mine:
                     return (1, own_value(card))
                 return (0 if (self._attacker_atk and self._attacker_atk > value) else 3,
-                        -self._attack_of(view, card.code))
+                        -self._attack_of(view, card))
             if hint in HOSTILE_HINTS:
                 return (0 if not mine else 1, -self._attack_of(view, card.code) if not mine else own_value(card))
             if hint in COST_HINTS and not (card.location == LOCATION_DECK and mine):
