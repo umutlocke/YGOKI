@@ -44,7 +44,7 @@ TRAPS = (
     (91800273, "Dimension Shifter"),
     (23434538, 'Maxx "C"'),
 )
-EXTRA_GAUNTLET = ("Unchained",)  # Prüfstein; Toon ist als meta_ryzeal_toon bereits in den 14 Meta-Decks
+EXTRA_GAUNTLET = ("Unchained", "Tri-Brigade Toon - Trif Messung")  # Prüfsteine; Ryzeal Toon ist als Meta-Deck dabei
 
 
 def deck_paths():
@@ -53,9 +53,11 @@ def deck_paths():
         for path in sorted((WORK / "_meta_decks" / group).glob("*.ydk")):
             paths[path.stem] = path
     for name in EXTRA_GAUNTLET:
-        path = WORK / "decks" / f"{name}.ydk"
-        if path.is_file():
-            paths[name] = path
+        for folder in ("decks", "testdecks"):
+            path = WORK / folder / f"{name}.ydk"
+            if path.is_file():
+                paths[name] = path
+                break
     return {name: path for name, path in paths.items() if path.is_file()}
 
 
@@ -118,7 +120,11 @@ def measure_deck(name, path, tries, seed, traps):
             rng = random.Random(seed)   # paired: same hands and seeds as passive
             route_results = test_route(route, book_json, deck, tries, 0, rng, frozenset(others), True, code)
             results += route_results
-            per_route.append({"name": route["name"], **_aggregate(route_results)})
+            route_agg = _aggregate(route_results)
+            route_base = next(item["baseline"] for item in route_reports if item["name"] == route["name"])
+            route_agg.update(finished_drop=route_base["finished"] - route_agg["finished"],
+                             board_loss=round(route_base["avg_score"] - route_agg["avg_score"], 2))
+            per_route.append({"name": route["name"], **route_agg})
         agg = _aggregate(results)
         rows[str(code)] = {"name": trap_name, **agg, "routes": per_route,
                            "finished_drop": baseline["finished"] - agg["finished"],
@@ -148,6 +154,7 @@ def build(tries=8, seed=7, only=(), card_filter=()):
     (OUT / "handtrap_matrix.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
     _write_route_robustness(data)
     _write_md(data)
+    _write_ghost_ogre(data)
     return data
 
 
@@ -184,6 +191,118 @@ def _write_route_robustness(data):
                    ensure_ascii=False, indent=1), encoding="utf-8")
 
 
+GHOST_OGRE_DECKS = (("Unchained", "Unchained"),
+                    ("Tri-Brigade Toon - Trif Messung", "Tri-Brigade Toon (Trif)"),
+                    ("ryzeal-toon-745059", "Ryzeal Toon"))
+GHOST_OGRE_QUOTES = ((59438930, "Ghost Ogre & Snow Rabbit"), (7293697, "Toon World the Perfect World"),
+                     (26236560, "Unchained Twins - Aruha"), (41165831, "Unchained Soul of Sharvara"),
+                     (67680512, "Unchained Soul of Rage"), (29479265, "Unchained Abomination"))
+
+
+def _write_ghost_ogre(data):
+    """Prüfstein-Bericht: Wirkung plus die zitierten Kartentexte, ohne Kartentext-Erfindung."""
+    try:
+        cards = json.loads((WORK / "kartenwissen" / "Kartenkarten.json").read_text(
+            encoding="utf-8")).get("karten", {})
+    except (OSError, ValueError, TypeError):
+        cards = {}
+    lines = ["# Ghost-Ogre-Prüfstein (gemessen)", "",
+             f"Stand {datetime.now():%d.%m.%Y %H:%M} · {data['tries']} Seeds je Route · Seed {data['seed']}", "",
+             "Gemessen wird die Wirkung, nicht die Einsatzzahl: `Routenabbruch` ist der Anteil der Hände, die",
+             "die Route nicht zu Ende spielen; `Board-Verlust` ist der Rückgang des erreichten Boards gegenüber",
+             "dem passiven Lauf mit denselben Händen und Seeds. `eingesetzt` steht nur als Kontrollzahl daneben.", "",
+             "## Gemessene Wirkung", "",
+             "Die Trif-Messkopie ergänzt die vier Routenkarten Comic Cat, Funny Dark Rabbit, "
+             "Dark-Eyes Illusionist Faceless Mage und Evil Box; die Vorschau-Deckdatei enthält sie nicht, "
+             "deshalb würde der Routen-Loader die Route sonst verwerfen. Die Route selbst bleibt unverändert.", "",
+             "| Deck | Basis fertig | Ghost Ogre fertig | Routenabbruch | Board-Verlust | eingesetzt | Ampel |",
+             "|---|---:|---:|---:|---:|---:|---|"]
+    for name, label in GHOST_OGRE_DECKS:
+        deck = next((item for item in data["decks"] if item["deck"] == name), None)
+        row = (deck or {}).get("traps", {}).get("59438930")
+        if not row:
+            lines.append(f"| {label} | — | — | — | — | — | keine Messung |")
+            continue
+        base = deck["baseline"]
+        lines.append(f"| {label} | {base.get('finished', 0)}/{base.get('games', 0)} | "
+                     f"{row.get('finished', 0)}/{row.get('games', 0)} | {row.get('abort_rate', 0):.0%} | "
+                     f"{row.get('board_loss', 0):+.2f} | {row.get('stoerer_uses', 0)}× | {row.get('ampel', '—')} |")
+    lines += ["", "## Je Route", ""]
+    for name, label in GHOST_OGRE_DECKS:
+        deck = next((item for item in data["decks"] if item["deck"] == name), None)
+        row = (deck or {}).get("traps", {}).get("59438930")
+        if not row:
+            continue
+        lines += [f"### {label}", "",
+                  "| Route | Basis | Ghost Ogre | Abbruch | Board-Verlust | eingesetzt |",
+                  "|---|---:|---:|---:|---:|---:|"]
+        bases = {item["name"]: item.get("baseline", {}) for item in deck.get("routes", [])}
+        for item in row.get("routes", []):
+            base = bases.get(item["name"], {})
+            lines.append(f"| {item['name']} | {base.get('finished', 0)}/{base.get('games', 0)} | "
+                         f"{item.get('finished', 0)}/{item.get('games', 0)} | {item.get('abort_rate', 0):.0%} | "
+                         f"{item.get('board_loss', 0):+.2f} | {item.get('stoerer_uses', 0)}× |")
+        lines.append("")
+    lines += ["## Kartentexte (wörtlich aus Kartenkarten.json)", ""]
+    if not cards:
+        lines += ["Kartenkarten.json fehlt; die Zitate konnten nicht geladen werden.", ""]
+    for code, label in GHOST_OGRE_QUOTES:
+        entry = cards.get(str(code), {})
+        text = " ".join(str(entry.get("text", "")).split())
+        if text:
+            lines += [f"### {label} (`{code}`)", "", f"> {text}", ""]
+        else:
+            lines += [f"### {label} (`{code}`)", "", "Kein Text in Kartenkarten.json.", ""]
+    lines += ["## Warum die Messung so ausfällt", "",
+              "Ghost Ogre verlangt eine Aktivierung eines Monsters auf dem Feld **oder** einer bereits",
+              "offen liegenden Zauber/Falle auf dem Feld. Es schickt sich selbst als Kosten auf den Friedhof",
+              "und zerstört danach die aktivierende Karte. Eine Aktivierung aus der Hand oder aus dem",
+              "Friedhof ist kein gültiges Ziel; außerdem negiert die Zerstörung den bereits aktivierten",
+              "Effekt nicht. Genau deshalb ist die Einsatzzahl kein Wirkungsmaß.", ""]
+    for name, label in GHOST_OGRE_DECKS:
+        deck = next((item for item in data["decks"] if item["deck"] == name), None)
+        row = (deck or {}).get("traps", {}).get("59438930")
+        if not row:
+            continue
+        if name == "Unchained":
+            lines.append(f"- **{label}:** Die Route aktiviert Prison und Aruha aus der Hand, setzt Escape und "
+                         "beschwört Yama; die Yama-Suche ist die einzige Aktivierung eines Feldmonsters. "
+                         "Ghost Ogre kann Yama zerstören, aber die Suche löst noch auf, und der Aufbau "
+                         "läuft über Escape/Sharvara weiter. Gemessen: "
+                         f"{row['abort_rate']:.0%} Abbruch, {row['board_loss']:+.2f} Board, "
+                         f"{row.get('stoerer_uses', 0)}× eingesetzt.")
+        elif name.startswith("Tri-Brigade Toon"):
+            clean = next((item for item in row.get("routes", [])
+                          if "Perfect Toon World" in item.get("name", "")), None)
+            extra = ""
+            if clean:
+                base = next((item.get("baseline", {}) for item in deck.get("routes", [])
+                             if item.get("name") == clean["name"]), {})
+                extra = (f" Kernvergleich der Toon-Route: {base.get('finished', 0)}/{base.get('games', 0)} "
+                         f"passiv gegen {clean.get('finished', 0)}/{clean.get('games', 0)} mit Ghost Ogre "
+                         f"({clean.get('abort_rate', 0):.0%} Abbruch, {clean.get('board_loss', 0):+.2f} Board).")
+            lines.append(f"- **{label}:** `Toon World the Perfect World` liegt im Feld und aktiviert seine "
+                         "Suche; Ghost Ogre darf genau diese offen liegende Zauberkarte zerstören. Damit "
+                         "verliert die Route ihren Toon-World-Aufbau, obwohl der einzelne Sucheffekt noch "
+                         "auflöst. Gemessen: "
+                         f"{row['abort_rate']:.0%} Abbruch, {row['board_loss']:+.2f} Board, "
+                         f"{row.get('stoerer_uses', 0)}× eingesetzt.{extra}"
+                         " Die Fraktall-Route ist bereits passiv 0/8 und wird deshalb nicht als "
+                         "Ghost-Ogre-Wirkung zugerechnet.")
+        else:
+            lines.append(f"- **{label}:** Die Route aktiviert Bookmark, Perfect World und Toon Table aus der "
+                         "Hand; keine dieser Aktivierungen liegt vorher offen im Feld. Deshalb bietet sie "
+                         "Ghost Ogre kein legales Fenster, und die Messung fällt wirkungslos aus, solange "
+                         "die Route keine Feldaktivierung spielt. Gemessen: "
+                         f"{row['abort_rate']:.0%} Abbruch, {row['board_loss']:+.2f} Board, "
+                         f"{row.get('stoerer_uses', 0)}× eingesetzt.")
+    lines += ["", "## Grenzen", "",
+              "- Die Route ist ein First-Turn-Ausschnitt; ein Abbruch ist kein automatischer Duellverlust.",
+              "- Die Störkarten-Policy setzt Ghost Ogre bei der ersten legalen Gelegenheit ein, nicht am optimalen Zeitpunkt.",
+              "- Die Route enthält keine Entscheidung „Ghost Ogre jetzt halten“; die Messung zeigt die Wirkung dieser Policy.", ""]
+    (OUT / "Ghost-Ogre.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def _write_md(data):
     trap_items = [(item["code"], item["name"]) for item in data["traps"]]
     short = {str(code): name.replace(" & ", " ").replace(" the ", " ")[:17] for code, name in trap_items}
@@ -208,7 +327,9 @@ def _write_md(data):
         lines.append(f"| {deck['deck']} | " + " | ".join(cells) + " |")
     lines += ["", "A = stark, M = mittel, W = wirkungslos; Zahl = Abbruchquote / Board-Verlust gegenüber passiv. ",
               "`Basis` = fertige Hände / Spiele ohne Störkarte.", "", "## Prüfstein Ghost Ogre", ""]
-    for name, label in (("Unchained", "Unchained"), ("ryzeal-toon-745059", "Ryzeal Toon")):
+    for name, label in (("Unchained", "Unchained"),
+                        ("Tri-Brigade Toon - Trif Messung", "Tri-Brigade Toon (Trif)"),
+                        ("ryzeal-toon-745059", "Ryzeal Toon")):
         deck = next((item for item in data["decks"] if item["deck"] == name), None)
         row = (deck or {}).get("traps", {}).get("59438930")
         if row:
@@ -216,10 +337,9 @@ def _write_md(data):
                          f"Board {row['board_loss']:+.2f} · eingesetzt {row.get('stoerer_uses', 0)}×.")
         else:
             lines.append(f"- **{label}:** keine Route/keine Messung – Ursache im Bericht offen.")
-    lines += ["", "**Einordnung:** Ghost Ogre ist gegen Unchained nur `mittel`, weil die Route nach dem zerstörten",
-              "Aufbau weiterläuft; Ash ist dort `stark`. Gegen Ryzeal Toon wird Ghost Ogre in dieser Route",
-              "0× angeboten: Die Aktivierungen kommen aus der Hand, und die Route liefert kein face-up Ziel",
-              "im richtigen Fenster. Das ist ein Routen-/Policy-Befund, keine Bestätigung der Erwartung.", ""]
+    lines += ["", "**Einordnung:** Ghost Ogre zerstört die aktivierende Karte auf dem Feld; es negiert den Effekt nicht.",
+              "Deshalb zählt hier die gemessene Wirkung (Routenabbruch und Board-Verlust), nicht die bloße Einsatzzahl.",
+              "Die vollständigen Kartentexte und die Begründung je Deck stehen in `Ghost-Ogre.md`.", ""]
     lines += ["", "## Grenzen", "",
               "- Die Route ist ein First-Turn-Ausschnitt; ein Abbruch heißt nicht automatisch, dass das Duell verloren geht.",
               "- Die Störkarten-Policy setzt die Karte bei der ersten legalen Gelegenheit ein, nicht am optimalen Zeitpunkt.",

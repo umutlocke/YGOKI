@@ -9,7 +9,40 @@ from pathlib import Path
 
 import pytest
 
-from kettendaten import KettenStapel
+from kettendaten import KettenStapel, effect_for_description, effect_text, load_cards
+
+
+def test_striker_dragon_zeigt_den_aktivierten_sucheffekt_und_kein_ziel():
+    """Der reale Striker-Dragon-Fall: description 0 ist die Link-Suche, nicht Material."""
+    cards = load_cards()
+    description = 73539069 << 20  # aux.Stringid(73539069, 0)
+
+    text = effect_text(73539069, cards, description)
+    assert "Boot Sector Launch" in text
+    assert "Link Summoned" in text
+    assert not text.startswith("Dauereffekt")
+    assert effect_for_description(73539069, description, cards)["art"] == "trigger"
+
+    stapel = KettenStapel(cards=cards, names={0: "Dragon", 1: "Gegner"})
+    link = stapel.activate(73539069, 0, 4, 0, description=description, name="Striker Dragon")
+    assert link["effect_targets"] is False
+    stapel.target([
+        {"code": 73539069, "name": "Striker Dragon", "controller": 0, "location": 4, "sequence": 0},
+        {"code": 67127799, "name": "Rokket Caliber", "controller": 0, "location": 2, "sequence": 1},
+    ])
+    shown = stapel.snapshot()["links"][0]
+    assert shown["targets"] == []
+    assert "Rokket Caliber" not in stapel.summary()
+
+    # Der zweite, tatsächlich zielende Effekt (Zündeffekt) darf Ziele zeigen.
+    stapel.activate(73539069, 0, 4, 0, description=(73539069 << 20) | 1, name="Striker Dragon")
+    stapel.target([
+        {"code": 73539069, "name": "Striker Dragon", "controller": 0, "location": 4, "sequence": 0},
+        {"code": 67127799, "name": "Rokket Caliber", "controller": 0, "location": 16, "sequence": 1},
+    ])
+    target_link = stapel.snapshot()["links"][0]
+    assert target_link["effect_targets"] is True
+    assert [item["name"] for item in target_link["targets"]] == ["Striker Dragon", "Rokket Caliber"]
 
 
 def test_stapel_zeigt_aufloesung_rueckwaerts_mit_ziel_und_negation():

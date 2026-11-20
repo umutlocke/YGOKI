@@ -1,0 +1,210 @@
+{
+ "stand": "2026-11-20T21:12:43",
+ "tries": 8,
+ "seed": 7,
+ "grundlage": "routen_test.test_route; Gegner hält nur die eine Karte; gleiche Seeds wie passiv",
+ "ampel_regeln": {
+  "stark": "Abbruch ≥50 % oder −4 fertige Hände oder −2,0 Board",
+  "mittel": "Abbruch ≥25 % oder −2 fertige Hände oder −1,0 Board",
+  "wirkungslos": "darunter"
+ },
+ "traps": [
+  {
+   "code": 59438930,
+   "name": "Ghost Ogre & Snow Rabbit"
+  }
+ ],
+ "decks": [
+  {
+   "deck": "ryzeal-toon-745059",
+   "book": {
+    "art": "neutral",
+    "sha256": "bc775b4ce7aa6e995de4484a44a698a0661cb21c5f6b79b4bb1a721c4bf0cb7d"
+   },
+   "routes": [
+    {
+     "name": "Meta Ryzeal Toon · Bookmark → Toon World → Dark Magician → Mermaid",
+     "file": "meta_ryzeal_toon.json",
+     "baseline": {
+      "games": 8,
+      "finished": 8,
+      "abort_rate": 0.0,
+      "avg_score": 3.47,
+      "stoerer_uses": 0,
+      "interruptions": 0
+     }
+    }
+   ],
+   "baseline": {
+    "games": 8,
+    "finished": 8,
+    "abort_rate": 0.0,
+    "avg_score": 3.47,
+    "stoerer_uses": 0,
+    "interruptions": 0
+   },
+   "traps": {
+    "59438930": {
+     "name": "Ghost Ogre & Snow Rabbit",
+     "games": 8,
+     "finished": 8,
+     "abort_rate": 0.0,
+     "avg_score": 3.47,
+     "stoerer_uses": 0,
+     "interruptions": 0,
+     "routes": [
+      {
+       "name": "Meta Ryzeal Toon · Bookmark → Toon World → Dark Magician → Mermaid",
+       "games": 8,
+       "finished": 8,
+       "abort_rate": 0.0,
+       "avg_score": 3.47,
+       "stoerer_uses": 0,
+       "interruptions": 0,
+       "finished_drop": 0,
+       "board_loss": 0.0
+      }
+     ],
+     "finished_drop": 0,
+     "board_loss": 0.0,
+     "ampel": "wirkungslos"
+    }
+   }
+  },
+  {
+   "deck": "Unchained",
+   "book": {
+    "art": "released",
+    "sha256": "58512c3dbf4ecf81a40f699309a223df06d02f5280856a749176858c0febd4fc"
+   },
+   "routes": [
+    {
+     "name": "Guide · Prison + Escape → Aruha → Yama",
+     "file": "Guide_Unchained.json",
+     "baseline": {
+      "games": 8,
+      "finished": 8,
+      "abort_rate": 0.0,
+      "avg_score": 10.56,
+      "stoerer_uses": 0,
+      "interruptions": 26
+     }
+    }
+   ],
+   "baseline": {
+    "games": 8,
+    "finished": 8,
+    "abort_rate": 0.0,
+    "avg_score": 10.56,
+    "stoerer_uses": 0,
+    "interruptions": 26
+   },
+   "traps": {
+    "59438930": {
+     "name": "Ghost Ogre & Snow Rabbit",
+     "games": 8,
+     "finished": 8,
+     "abort_rate": 0.0,
+     "avg_score": 9.08,
+     "stoerer_uses": 8,
+     "interruptions": 21,
+     "routes": [
+      {
+       "name": "Guide · Prison + Escape → Aruha → Yama",
+       "games": 8,
+       "finished": 8,
+       "abort_rate": 0.0,
+       "avg_score": 9.08,
+       "stoerer_uses": 8,
+       "interruptions": 21,
+       "finished_drop": 0,
+       "board_loss": 1.48
+      }
+     ],
+     "finished_drop": 0,
+     "board_loss": 1.48,
+     "ampel": "mittel"
+    }
+   }
+  },
+  {
+   "deck": "Tri-Brigade Toon - Trif Messung",
+   "book": {
+    "art": "neutral",
+    "sha256": "cc795f8963b2b773c4afe117c68dfc9ddcd97084280cba70baa36ff96368ea7f"
+   },
+   "routes": [
+    {
+     "name": "Toon Tri-Brigade · Fraktall (Bread and Butter)",
+     "file": "Toon_TriBrigade_Trif.json",
+     "baseline": {
+      "games": 8,
+      "finished": 0,
+      "abort_rate": 1.0,
+      "avg_score": 7.86,
+      "stoerer_uses": 0,
+      "interruptions": 17
+     }
+    },
+    {
+     "name": "Toon Tri-Brigade · Perfect Toon World (Toon-Teil, Einstieg)",
+     "file": "Toon_TriBrigade_Trif.json",
+     "baseline": {
+      "games": 8,
+      "finished": 8,
+      "abort_rate": 0.0,
+      "avg_score": 8.72,
+      "stoerer_uses": 0,
+      "interruptions": 16
+     }
+    }
+   ],
+   "baseline": {
+    "games": 16,
+    "finished": 8,
+    "abort_rate": 0.5,
+    "avg_score": 8.29,
+    "stoerer_uses": 0,
+    "interruptions": 33
+   },
+   "traps": {
+    "59438930": {
+     "name": "Ghost Ogre & Snow Rabbit",
+     "games": 16,
+     "finished": 0,
+     "abort_rate": 1.0,
+     "avg_score": 7.25,
+     "stoerer_uses": 16,
+     "interruptions": 31,
+     "routes": [
+      {
+       "name": "Toon Tri-Brigade · Fraktall (Bread and Butter)",
+       "games": 8,
+       "finished": 0,
+       "abort_rate": 1.0,
+       "avg_score": 7.27,
+       "stoerer_uses": 8,
+       "interruptions": 14,
+       "finished_drop": 0,
+       "board_loss": 0.59
+      },
+      {
+       "name": "Toon Tri-Brigade · Perfect Toon World (Toon-Teil, Einstieg)",
+       "games": 8,
+       "finished": 0,
+       "abort_rate": 1.0,
+       "avg_score": 7.22,
+       "stoerer_uses": 8,
+       "interruptions": 17,
+       "finished_drop": 8,
+       "board_loss": 1.5
+      }
+     ],
+     "finished_drop": 8,
+     "board_loss": 1.04,
+     "ampel": "stark"
+    }
+   }
+  }
+ ]
+}

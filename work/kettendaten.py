@@ -56,18 +56,100 @@ def load_cards(path: Path | str = KARTEN) -> dict:
     return cards if isinstance(cards, dict) else {}
 
 
-def effect_text(code: int, cards: dict | None = None) -> str:
-    """Kurzer, belegter Effekttext aus den Kartenkarten (keine Kartentext-Erfindung)."""
+EFFECT_ARTS = {
+    "activation": "Aktivierung",
+    "trigger": "Auslöser",
+    "ignition": "Zündeffekt",
+    "quick": "Quick Effect",
+    "continuous": "Dauereffekt",
+    "material": "Material",
+    "procedure": "Beschwörungsbedingung",
+    "limit": "Begrenzung",
+}
+
+
+def _effect_entries(entry: dict) -> list[dict]:
+    """Echte aktivierbare Effekte in Skriptreihenfolge, ohne Material-/Grenztext.
+
+    ``aux.Stringid(id, n)`` zählt nur die Effektblöcke, nicht die Link-/Fusion-
+    Materialzeile und nicht die Einmal-pro-Zug-Zeile. Der Parser legt die
+    Materialzeile bei Link-Monstern allerdings als ``continuous`` ab (Striker
+    Dragon), deshalb wird zusätzlich der reine Materialtext aussortiert.
+    """
+    result = []
+    for effect in entry.get("effekte", []) or []:
+        if not isinstance(effect, dict):
+            continue
+        art = str(effect.get("art") or "")
+        if art in ("material", "limit", "procedure"):
+            continue
+        text = str(effect.get("wirkung") or effect.get("text") or "").strip()
+        if art == "continuous" and not effect.get("bedingung") and not effect.get("zone"):
+            # z. B. "1 Level 4 or lower Dragon monster" aus der Link-Materialzeile
+            if not re.search(r"\b(you|when|if|once|during|each|target|activate|special|summon|"
+                             r"add|destroy|send|banish|negate|draw|return|set|place|tribute|"
+                             r"discard|gain|lose|inflict|look|reveal|cannot|must)\b", text, re.I):
+                continue
+        result.append(effect)
+    return result
+
+
+def effect_for_description(code: int, description: int = 0, cards: dict | None = None) -> dict | None:
+    """Den vom Engine-``description`` bezeichneten Effekt aus Kartenkarten holen.
+
+    Der Engine-Code ist ``card_id << 20 | aux.Stringid-Index``. Der Index zählt
+    die Effektblöcke in Skriptreihenfolge; ``effect_for_description`` liefert
+    ``None``, wenn die Karte oder der Index nicht belegt ist. Dann bleibt der
+    bisherige Zusammenfassungstext als ehrlicher Fallback stehen.
+    """
+    card = (cards or {}).get(str(code)) or (cards or {}).get(code) or {}
+    if not isinstance(card, dict):
+        return None
+    effects = _effect_entries(card)
+    if not effects:
+        return None
+    index = int(description or 0) & ((1 << 20) - 1)
+    if index >= len(effects):
+        return None
+    return effects[index]
+
+
+def _effect_line(effect: dict) -> str:
+    art = EFFECT_ARTS.get(str(effect.get("art") or ""), str(effect.get("art") or "Effekt"))
+    parts = [art]
+    if effect.get("bedingung"):
+        parts.append(f"wenn: {effect['bedingung']}")
+    if effect.get("ziel"):
+        parts.append("zielt")
+    if effect.get("kosten"):
+        parts.append("Kosten: " + ", ".join(map(str, effect["kosten"])))
+    if effect.get("wirkung"):
+        parts.append("→ " + str(effect["wirkung"]))
+    return " · ".join(parts)
+
+
+def effect_text(code: int, cards: dict | None = None, description: int = 0) -> str:
+    """Kurzer, belegter Effekttext aus den Kartenkarten (keine Kartentext-Erfindung).
+
+    ``description`` ist der Engine-Wert aus ``CHAINING``. Er wählt den
+    tatsächlich aktivierten Effekt (z. B. Striker Dragons Suche statt seines
+    Material-/Dauereffektblocks). Fehlt die Zuordnung, wird die bisherige
+    Zusammenfassung ausgegeben, statt einen falschen Effekt zu behaupten.
+    """
     entry = (cards or {}).get(str(code)) or (cards or {}).get(code) or {}
     if not isinstance(entry, dict):
         return "Effekttext fehlt"
-    text = entry.get("zusammenfassung")
-    if not text:
-        parts = []
-        for effect in entry.get("effekte", []) or []:
-            if isinstance(effect, dict) and effect.get("wirkung"):
-                parts.append(str(effect["wirkung"]))
-        text = " ".join(parts)
+    selected = effect_for_description(code, description, cards)
+    if selected is not None:
+        text = _effect_line(selected)
+    else:
+        text = entry.get("zusammenfassung")
+        if not text:
+            parts = []
+            for effect in entry.get("effekte", []) or []:
+                if isinstance(effect, dict) and effect.get("wirkung"):
+                    parts.append(str(effect["wirkung"]))
+            text = " ".join(parts)
     text = _fold(text or "")
     return text or "Effekttext fehlt"
 
@@ -98,9 +180,16 @@ class KettenStapel:
 
     def activate(self, code: int, controller: int, location: int, sequence: int,
                  description: int = 0, name: str | None = None,
-                 effect: str | None = None, player: str | None = None) -> dict:
+                 effect: str | None = None, player: str | None = None,
+                 effect_targets: bool | None = None) -> dict:
         """Ein Kettenglied anlegen und als Kopie zurückgeben."""
         code = int(code or 0)
+        selected = effect_for_description(code, description, self.cards)
+        if effect_targets is None:
+            # Ohne bekannte Kartenkarten bleibt das bisherige Verhalten erhalten;
+            # bekannt ist nur: dieser Effekt zielt nicht -> BECOME_TARGET gehört
+            # nicht zu diesem Glied (Striker Dragons Suche ist genau dieser Fall).
+            effect_targets = True if selected is None else bool(selected.get("ziel"))
         link = {
             "number": len(self.links) + 1,
             "code": code,
@@ -111,7 +200,8 @@ class KettenStapel:
             "zone": zone_name(location),
             "sequence": int(sequence),
             "description": int(description or 0),
-            "effect": _fold(effect) if effect is not None else effect_text(code, self.cards),
+            "effect": _fold(effect) if effect is not None else effect_text(code, self.cards, description),
+            "effect_targets": bool(effect_targets),
             "targets": [],
             "state": "offen",
             "state_label": STATES["offen"],
@@ -127,10 +217,18 @@ class KettenStapel:
         return None
 
     def target(self, cards: Iterable[dict]) -> None:
-        """Ziele an das zuletzt aktivierte Glied hängen (BECOME_TARGET)."""
+        """Ziele an das zuletzt aktivierte Glied hängen (BECOME_TARGET).
+
+        ``BECOME_TARGET`` nennt nur die Karten, nicht das Kettenglied. Deshalb
+        werden Ziele nur an ein Glied gehängt, dessen aktivierter Effekt laut
+        Kartenkarten tatsächlich zielt. Sonst landete bei Striker Dragons
+        Sucheffekt auch die gesuchte Rokket Caliber als "Ziel".
+        """
         if not self.links:
             return
         link = self.links[-1]
+        if not link.get("effect_targets", True):
+            return
         seen = {(item.get("controller"), item.get("location"), item.get("sequence"), item.get("code"))
                 for item in link["targets"]}
         for item in cards:

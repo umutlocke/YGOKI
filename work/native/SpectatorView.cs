@@ -1181,6 +1181,21 @@ namespace YgoKi
             Expect(chainLinks.All(link => !String.IsNullOrEmpty(link.Number) && !String.IsNullOrEmpty(link.Title)),
                 "Kettenglieder ohne Nummer oder Karte.");
             Screenshot(System.IO.Path.Combine(directory, "kette.png"));
+            // Genauer Striker-Dragon-Fall: description 0 ist die Link-Suche, kein Material-
+            // Dauereffekt; der Sucheffekt zielt nicht, also darf Rokket Caliber nicht als Ziel erscheinen.
+            var strikerChain = Json.Fields("chain", Json.Fields(
+                "open", true, "count", 1, "title", "Kette · 1 Glied",
+                "links", new object[] { Json.Fields(
+                    "number", 1, "player", "D Link", "name", "Striker Dragon", "zone", "Monsterzone",
+                    "effect", "Auslöser · wenn: If this card is Link Summoned · → You can add 1 \"Boot Sector Launch\" from your Deck to your hand.",
+                    "targets", new object[0], "state", "offen", "state_label", "offen", "controller", 0) }));
+            RenderChain(strikerChain);
+            window.UpdateLayout();
+            var strikerLink = ChainList.Items.Cast<WatchChainLink>().Single();
+            Expect(strikerLink.Effect.Contains("Boot Sector Launch") && !strikerLink.Effect.Contains("Dauereffekt"),
+                "Striker Dragon zeigt nicht den aktivierten Sucheffekt.");
+            Expect(strikerLink.Target == "kein Ziel", "Striker Dragons Suche zeigt ein falsches Ziel.");
+            Screenshot(System.IO.Path.Combine(directory, "kette-striker.png"));
             Find<CheckBox>("WatchChains").IsChecked = false;
             Expect(ChainPanel.Visibility == Visibility.Collapsed, "Der Schalter Ketten anzeigen versteckt den Stapel nicht.");
             Find<CheckBox>("WatchChains").IsChecked = true;
