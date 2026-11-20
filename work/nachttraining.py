@@ -59,6 +59,27 @@ def kill_tree(proc):
         proc.kill()
 
 
+def ensure_folders():
+    """Create the folders every night run needs, even when no deck is trained."""
+    (WORK / "ki-lernen").mkdir(parents=True, exist_ok=True)
+    (WORK / "berichte").mkdir(parents=True, exist_ok=True)
+
+
+def run_logged(cmd, log_path, timeout, env, cwd=WORK):
+    """Run one child process with its output in a log file. Returns (exit code, timed out).
+
+    The handle is closed on every path, including a timeout and an exception: on Windows an open
+    handle would keep the log locked for the next deck.
+    """
+    with open(log_path, "w", encoding="utf-8", errors="replace") as out:
+        proc = subprocess.Popen(cmd, cwd=str(cwd), env=env, stdout=out, stderr=subprocess.STDOUT)
+        try:
+            return proc.wait(timeout=timeout), False
+        except subprocess.TimeoutExpired:
+            kill_tree(proc)
+            return None, True
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--bis", default="22:15")
@@ -78,8 +99,7 @@ def main():
     deadline = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
     if deadline <= now:
         deadline += dt.timedelta(days=1)
-    (WORK / "ki-lernen").mkdir(exist_ok=True)
-    (WORK / "berichte").mkdir(exist_ok=True)
+    ensure_folders()
     names = [n for n in args.decks.split(";") if n] or PRIORITY
     decks = [WORK / "decks" / n for n in names if (WORK / "decks" / n).is_file()]
     unknown = [n for n in names if not (WORK / "decks" / n).is_file()]
@@ -102,15 +122,8 @@ def main():
                "--max-generations", str(args.max_generations), "--patience", str(args.patience)]
         if args.target:
             cmd += ["--target", str(args.target)]
-        out = open(WORK / "ki-lernen" / f"Nachttraining-{deck.stem}.log", "w", encoding="utf-8", errors="replace")
-        proc = subprocess.Popen(cmd, cwd=str(WORK), env=env, stdout=out, stderr=subprocess.STDOUT)
-        try:
-            code = proc.wait(timeout=budget)
-            log(lines, f"{deck.stem}: fertig (Exit {code})")
-        except subprocess.TimeoutExpired:
-            kill_tree(proc)
-            log(lines, f"{deck.stem}: Zeit abgelaufen, gestoppt")
-        out.close()
+        code, timed_out = run_logged(cmd, WORK / "ki-lernen" / f"Nachttraining-{deck.stem}.log", budget, env)
+        log(lines, f"{deck.stem}: Zeit abgelaufen, gestoppt" if timed_out else f"{deck.stem}: fertig (Exit {code})")
         tail = (WORK / "ki-lernen" / f"Nachttraining-{deck.stem}.log").read_text(encoding="utf-8", errors="replace")
         last = [l for l in tail.splitlines() if l.strip()][-3:]
         for l in last:
@@ -118,16 +131,10 @@ def main():
         if optimize_budget >= 5 * 60:
             until = dt.datetime.now() + dt.timedelta(seconds=optimize_budget - 120)
             log(lines, f"Deck-Optimierung {deck.stem} bis {until:%H:%M}")
-            opt_log = open(WORK / "ki-lernen" / f"Nachttraining-Optimierung-{deck.stem}.log", "w", encoding="utf-8",
-                           errors="replace")
-            opt = subprocess.Popen([sys.executable, "-B", "-X", "utf8", str(WORK / "deck_optimierung.py"), "--deck",
-                                    str(deck), "--bis", f"{until:%H:%M}", *args.opt_extra.split()], cwd=str(WORK), env=env, stdout=opt_log,
-                                   stderr=subprocess.STDOUT)
-            try:
-                opt.wait(timeout=optimize_budget + 300)
-            except subprocess.TimeoutExpired:
-                kill_tree(opt)
-            opt_log.close()
+            run_logged([sys.executable, "-B", "-X", "utf8", str(WORK / "deck_optimierung.py"), "--deck",
+                        str(deck), "--bis", f"{until:%H:%M}", *args.opt_extra.split()],
+                       WORK / "ki-lernen" / f"Nachttraining-Optimierung-{deck.stem}.log",
+                       optimize_budget + 300, env)
             text = (WORK / "ki-lernen" / f"Nachttraining-Optimierung-{deck.stem}.log").read_text(
                 encoding="utf-8", errors="replace")
             for l in [l for l in text.splitlines() if "übernommen" in l or "perfektioniert" in l][-6:]:
