@@ -1,0 +1,18 @@
+{
+ "deck": "Blitzclique",
+ "quelle": "https://ygoprodeck.com/deck/blitzclique-745416 (Winner Bologna WCQ 08.11.2026); Linie aus den Kartentexten von Breakaway, Hideout und Surge",
+ "routes": [
+  {
+   "name": "Meta Blitzclique · Breakaway → Hideout → Surge",
+   "priority": 4,
+   "goal": "Breakaway legt Return Stroke; Hideout erzeugt Token und sucht Surge; Surge zerstört Token und beschwört Crackle aus der Hand.",
+   "quelle": "https://ygoprodeck.com/deck/blitzclique-745416; Kartentexte (Breakaway 64049762, Hideout 37654623, Surge 22912101)",
+   "hand": [37654623, 22912101, 58916810, 64049762, 14558128],
+   "steps": [
+    {"code": 64049762, "do": "E", "pick": [23526128], "note": "Breakaway legt Return Stroke face-up"},
+    {"code": 37654623, "do": "E", "pick": [22912101], "note": "Hideout: Token beim Gegner, Surge suchen"},
+    {"code": 22912101, "do": "E", "note": "Surge zerstört den Token und beschwört Crackle aus der Hand"}
+   ]
+  }
+ ]
+}

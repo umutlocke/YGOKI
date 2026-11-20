@@ -1,0 +1,19 @@
+{
+ "deck": "Gem-Knight",
+ "quelle": "https://ygoprodeck.com/deck/gem-knight-745441 (Top 8 Remote Duel WCQ 15.11.2026); Linie aus den Kartentexten von Nepyrim, Gem-Knight Fusion und Master Diamond Dispersion",
+ "routes": [
+  {
+   "name": "Meta Gem-Knight · Nepyrim → Fusion → Master Diamond Dispersion",
+   "priority": 4,
+   "goal": "Nepyrim sucht Gem-Knight Fusion; Fusion beschwört Master Diamond Dispersion, die in der Main Phase drei Gem-Monster aus dem Extra/GY beschwört.",
+   "quelle": "https://ygoprodeck.com/deck/gem-knight-745441; Kartentexte (Nepyrim 51831560, Fusion 1264319, Dispersion 25342956)",
+   "hand": [51831560, 35622739, 27004302, 1264319, 48130397],
+   "steps": [
+    {"code": 51831560, "do": "N", "note": "Nepyrim normal beschwören"},
+    {"code": 51831560, "do": "E", "pick": [1264319], "note": "Nepyrim sucht Gem-Knight Fusion"},
+    {"code": 1264319, "do": "E", "pick": [25342956], "note": "Gem-Knight Fusion: Nepyrim + Material → Master Diamond Dispersion"},
+    {"code": 25342956, "do": "E", "pick": [39512984], "note": "Dispersion-Effekt: Master Diamond aus dem Extra beschwören"}
+   ]
+  }
+ ]
+}

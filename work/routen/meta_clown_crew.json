@@ -1,0 +1,16 @@
+{
+ "deck": "Light and Darkness Ritual Clown Crew",
+ "quelle": "https://ygoprodeck.com/deck/light-and-darkness-ritual-clown-crew-744112 (Runner-Up VNC 31.10.2026); Linie aus den Kartentexten von Rehearsal",
+ "routes": [
+  {
+   "name": "Meta Clown Crew · Rehearsal-Startlinie",
+   "priority": 4,
+   "goal": "Rehearsal tributet Flair und sucht Biancaviso plus eine Clown-Crew-Spell (die Engine wählt situativ). Die Vollcombo steht im Guide; dieser Test prüft den zuverlässigen Starter.",
+   "quelle": "https://ygoprodeck.com/deck/light-and-darkness-ritual-clown-crew-744112; Kartentexte (Rehearsal 20448151, Biancaviso 82159583, Soiree 70058649, Flair 42759961)",
+   "hand": [20448151, 42759961, 82159583, 70058649, 14558127],
+   "steps": [
+    {"code": 20448151, "do": "E", "cost": [42759961], "pick": [82159583, 70058649], "note": "Rehearsal: Flair tributen, Biancaviso + Soiree suchen"}
+   ]
+  }
+ ]
+}

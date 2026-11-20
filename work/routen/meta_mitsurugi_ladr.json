@@ -1,0 +1,19 @@
+{
+ "deck": "Mitsurugi Light and Darkness Ritual",
+ "quelle": "https://ygoprodeck.com/deck/mitsurugi-light-and-darkness-ritual-744943 (Runner-Up Mogi Cup 14.11.2026); Linie aus den Kartentexten von Saji und Mitsurugi Ritual",
+ "routes": [
+  {
+   "name": "Meta Mitsurugi · Saji → Ritual → Futsu",
+   "priority": 4,
+   "goal": "Saji sucht Mitsurugi Ritual; Ritual tributet Saji und beschwört Futsu aus dem Deck; Futsu ist Level 4 und kann sich später zurückbringen.",
+   "quelle": "https://ygoprodeck.com/deck/mitsurugi-light-and-darkness-ritual-744943; Kartentexte (Saji 18176525, Ritual 81560239, Futsu 55397172)",
+   "hand": [18176525, 81560239, 55397172, 49721684, 14558127],
+   "steps": [
+    {"code": 18176525, "do": "N", "note": "Saji normal beschwören"},
+    {"code": 18176525, "do": "E", "pick": [81560239], "note": "Saji sucht Mitsurugi Ritual"},
+    {"code": 81560239, "do": "E", "pick": [55397172], "note": "Mitsurugi Ritual: Saji tributen, Futsu aus dem Deck ritualbeschwören"},
+    {"code": 55397172, "do": "E", "pick": [82782870], "note": "Futsu-Effekt nach einem Tribut: Mitsurugi-Karte suchen (Testziel Kusanagi)"}
+   ]
+  }
+ ]
+}

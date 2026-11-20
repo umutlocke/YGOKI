@@ -1,0 +1,17 @@
+{
+ "deck": "Synchron",
+ "quelle": "https://ygoprodeck.com/deck/synchron-744077 (Top 4 3rd Motsu-kai 08.11.2026); Linie aus den Kartentexten von Junk Meister und Junk Signal",
+ "routes": [
+  {
+   "name": "Meta Synchron · Junk-Meister-Starter",
+   "priority": 4,
+   "goal": "Junk Meister aktiviert sich, sucht Junk Signal und öffnet die Junk-Synchron-Leiter. Die Vollcombo steht im Guide.",
+   "quelle": "https://ygoprodeck.com/deck/synchron-744077; Kartentexte (Junk Meister 73218792, Junk Signal 26387390)",
+   "hand": [73218792, 63977008, 9742784, 26387390, 14558127],
+   "steps": [
+    {"code": 73218792, "do": "E", "note": "Junk Meister aktivieren und spezialbeschwören (Warrior/Stardust-Synchro im Extra zeigen)"},
+    {"code": 73218792, "do": "E", "pick": [26387390], "note": "Junk Meister sucht Junk Signal"}
+   ]
+  }
+ ]
+}

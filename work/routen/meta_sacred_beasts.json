@@ -1,0 +1,19 @@
+{
+ "deck": "Sacred Beasts",
+ "quelle": "https://ygoprodeck.com/deck/sacred-beasts-745516 (Winner Bonn WCQ 15.11.2026); Linie aus den Kartentexten von Martyr, Thunderclap und Fallen Paradise",
+ "routes": [
+  {
+   "name": "Meta Sacred Beasts · Martyr → Thunderclap → Hamon",
+   "priority": 4,
+   "goal": "Martyr legt Thunderclap; Thunderclap legt zwei Kopien und Fallen Paradise; Hamon in der Hand zeigen, Fallen Paradise aufbauen.",
+   "quelle": "https://ygoprodeck.com/deck/sacred-beasts-745516; Kartentexte (Martyr 59138498, Thunderclap 1259915, Fallen Paradise 65861210)",
+   "hand": [59138498, 50251045, 65861210, 50147815, 14558127],
+   "steps": [
+    {"code": 59138498, "do": "N", "note": "Martyr normal beschwören"},
+    {"code": 59138498, "do": "E", "pick": [1259915], "note": "Martyr legt Thunderclap aus dem Deck face-up"},
+    {"code": 1259915, "do": "E", "pick": [1259915, 1259915, 50251045, 65861210], "note": "Thunderclap: zwei Kopien legen, Hamon zeigen, Fallen Paradise in die Field Zone"},
+    {"code": 65861210, "do": "E", "pick": [50147815], "note": "Fallen Paradise: drei Karten legen und ein Sacred Beast beschwören (Testziel Combined Assault)"}
+   ]
+  }
+ ]
+}

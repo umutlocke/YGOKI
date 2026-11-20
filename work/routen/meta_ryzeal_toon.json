@@ -1,0 +1,19 @@
+{
+ "deck": "Ryzeal Toon",
+ "quelle": "https://ygoprodeck.com/deck/ryzeal-toon-745059 (Top 8 Oklahoma City WCQ 14.11.2026); Linie aus den Kartentexten von Bookmark, Toon World the Perfect World und Toon Mermaid",
+ "routes": [
+  {
+   "name": "Meta Ryzeal Toon · Bookmark → Toon World → Toon Mermaid",
+   "priority": 4,
+   "goal": "Bookmark sucht Toon World; Table sucht Toon Dark Magician; Toon Mermaid wird als Toon-World-Special beschworen. Die Dark-Magician-Folgelinie steht im Guide.",
+   "quelle": "https://ygoprodeck.com/deck/ryzeal-toon-745059; Kartentexte (Bookmark 91500017, Perfect World 7293697, Table 89997728, Mermaid 65458948)",
+   "hand": [91500017, 89997728, 21296502, 65458948, 43175858],
+   "steps": [
+    {"code": 91500017, "do": "E", "pick": [7293697], "note": "Bookmark sucht Toon World the Perfect World"},
+    {"code": 7293697, "do": "E", "note": "Toon World the Perfect World aktivieren"},
+    {"code": 89997728, "do": "E", "pick": [21296502], "note": "Toon Table sucht Toon Dark Magician"},
+    {"code": 65458948, "do": "S", "note": "Toon Mermaid als Toon-World-Special beschwören"}
+   ]
+  }
+ ]
+}

@@ -1,0 +1,60 @@
+===== blitzclique-745416.ydk · passiv =====
+Meta Blitzclique · Breakaway → Hideout → Surge: 8/8 bis zum Ende
+Bericht: C:\Users\umutc\Documents\Codex\2026-11-16\YGOKI-p2-freebuff\work\routen-tests\blitzclique-745416-20261120-180926.md
+===== blitzclique-745416.ydk · stoerer =====
+Meta Blitzclique · Breakaway → Hideout → Surge: 3/8 bis zum Ende
+Bericht: C:\Users\umutc\Documents\Codex\2026-11-16\YGOKI-p2-freebuff\work\routen-tests\blitzclique-745416-20261120-180927-stoerer.md
+===== gem-knight-745441.ydk · passiv =====
+Meta Gem-Knight · Nepyrim → Fusion → Master Diamond Dispersion: 8/8 bis zum Ende
+Bericht: C:\Users\umutc\Documents\Codex\2026-11-16\YGOKI-p2-freebuff\work\routen-tests\gem-knight-745441-20261120-180929.md
+===== gem-knight-745441.ydk · stoerer =====
+Meta Gem-Knight · Nepyrim → Fusion → Master Diamond Dispersion: 8/8 bis zum Ende
+Bericht: C:\Users\umutc\Documents\Codex\2026-11-16\YGOKI-p2-freebuff\work\routen-tests\gem-knight-745441-20261120-180930-stoerer.md
+===== ryzeal-toon-745059.ydk · passiv =====
+Meta Ryzeal Toon · Bookmark → Toon World → Toon Mermaid: 8/8 bis zum Ende
+Bericht: C:\Users\umutc\Documents\Codex\2026-11-16\YGOKI-p2-freebuff\work\routen-tests\ryzeal-toon-745059-20261120-180932.md
+===== ryzeal-toon-745059.ydk · stoerer =====
+Meta Ryzeal Toon · Bookmark → Toon World → Toon Mermaid: 0/8 bis zum Ende
+Bericht: C:\Users\umutc\Documents\Codex\2026-11-16\YGOKI-p2-freebuff\work\routen-tests\ryzeal-toon-745059-20261120-180933-stoerer.md
+===== sacred-beasts-745516.ydk · passiv =====
+Meta Sacred Beasts · Martyr → Thunderclap → Hamon: 8/8 bis zum Ende
+Bericht: C:\Users\umutc\Documents\Codex\2026-11-16\YGOKI-p2-freebuff\work\routen-tests\sacred-beasts-745516-20261120-180935.md
+===== sacred-beasts-745516.ydk · stoerer =====
+Meta Sacred Beasts · Martyr → Thunderclap → Hamon: 0/8 bis zum Ende
+Bericht: C:\Users\umutc\Documents\Codex\2026-11-16\YGOKI-p2-freebuff\work\routen-tests\sacred-beasts-745516-20261120-180936-stoerer.md
+===== dark-magician-azamina-light-and-darkness-ritual-744109.ydk · passiv =====
+Meta Dark Magician Azamina · Rod → Veil → Gaze: 8/8 bis zum Ende
+Meta Mitsurugi Azamina · Rod → Veil → Gaze: 8/8 bis zum Ende
+Bericht: C:\Users\umutc\Documents\Codex\2026-11-16\YGOKI-p2-freebuff\work\routen-tests\dark-magician-azamina-light-and-darkness-ritual-744109-20261120-180938.md
+===== dark-magician-azamina-light-and-darkness-ritual-744109.ydk · stoerer =====
+Meta Dark Magician Azamina · Rod → Veil → Gaze: 0/8 bis zum Ende
+Meta Mitsurugi Azamina · Rod → Veil → Gaze: 0/8 bis zum Ende
+Bericht: C:\Users\umutc\Documents\Codex\2026-11-16\YGOKI-p2-freebuff\work\routen-tests\dark-magician-azamina-light-and-darkness-ritual-744109-20261120-180940-stoerer.md
+===== light-and-darkness-ritual-clown-crew-744112.ydk · passiv =====
+Meta Clown Crew · Rehearsal-Startlinie: 8/8 bis zum Ende
+Bericht: C:\Users\umutc\Documents\Codex\2026-11-16\YGOKI-p2-freebuff\work\routen-tests\light-and-darkness-ritual-clown-crew-744112-20261120-180941.md
+===== light-and-darkness-ritual-clown-crew-744112.ydk · stoerer =====
+Meta Clown Crew · Rehearsal-Startlinie: 8/8 bis zum Ende
+Bericht: C:\Users\umutc\Documents\Codex\2026-11-16\YGOKI-p2-freebuff\work\routen-tests\light-and-darkness-ritual-clown-crew-744112-20261120-180943-stoerer.md
+===== mitsurugi-azamina-light-and-darkness-ritual-744122.ydk · passiv =====
+Meta Dark Magician Azamina · Rod → Veil → Gaze: 8/8 bis zum Ende
+Meta Mitsurugi Azamina · Rod → Veil → Gaze: 8/8 bis zum Ende
+Meta Mitsurugi · Saji → Ritual → Futsu: 8/8 bis zum Ende
+Bericht: C:\Users\umutc\Documents\Codex\2026-11-16\YGOKI-p2-freebuff\work\routen-tests\mitsurugi-azamina-light-and-darkness-ritual-744122-20261120-180944.md
+===== mitsurugi-azamina-light-and-darkness-ritual-744122.ydk · stoerer =====
+Meta Dark Magician Azamina · Rod → Veil → Gaze: 0/8 bis zum Ende
+Meta Mitsurugi Azamina · Rod → Veil → Gaze: 0/8 bis zum Ende
+Meta Mitsurugi · Saji → Ritual → Futsu: 7/8 bis zum Ende
+Bericht: C:\Users\umutc\Documents\Codex\2026-11-16\YGOKI-p2-freebuff\work\routen-tests\mitsurugi-azamina-light-and-darkness-ritual-744122-20261120-180946-stoerer.md
+===== mitsurugi-light-and-darkness-ritual-744943.ydk · passiv =====
+Meta Mitsurugi · Saji → Ritual → Futsu: 7/8 bis zum Ende
+Bericht: C:\Users\umutc\Documents\Codex\2026-11-16\YGOKI-p2-freebuff\work\routen-tests\mitsurugi-light-and-darkness-ritual-744943-20261120-180948.md
+===== mitsurugi-light-and-darkness-ritual-744943.ydk · stoerer =====
+Meta Mitsurugi · Saji → Ritual → Futsu: 8/8 bis zum Ende
+Bericht: C:\Users\umutc\Documents\Codex\2026-11-16\YGOKI-p2-freebuff\work\routen-tests\mitsurugi-light-and-darkness-ritual-744943-20261120-180949-stoerer.md
+===== synchron-744077.ydk · passiv =====
+Meta Synchron · Junk-Meister-Starter: 8/8 bis zum Ende
+Bericht: C:\Users\umutc\Documents\Codex\2026-11-16\YGOKI-p2-freebuff\work\routen-tests\synchron-744077-20261120-180951.md
+===== synchron-744077.ydk · stoerer =====
+Meta Synchron · Junk-Meister-Starter: 8/8 bis zum Ende
+Bericht: C:\Users\umutc\Documents\Codex\2026-11-16\YGOKI-p2-freebuff\work\routen-tests\synchron-744077-20261120-180952-stoerer.md
