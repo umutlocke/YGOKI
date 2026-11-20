@@ -1,0 +1,415 @@
+{
+ "branch": "freebuff/integration",
+ "base_main": "69a0c36",
+ "merges": [
+  "2dd1a62 (p6)",
+  "43a3264 (p12)"
+ ],
+ "date": "2026-11-20",
+ "seed": 7,
+ "tries": 8,
+ "rollouts": 0,
+ "mode": "passiv",
+ "decks": 18,
+ "routes": 28,
+ "finished": 208,
+ "hands": 224,
+ "private": {
+  "decks": 4,
+  "routes": 13,
+  "finished": 93,
+  "hands": 104
+ },
+ "meta": {
+  "decks": 14,
+  "routes": 15,
+  "finished": 115,
+  "hands": 120
+ },
+ "rows": [
+  {
+   "deck": "D-LINK V3.1",
+   "exit": 0,
+   "seconds": 1.5,
+   "routes": [
+    {
+     "route": "D-LINK · Loader (Ein-Karten-Fallback)",
+     "finished": 8,
+     "tries": 8,
+     "file": "D-LINK V3.1.json"
+    },
+    {
+     "route": "D-LINK · Quick Launch (ohne Normal)",
+     "finished": 8,
+     "tries": 8,
+     "file": "D-LINK V3.1.json"
+    }
+   ],
+   "book": {
+    "art": "released",
+    "sha256": "d79a490c8fd498d9b6cae1d9aab7c952359d2120257f20ef7b580faa13fe3361"
+   },
+   "group": "Privat"
+  },
+  {
+   "deck": "OMNI - HERO",
+   "exit": 0,
+   "seconds": 3.5,
+   "routes": [
+    {
+     "route": "OMNI · A Hero Lives (1 Karte, beide Engines)",
+     "finished": 6,
+     "tries": 8,
+     "file": "OMNI_HERO_Carlos.json"
+    },
+    {
+     "route": "OMNI · Miracle Ejector + Polymerization",
+     "finished": 7,
+     "tries": 8,
+     "file": "OMNI_HERO_Carlos.json"
+    },
+    {
+     "route": "OMNI · Terraforming / Dark City (1 Karte)",
+     "finished": 8,
+     "tries": 8,
+     "file": "OMNI_HERO_Carlos.json"
+    }
+   ],
+   "book": {
+    "art": "released",
+    "sha256": "7bde0aa036cf20e9bfed128293b6e455ed8231d0d6e2910ec46b53f46f10d19c"
+   },
+   "group": "Privat"
+  },
+  {
+   "deck": "ElfMagnaPP",
+   "exit": 0,
+   "seconds": 1.7,
+   "routes": [
+    {
+     "route": "ElfMagnaPP · Lucina → Strelitzia (Ein-Karten-Ansatz)",
+     "finished": 8,
+     "tries": 8,
+     "file": "ElfMagnaPP.json"
+    },
+    {
+     "route": "ElfMagnaPP · Lucina + Past Lull (ohne Normal)",
+     "finished": 8,
+     "tries": 8,
+     "file": "ElfMagnaPP.json"
+    }
+   ],
+   "book": {
+    "art": "released",
+    "sha256": "bfccaba29cc0283fbbbb8a5fbaaf36d6a1f89af071118da24bd303ddeb741889"
+   },
+   "group": "Privat"
+  },
+  {
+   "deck": "WinterRaven_WhiteForest_new",
+   "exit": 0,
+   "seconds": 2.9,
+   "routes": [
+    {
+     "route": "C · Silvy + Deep Forest (Hybrid)",
+     "finished": 8,
+     "tries": 8,
+     "file": "winter_raven.json"
+    },
+    {
+     "route": "B · Silvy allein (White Forest)",
+     "finished": 8,
+     "tries": 8,
+     "file": "winter_raven.json"
+    },
+    {
+     "route": "A1 · Deep Forest → Mart (Standard)",
+     "finished": 8,
+     "tries": 8,
+     "file": "winter_raven.json"
+    },
+    {
+     "route": "A2 · Mart ohne Deep Forest",
+     "finished": 8,
+     "tries": 8,
+     "file": "winter_raven.json"
+    },
+    {
+     "route": "A4 · Deep Forest → Purifire (Ein-Karten-Linie, spart Normal)",
+     "finished": 0,
+     "tries": 8,
+     "file": "winter_raven.json"
+    },
+    {
+     "route": "A3 · Purifire allein",
+     "finished": 8,
+     "tries": 8,
+     "file": "winter_raven.json"
+    }
+   ],
+   "book": {
+    "art": "released",
+    "sha256": "d1d87ca482af21017336b3e57e9456d262957a8708d7e5a6cffae38114da8cea"
+   },
+   "group": "Privat"
+  },
+  {
+   "deck": "blitzclique-745416",
+   "group": "TCG",
+   "exit": 0,
+   "seconds": 1.3,
+   "routes": [
+    {
+     "route": "Meta Blitzclique · Breakaway → Hideout → Surge → Whisker",
+     "finished": 8,
+     "tries": 8,
+     "file": "meta_blitzclique.json"
+    }
+   ],
+   "book": {
+    "art": "neutral",
+    "sha256": "9554510ad9af226639bf2f287ee0b568fdc6742de33292e5dd6e92ce58b64147"
+   }
+  },
+  {
+   "deck": "branded-dracotail-745063",
+   "group": "TCG",
+   "exit": 0,
+   "seconds": 1.3,
+   "routes": [
+    {
+     "route": "Meta Branded Dracotail · Lukias → Faimena → Arthalion",
+     "finished": 8,
+     "tries": 8,
+     "file": "meta_branded_dracotail.json"
+    }
+   ],
+   "book": {
+    "art": "neutral",
+    "sha256": "3250a1148b440ab79195000eb17d1259b4a4e5872466202a78bc29366fa3ff5b"
+   }
+  },
+  {
+   "deck": "gem-knight-745441",
+   "group": "TCG",
+   "exit": 0,
+   "seconds": 1.4,
+   "routes": [
+    {
+     "route": "Meta Gem-Knight · Nepyrim → Fusion → Master Diamond Dispersion",
+     "finished": 8,
+     "tries": 8,
+     "file": "meta_gem_knight.json"
+    }
+   ],
+   "book": {
+    "art": "neutral",
+    "sha256": "436a8b0befe89740a9013dffe13d7d97ca63729bd0b51727b706485ace38884d"
+   }
+  },
+  {
+   "deck": "radiant-typhoon-745273",
+   "group": "TCG",
+   "exit": 0,
+   "seconds": 1.3,
+   "routes": [
+    {
+     "route": "Meta Radiant Typhoon · Swen → Chant → Krosea → Vision → Varuroon",
+     "finished": 6,
+     "tries": 8,
+     "file": "meta_radiant_typhoon.json"
+    }
+   ],
+   "book": {
+    "art": "neutral",
+    "sha256": "29c69c9141cfec46043d90da9cb218dc76475ec4d1576b3c7483e058fbe5be6f"
+   }
+  },
+  {
+   "deck": "radiant-typhoon-sky-striker-745551",
+   "group": "TCG",
+   "exit": 0,
+   "seconds": 1.4,
+   "routes": [
+    {
+     "route": "Meta Radiant Typhoon Sky Striker · Raye → Linkage → Kagari → Engage",
+     "finished": 8,
+     "tries": 8,
+     "file": "meta_radiant_typhoon_sky_striker.json"
+    }
+   ],
+   "book": {
+    "art": "neutral",
+    "sha256": "c147397524ff8569f1a06e6f0bc8c9ab53527cc714b78f0bc7add932acfb98d3"
+   }
+  },
+  {
+   "deck": "ryzeal-toon-745059",
+   "group": "TCG",
+   "exit": 0,
+   "seconds": 1.3,
+   "routes": [
+    {
+     "route": "Meta Ryzeal Toon · Bookmark → Toon World → Dark Magician → Mermaid",
+     "finished": 8,
+     "tries": 8,
+     "file": "meta_ryzeal_toon.json"
+    }
+   ],
+   "book": {
+    "art": "neutral",
+    "sha256": "bc775b4ce7aa6e995de4484a44a698a0661cb21c5f6b79b4bb1a721c4bf0cb7d"
+   }
+  },
+  {
+   "deck": "sacred-beasts-745516",
+   "group": "TCG",
+   "exit": 0,
+   "seconds": 1.3,
+   "routes": [
+    {
+     "route": "Meta Sacred Beasts · Martyr → Thunderclap → Hamon",
+     "finished": 8,
+     "tries": 8,
+     "file": "meta_sacred_beasts.json"
+    }
+   ],
+   "book": {
+    "art": "neutral",
+    "sha256": "8cc1a73f7b49f1ee71beeb2aa1bbf9d526e5e932f6e02e9a5fa7427c58589e78"
+   }
+  },
+  {
+   "deck": "dark-magician-azamina-light-and-darkness-ritual-744109",
+   "group": "OCG",
+   "exit": 0,
+   "seconds": 1.3,
+   "routes": [
+    {
+     "route": "Meta Dark Magician Azamina · Rod → Veil → Gaze",
+     "finished": 8,
+     "tries": 8,
+     "file": "meta_dark_magician_azamina.json"
+    }
+   ],
+   "book": {
+    "art": "neutral",
+    "sha256": "0a181ad886de8e67a494bdc60636963435342025ab1e6553c972ab1d7186b591"
+   }
+  },
+  {
+   "deck": "dark-magician-witchcrafter-fairy-tail-744003",
+   "group": "OCG",
+   "exit": 0,
+   "seconds": 1.6,
+   "routes": [
+    {
+     "route": "Meta DM Witchcrafter · Luna → Genia → Matchgiru → Ball → Verre",
+     "finished": 8,
+     "tries": 8,
+     "file": "meta_dark_magician_witchcrafter.json"
+    },
+    {
+     "route": "Meta Magistus Dracotail · Luna → Genia → Matchgiru → Fairy Tail Ball",
+     "finished": 8,
+     "tries": 8,
+     "file": "meta_magistus_dracotail.json"
+    }
+   ],
+   "book": {
+    "art": "neutral",
+    "sha256": "01cf1b587c0fd2c07404009ed2be61673449e82506b5787930a17e22aa5e969a"
+   }
+  },
+  {
+   "deck": "harpie-amazoness-744944",
+   "group": "OCG",
+   "exit": 0,
+   "seconds": 1.3,
+   "routes": [
+    {
+     "route": "Meta Harpie Amazoness · Call → War Chief → Princess → Onslaught",
+     "finished": 7,
+     "tries": 8,
+     "file": "meta_harpie_amazoness.json"
+    }
+   ],
+   "book": {
+    "art": "neutral",
+    "sha256": "971f59b50dd3761e726d6e4b8d4953b4f32e0fc66971bd1e4d05909c0d796a7c"
+   }
+  },
+  {
+   "deck": "light-and-darkness-ritual-clown-crew-744112",
+   "group": "OCG",
+   "exit": 0,
+   "seconds": 1.4,
+   "routes": [
+    {
+     "route": "Meta Clown Crew · Rehearsal → Flair → Matinee → Biancaviso",
+     "finished": 8,
+     "tries": 8,
+     "file": "meta_clown_crew.json"
+    }
+   ],
+   "book": {
+    "art": "neutral",
+    "sha256": "baf9dc6aec7e38b3eea68f08f1bd51efd5ace433500b7e496c6e4587eacb9747"
+   }
+  },
+  {
+   "deck": "magistus-dracotail-fairy-tail-744945",
+   "group": "OCG",
+   "exit": 0,
+   "seconds": 1.3,
+   "routes": [
+    {
+     "route": "Meta Magistus Dracotail · Luna → Genia → Matchgiru → Fairy Tail Ball",
+     "finished": 8,
+     "tries": 8,
+     "file": "meta_magistus_dracotail.json"
+    }
+   ],
+   "book": {
+    "art": "neutral",
+    "sha256": "19904ed83c9ef280a075ef7a573948c209084d7b6f2a5671d403b3095270e50a"
+   }
+  },
+  {
+   "deck": "mitsurugi-light-and-darkness-ritual-744943",
+   "group": "OCG",
+   "exit": 0,
+   "seconds": 1.3,
+   "routes": [
+    {
+     "route": "Meta Mitsurugi · Saji → Ritual → Futsu → Kusanagi → Prayers",
+     "finished": 6,
+     "tries": 8,
+     "file": "meta_mitsurugi_ladr.json"
+    }
+   ],
+   "book": {
+    "art": "neutral",
+    "sha256": "ef32c3feb6a7a9162c081798a96579c57715ce7eed54072df1aa1ecca3c77580"
+   }
+  },
+  {
+   "deck": "synchron-744077",
+   "group": "OCG",
+   "exit": 0,
+   "seconds": 1.3,
+   "routes": [
+    {
+     "route": "Meta Synchron · Junk Meister → Junk Signal → Stardust Synchron → Junk Synchron",
+     "finished": 8,
+     "tries": 8,
+     "file": "meta_synchron.json"
+    }
+   ],
+   "book": {
+    "art": "neutral",
+    "sha256": "61843d3a002fc8566263e5fc6568906198a95806d0dd104b0c3e4cd4dfd8f108"
+   }
+  }
+ ]
+}
