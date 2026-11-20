@@ -294,7 +294,7 @@ def _last_link_controller(view):
     return links[-1] if links else None
 
 
-# Runde 10: standardmäßig aus. YGOKI_MATCHUP=1 aktiviert die gemessenen Choke-Points und die robusteste Route.
+# Runde 10: standardmäßig aus. YGOKI_MATCHUP=1 aktiviert die Routen-Choke-Points und die robusteste Route.
 MATCHUP = os.environ.get("YGOKI_MATCHUP", "0") == "1"
 # Nur wenn der Gegner Stoerer-Profil bekannt ist (routen_test --stoerer oder YGOKI_ROBUST_ROUTES=1);
 # sonst darf die Präferenz keine passive Route verdrängen.

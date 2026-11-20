@@ -1,9 +1,9 @@
 """Starter, Verlängerungen und Choke-Points je Deck – aus den vorhandenen Routen simuliert.
 
 Die KI soll nicht nur eine Linie nachspielen, sondern wissen, welche Aktivierung die Linie trägt. Dafür wird
-jede geschriebene Route an jeder Aktivierung unterbrochen und der verbleibende Pflichtweg gezählt. Das ist
-eine Routen-Simulation, kein Ersatz für ein echtes Duell: Sie zeigt, welche Aktivierung die Route am stärksten
-einbrechen lässt, und liefert damit den gemessenen Choke-Point-Wert für playbook.py.
+für jede Aktivierung einer geschriebenen Route der danach verbleibende Pflichtweg gezählt (lineare
+Unterbrechungsrechnung). Das ist keine Engine-Neuberechnung und kein Ersatz für ein echtes Duell: Es zeigt,
+welche Aktivierung die Route am stärksten einbrechen lässt, und liefert den Choke-Point-Wert für playbook.py.
 
     python deck_verstaendnis.py
 """
