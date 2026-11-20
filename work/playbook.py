@@ -466,21 +466,36 @@ class PlaybookPolicy(RandomPolicy):
             hand = view.location(view.team, LOCATION_HAND)
             self.opening = [card.code for card in hand if card and card.code]
 
+    @staticmethod
+    def _field_card(view, card):
+        """The public field card behind a CardRef, or None when the prompt has no field position.
+
+        SelectCard/CardRef carries code, controller, location, sequence and position, but no ATK/DEF. A battle
+        target must therefore be resolved through the same public field state the engine shows both players;
+        otherwise every hidden CardRef looks like 0 ATK and Hint 549 cannot rank the targets.
+        """
+        ref = card if hasattr(card, "controller") and hasattr(card, "location") else None
+        if ref is None:
+            return None
+        try:
+            row = view.location(ref.controller, ref.location)
+            if 0 <= ref.sequence < len(row):
+                return row[ref.sequence]
+        except Exception:   # noqa: BLE001 - a failed query must never stop a duel
+            pass
+        return None
+
     def _attack_of(self, view, card):
         """Current ATK from the public field (player/zone/sequence), not the printed card data."""
+        field_card = self._field_card(view, card)
+        if field_card is not None:
+            return getattr(field_card, "attack", 0) or 0
         ref = card if hasattr(card, "controller") and hasattr(card, "sequence") else None
         code = getattr(ref, "code", 0) if ref is not None else getattr(card, "code", card)
         try:
             code = int(code or 0)
         except (TypeError, ValueError):
             code = 0
-        if ref is not None:
-            try:
-                row = view.location(ref.controller, ref.location)
-                if 0 <= ref.sequence < len(row) and row[ref.sequence]:
-                    return getattr(row[ref.sequence], "attack", 0) or 0
-            except Exception:   # noqa: BLE001 - a failed query must never stop a duel
-                pass
         try:
             for field_card in view.location(view.team, LOCATION_MZONE):
                 if field_card and field_card.code == code:
@@ -489,6 +504,20 @@ class PlaybookPolicy(RandomPolicy):
             pass
         data = view.cards.get(code) if code else None
         return getattr(data, "attack", 0) or 0
+
+    def _defense_of(self, view, card):
+        """Current DEF from the public field, with the same fallback as _attack_of."""
+        field_card = self._field_card(view, card)
+        if field_card is not None:
+            return getattr(field_card, "defense", 0) or 0
+        return getattr(card, "defense", 0) or 0
+
+    def _position_of(self, view, card):
+        """Public battle position; a CardRef's own position is only a fallback."""
+        field_card = self._field_card(view, card)
+        if field_card is not None:
+            return getattr(field_card, "position", 0) or 0
+        return getattr(card, "position", 0) or 0
 
     def _opponent_monsters(self, view):
         return opponent_monsters(view)
@@ -551,12 +580,13 @@ class PlaybookPolicy(RandomPolicy):
                     card.code == preferred_target or getattr(card, "base_code", 0) == preferred_target):
                 return (-4, 0)   # the opponent's monster whose effect is on the chain
             if hint == 549:
-                # Attack only what this attacker beats; face-down targets are unknown.
-                position = getattr(card, "position", 0) or 0
+                # Attack only what this attacker beats; face-down targets are unknown. CardRefs carry no
+                # ATK/DEF, so both values come from the public field card behind the reference.
+                position = self._position_of(view, card)
                 if not mine and position & POS_FACEDOWN:
                     return (3, 0)
                 defense = bool(position & POS_DEFENSE)
-                value = (getattr(card, "defense", 0) if defense else getattr(card, "attack", 0)) or 0
+                value = self._defense_of(view, card) if defense else self._attack_of(view, card)
                 if mine:
                     return (1, own_value(card))
                 return (0 if (self._attacker_atk and self._attacker_atk > value) else 3,

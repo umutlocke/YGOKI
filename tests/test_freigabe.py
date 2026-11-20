@@ -51,9 +51,15 @@ def test_ohne_modell_entscheidet_nur_die_messung():
 
 
 def test_zielnote_und_judges_bleiben_pflicht():
-    assert not freigabe(_trainer([10, 10, 10], rating=8.9))
-    assert not freigabe(_trainer([10, 10, 10], clear=False))
-    assert not freigabe(_trainer([10, 10, 10], valid=500))
+    low = _trainer([10, 10, 10], rating=8.9)
+    assert not freigabe(low)
+    assert "Prüfnote 8.90" in low.record["release_blocked"]
+    judge = _trainer([10, 10, 10], clear=False)
+    assert not freigabe(judge)
+    assert "Judge/Headjudge" in judge.record["release_blocked"]
+    few = _trainer([10, 10, 10], valid=500)
+    assert not freigabe(few)
+    assert "Zu wenige gültige" in few.record["release_blocked"]
 
 
 def test_marge_ueber_der_zielnote_schuetzt_vor_rauschen():

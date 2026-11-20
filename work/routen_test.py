@@ -99,8 +99,14 @@ def main(argv=None):
     engine, deck = combo_solver._ENGINE, combo_solver._DECK
     from qwen_training import load_deck
     _, inspected = load_deck(args.deck)
-    book_json, _ = best_playbook(sha256(inspected.normalized.encode("utf-8")).hexdigest())
-    book_json = book_json or Playbook.neutral(sorted(set(deck.main + deck.extra))).to_json()
+    book_json, book_info = best_playbook(sha256(inspected.normalized.encode("utf-8")).hexdigest())
+    if book_json:
+        book_art = "released" if (book_info or {}).get("released") else "trained"
+    else:
+        book_json = Playbook.neutral(sorted(set(deck.main + deck.extra))).to_json()
+        book_art = "neutral"
+    book = {"art": book_art,
+            "sha256": sha256(json.dumps(book_json, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()}
     routes = routen.for_codes(deck.main + deck.extra)
     name = lambda code: combo_solver._card_label(engine.cards, code)  # noqa: E731
     if not routes:
@@ -108,7 +114,9 @@ def main(argv=None):
         return 1
     rng = random.Random(args.seed)
     gegner = "Gegner mit Ash, Imperm, Nibiru, Veiler" if args.stoerer else "Gegner passiv"
-    lines = [f"# Routen-Test: {args.deck.stem}", "", f"{datetime.now():%d.%m.%Y %H:%M} · {gegner} · {len(routes)} Routen · "
+    lines = [f"# Routen-Test: {args.deck.stem}", "",
+             f"**Buch:** {book['art']} · SHA-256 `{book['sha256']}`", "",
+             f"{datetime.now():%d.%m.%Y %H:%M} · {gegner} · {len(routes)} Routen · "
              f"{args.tries} Starthände je Route · Vergleich mit Combo-Solver ({args.rollouts} Probe-Züge)", ""]
     summary, failures = [], 0
     OUT.mkdir(parents=True, exist_ok=True)
@@ -119,10 +127,11 @@ def main(argv=None):
 
     def save_state(state):
         """Every finished route is on disk; the state never stays "läuft" after the run."""
-        statusfile.write_text(json.dumps({"state": state, "routes_done": len(summary),
+        statusfile.write_text(json.dumps({"state": state, "book": book, "routes_done": len(summary),
                                           "routes_total": len(routes), "errors": failures},
                                          ensure_ascii=False), encoding="utf-8")
-        datafile.write_text(json.dumps(summary, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+        datafile.write_text(json.dumps({"book": book, "routes": summary}, ensure_ascii=False, indent=1,
+                                       default=str), encoding="utf-8")
 
     save_state("läuft")
     starters = {r["steps"][0]["code"] for r in routes}

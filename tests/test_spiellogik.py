@@ -5,7 +5,7 @@ import random
 from types import SimpleNamespace
 
 from kartenrollen import classify
-from ygo_agent.arena.messages import SelectOption, SortChain
+from ygo_agent.arena.messages import CardRef, SelectCard, SelectOption, SortChain
 from ygo_agent.core.constants import PHASE_BATTLE, PHASE_BATTLE_STEP, PHASE_MAIN2
 
 from playbook import (Playbook, PlaybookPolicy, chain_handtrap_state, handtrap_blocked,
@@ -43,6 +43,7 @@ class Duel:
     def __init__(self, chain=(), phase=0):
         self._chain = [Link(controller, code) for controller, code in chain]
         self.phase = phase
+        self._select_hint = {}
 
     def field_state(self):
         return type("State", (), {"chain": self._chain})()
@@ -117,6 +118,22 @@ def test_angriff_waehlt_das_besiegbare_monster():
     book._attacker_atk = 2500
     order = book._order([killer, beatable], view, 549)
     assert order[0] == 1, "das 1000-ATK-Monster ist besiegbar, das 3000-ATK-Monster nicht"
+
+
+def test_angriffsziel_549_liest_echte_selectcard_cardrefs():
+    # Der echte Prompt enthält nur CardRefs (Code/Position), keine ATK/DEF. Der öffentliche Feldzustand
+    # liefert 3000 und 1000; 1500 ATK darf deshalb nur die 1000 wählen.
+    attacker = Card(1500, controller=0, attack=1500, position=0x1)
+    big = Card(3000, controller=1, attack=3000, position=0x1)
+    small = Card(1000, controller=1, attack=1000, position=0x1)
+    view = View(0, [attacker, big, small], monsters=[big, small], own=[attacker])
+    view._duel._select_hint[view.team] = b"\x00\x00\x00" + (549).to_bytes(8, "little")
+    refs = [CardRef(3000, 1, LOCATION_MZONE, 0, 0x1), CardRef(1000, 1, LOCATION_MZONE, 1, 0x1)]
+    prompt = SelectCard(0, False, 1, 1, refs)
+    book = policy(1500)
+    book._attacker_atk = 1500
+    answer = book(prompt, view)
+    assert prompt.decode_response(answer) == {"indices": [1]}
 
 
 def test_kein_angriff_ohne_besiegbares_ziel():
