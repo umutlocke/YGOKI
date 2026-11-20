@@ -377,7 +377,8 @@ def ui_contract():
     if missing:
         raise ValueError("C# verweist auf fehlende XAML-Namen: " + ", ".join(missing))
     required = {"WebUrls", "WebState", "WebStart", "WebApply", "WebReport",
-                "WatchChains", "WatchChainPanel", "WatchChainLinks", "WatchChainTitle"}
+                "WatchChains", "WatchChainPanel", "WatchChainLinks", "WatchChainTitle",
+                "WatchAnimations", "WatchFxLayer"}
     if required - set(names):
         raise ValueError("UI-Elemente fehlen: " + ", ".join(sorted(required - set(names))))
     xaml = (native / "MainWindow.xaml").read_text(encoding="utf-8")

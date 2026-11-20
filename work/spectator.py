@@ -9,6 +9,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import animationsdaten as fx
 from deck_check import SOURCES, audit, read_ydk
 from duel_formats import select_format
 from kettendaten import KettenStapel
@@ -44,6 +45,7 @@ class Spectator(DuelObserver):
         self.events = []
         self.history = []        # every event of the duel, for the saved log
         self.actions = []        # what the app animates: {kind, player, loc, seq, text}
+        self.pending_materials = []  # material moves waiting for the following Special Summon
 
     def on_start(self, duel):
         self.duel = duel
@@ -59,13 +61,28 @@ class Spectator(DuelObserver):
             self.events.append(PHASES.get(event.phase, "Neue Phase"))
         elif kind == Msg.DRAW:
             self.events.append(f"{names[event.player]} zieht {len(event.codes)} Karte(n).")
-        elif kind in (Msg.SUMMONING, Msg.SPSUMMONING, Msg.FLIPSUMMONING):
-            label = {Msg.SUMMONING: "Normalbeschwörung", Msg.SPSUMMONING: "Spezialbeschwörung",
-                     Msg.FLIPSUMMONING: "Flippbeschwörung"}[kind]
+        elif kind == Msg.SUMMONING:
             name = self.duel.engine.cards.name(event.code)
-            self.events.append(f"{label} · {name}")
-            self.act({Msg.SUMMONING: "summon", Msg.SPSUMMONING: "spsummon", Msg.FLIPSUMMONING: "flip"}[kind],
-                     event.location, f"{label}: {name}")
+            card_type = self.card_type(event.code)
+            style, caption = fx.normal_summon_style(card_type)
+            self.events.append(f"Normalbeschwörung · {name}")
+            self.act("summon", event.location, f"Normalbeschwörung: {name}", code=event.code, name=name,
+                     card_type=card_type, mode=style, summon_label=caption)
+        elif kind == Msg.SPSUMMONING:
+            name = self.duel.engine.cards.name(event.code)
+            card_type = self.card_type(event.code)
+            style, caption = fx.summon_style(card_type)
+            materials = self.take_materials()
+            extra = f" · {fx.material_label([item['name'] for item in materials])}" if materials else ""
+            self.events.append(f"Spezialbeschwörung · {name}{extra}")
+            self.act("spsummon", event.location, f"Spezialbeschwörung ({caption}): {name}{extra}",
+                     code=event.code, name=name, card_type=card_type, mode="special", special_kind=style,
+                     special_label=caption, materials=materials)
+        elif kind == Msg.FLIPSUMMONING:
+            name = self.duel.engine.cards.name(event.code)
+            self.events.append(f"Flippbeschwörung · {name}")
+            self.act("flip", event.location, f"Flippbeschwörung: {name}", code=event.code, name=name,
+                     mode="flip")
         elif kind == Msg.CHAINING:
             name = self.duel.engine.cards.name(event.code)
             where = {2: " von der Hand", 0x10: " aus dem Friedhof", 0x20: " aus dem Verbannt-Stapel"}.get(
@@ -77,7 +94,7 @@ class Spectator(DuelObserver):
             self.chain_events.append({"kind": "activate", "chain_count": event.chain_count,
                                       "link": link})
             self.act("activate", event.location, f"Kette {event.chain_count} · {names[event.controller]}: {name}{where}",
-                     chain=event.chain_count, chain_data=link)
+                     chain=event.chain_count, chain_data=link, code=event.code, name=name)
         elif kind == Msg.BECOME_TARGET:
             targets = []
             for location in event.cards:
@@ -108,8 +125,9 @@ class Spectator(DuelObserver):
                 self.chain_events.append({"kind": "end", "chain": finished})
                 self.events.append(self.chain.summary(finished))
         elif kind == Msg.SET:
-            self.events.append(f"{names[event.location.controller]} setzt eine Karte.")
-            self.act("set", event.location, f"{names[event.location.controller]} setzt eine Karte")
+            name = self.duel.engine.cards.name(event.code) if event.code else "Karte"
+            self.events.append(f"{names[event.location.controller]} setzt {name}.")
+            self.act("set", event.location, f"Gesetzt: {name}", code=event.code, name=name, mode="set")
         elif kind == Msg.ATTACK:
             self.events.append(f"{names[event.attacker.controller]} greift"
                                f"{' direkt' if event.direct else ''} an.")
@@ -119,10 +137,26 @@ class Spectator(DuelObserver):
             self.act("attack", event.attacker, f"Angriff: {name}" + (" (direkt)" if event.direct else ""))
             if not event.direct:
                 self.act("target", event.target, "")
-        elif kind == Msg.MOVE and event.reason & 0x1 and event.previous.location & 0xC:
+        elif kind == Msg.MOVE:
+            previous, current = event.previous, event.current
             name = self.duel.engine.cards.name(event.code) if event.code else "Karte"
-            self.events.append(f"Zerstört · {name}")
-            self.act("destroy", event.previous, f"Zerstört: {name}")
+            move = fx.move_kind(previous.location, current.location, event.reason)
+            if move == "destroy":
+                self.events.append(f"Zerstört · {name}")
+                self.act("destroy", previous, f"Zerstört: {name}", code=event.code, name=name, mode="destroy",
+                         from_player=previous.controller, from_loc=previous.location, from_seq=previous.sequence,
+                         to_player=current.controller, to_loc=current.location, to_seq=current.sequence)
+            elif move == "banish":
+                self.events.append(f"Verbannt · {name}")
+                self.act("banish", previous, f"Verbannt: {name}", code=event.code, name=name, mode="banish",
+                         to_player=current.controller, to_loc=current.location, to_seq=current.sequence)
+            elif move == "hand":
+                self.events.append(f"Auf die Hand · {name}")
+                self.act("hand", previous, f"Auf die Hand: {name}", code=event.code, name=name, mode="hand",
+                         to_player=current.controller, to_loc=current.location, to_seq=current.sequence)
+            elif move == "material" and self.card_type(event.code) & fx.TYPE_MONSTER:
+                # Spells/traps can move to the grave in the same window; they are not monster material.
+                self.pending_materials.append(self.material(event.code, name, previous, current))
         elif kind in (Msg.DAMAGE, Msg.RECOVER, Msg.PAY_LPCOST):
             sign = "+" if kind == Msg.RECOVER else "−"
             self.events.append(f"{names[event.player]} · {sign}{event.amount} LP")
@@ -130,6 +164,19 @@ class Spectator(DuelObserver):
     def act(self, kind, location, text, **extra):
         self.actions.append({"kind": kind, "player": location.controller, "loc": location.location,
                              "seq": location.sequence, "text": text, **extra})
+
+    def card_type(self, code):
+        card = self.duel.engine.cards.get(code) if code else None
+        return card.type if card else 0
+
+    def material(self, code, name, previous, current):
+        return {"code": code, "name": name, "player": previous.controller, "loc": previous.location,
+                "seq": previous.sequence, "to_player": current.controller, "to_loc": current.location,
+                "to_seq": current.sequence}
+
+    def take_materials(self):
+        materials, self.pending_materials = self.pending_materials, []
+        return materials
 
     def zone(self, team, location, count):
         slots = list(self.duel.view_location(None, team, location))
@@ -142,10 +189,11 @@ class Spectator(DuelObserver):
             pos = ("verdeckt " if position & 0xA else "") + ("Verteidigung" if position & 0xC else "Angriff")
         else:
             pos = "gesetzt" if position & 0xA else ""
+        overlays = [self.duel.engine.cards.name(code) for code in (card.overlay_cards or [])]
         data = {"code": card.code or 0,
                 "name": self.duel.engine.cards.name(card.code) if card.code else "Verdeckt",
                 "attack": card.attack, "defense": card.defense, "pos": pos,
-                "materials": len(card.overlay_cards or []), "link": card.link or 0}
+                "materials": len(overlays), "material_cards": overlays, "link": card.link or 0}
         if card.counters:
             data["counters"] = sum(card.counters.values())
         return data
@@ -180,6 +228,7 @@ class Spectator(DuelObserver):
         self.chain_events = []
         self.events = []
         self.actions = []
+        self.pending_materials = []
         return frame
 
     def on_prompt(self, team, prompt, retry):

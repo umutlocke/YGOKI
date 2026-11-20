@@ -359,6 +359,7 @@
             <StackPanel Margin="0,0,10,0"><TextBlock Text="Deck B" Style="{StaticResource LabelText}"/><ComboBox x:Name="WatchRight" Width="212"/></StackPanel>
             <StackPanel Margin="0,0,10,0"><TextBlock Text="Format" Style="{StaticResource LabelText}"/><ComboBox x:Name="WatchFormat" Width="103"/></StackPanel>
             <StackPanel Margin="0,0,10,0"><TextBlock Text="Tempo" Style="{StaticResource LabelText}"/><ComboBox x:Name="WatchSpeed" Width="94"/></StackPanel>
+            <StackPanel Margin="0,0,10,0"><TextBlock Text="Animationen" Style="{StaticResource LabelText}"/><ComboBox x:Name="WatchAnimations" Width="104"/></StackPanel>
             <CheckBox x:Name="WatchChains" Content="Ketten anzeigen" IsChecked="True"
                       Foreground="#E6E9F2" VerticalAlignment="Bottom" Margin="0,0,10,7"/>
           </WrapPanel>
@@ -400,8 +401,13 @@
                 <TextBlock x:Name="WatchAction" Text="Noch keine Aktion" FontSize="14" FontWeight="SemiBold"
                            TextWrapping="Wrap" Foreground="{StaticResource Muted}"/>
               </Border>
-              <!-- Spielfeld nach Master Rule: wird in SpectatorView.cs aufgebaut (BuildField) -->
-              <Grid x:Name="WatchField" Margin="0,2,0,2"/>
+              <!-- Spielfeld nach Master Rule: wird in SpectatorView.cs aufgebaut (BuildField).
+                   WatchFxLayer ist die eigene Effekt-Ebene für Beschwörungs-, Setz-, Flip- und Zerstörungsanimationen. -->
+              <Grid Margin="0,2,0,2">
+                <Grid x:Name="WatchField"/>
+                <Canvas x:Name="WatchFxLayer" IsHitTestVisible="False" ClipToBounds="True"
+                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+              </Grid>
               <WrapPanel Margin="0,7,0,5">
                 <TextBlock x:Name="WatchBottomName" Text="Deck A" FontSize="15" FontWeight="SemiBold"
                            Margin="0,0,12,0" VerticalAlignment="Center"/>
