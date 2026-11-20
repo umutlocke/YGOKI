@@ -7,6 +7,7 @@ Attrappen an; auf einer vollständigen Installation werden die echten Module ben
 
 from dataclasses import dataclass, field
 import enum
+import random
 import sys
 import types
 from pathlib import Path
@@ -67,11 +68,38 @@ def _install_engine_stubs():
     class RandomPolicy:
         def __init__(self, seed=None, pass_rate=1.0):
             self.seed = seed
+            self.rng = random.Random(seed)
+
+        def __getattr__(self, name):
+            return getattr(self.rng, name)
 
     _module("ygo_agent.arena.policies", RandomPolicy=RandomPolicy, SimplePolicy=RandomPolicy)
 
-    messages = _module("ygo_agent.arena.messages")
-    for name in ("BattleAction IdleAction SelectBattleCmd SelectCard SelectChain SelectEffectYn "
+    @dataclass(frozen=True)
+    class CardRef:
+        code: int
+        controller: int
+        location: int
+        sequence: int
+        position: int = 0
+
+    @dataclass
+    class SelectCard:
+        player: int
+        cancelable: bool
+        min: int
+        max: int
+        cards: list
+
+        @staticmethod
+        def respond(indices):
+            return {"indices": [] if indices is None else list(indices)}
+
+        def decode_response(self, data):
+            return data if isinstance(data, dict) else {"raw": data}
+
+    messages = _module("ygo_agent.arena.messages", CardRef=CardRef, SelectCard=SelectCard)
+    for name in ("BattleAction IdleAction SelectBattleCmd SelectChain SelectEffectYn "
                  "SelectIdleCmd SelectOption AnnounceNumber SelectPosition SelectTribute SelectUnselectCard SelectYesNo "
                  "AnnounceCard SortChain SortCard").split():
         setattr(messages, name, type(name, (), {}))
