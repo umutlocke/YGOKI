@@ -23,6 +23,7 @@ WORK = Path(__file__).resolve().parent
 sys.path.insert(0, str(WORK))
 
 import combo_solver  # noqa: E402  (sets up ygo_agent on the path)
+import playbook  # noqa: E402
 from playbook import Playbook  # noqa: E402
 import routen  # noqa: E402
 
@@ -57,13 +58,15 @@ def start_hand(route, deck, rng, others=frozenset()):
     return hand + fillers[:max(0, 5 - len(hand))]
 
 
-def test_route(route, book_json, deck, tries, rollouts, rng, others=frozenset(), stoerer=False):
+def test_route(route, book_json, deck, tries, rollouts, rng, others=frozenset(), stoerer=False,
+               stoerer_karte=None):
     results = []
     for attempt in range(tries):
         stack = start_hand(route, deck, rng, others)
         seed = rng.getrandbits(48)
         try:
-            score, details, line, hand = combo_solver.play_turn(book_json, seed, stack, [], stoerer=stoerer)
+            score, details, line, hand = combo_solver.play_turn(book_json, seed, stack, [], stoerer=stoerer,
+                                                               stoerer_karte=stoerer_karte)
         except Exception as error:   # one broken hand must not lose the whole run
             results.append({"hand": stack, "position": 0, "finished": False,
                             "stopped_at": route["steps"][0] if route["steps"] else None, "instead": None,
@@ -92,7 +95,13 @@ def main(argv=None):
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--stoerer", action="store_true",
                         help="Gegner hält Ash, Imperm, Nibiru und Veiler und setzt sie ein (Robustheit der Route)")
+    parser.add_argument("--stoerer-karte", type=int, default=None,
+                        help="Nur diese eine Störkarte im Gegner-Deck (für die Handtrap-Matrix)")
     args = parser.parse_args(argv)
+    if args.stoerer_karte is not None:
+        args.stoerer = True
+    # Ohne Störer bleibt die passive Route unverändert; mit Störern darf die robusteste Route bevorzugt werden.
+    playbook.ROBUST_ROUTES = bool(args.stoerer)
 
     from playbook_store import best_playbook
     combo_solver._init_worker(str(args.deck))
@@ -113,7 +122,10 @@ def main(argv=None):
         print(f"Für {args.deck.stem} gibt es keine Route in work/routen (oder ihr fehlen Pflichtkarten im Deck).")
         return 1
     rng = random.Random(args.seed)
-    gegner = "Gegner mit Ash, Imperm, Nibiru, Veiler" if args.stoerer else "Gegner passiv"
+    if args.stoerer_karte is not None:
+        gegner = f"Gegner nur mit {name(args.stoerer_karte)}"
+    else:
+        gegner = "Gegner mit Ash, Imperm, Nibiru, Veiler" if args.stoerer else "Gegner passiv"
     lines = [f"# Routen-Test: {args.deck.stem}", "",
              f"**Buch:** {book['art']} · SHA-256 `{book['sha256']}`", "",
              f"{datetime.now():%d.%m.%Y %H:%M} · {gegner} · {len(routes)} Routen · "
@@ -121,6 +133,8 @@ def main(argv=None):
     summary, failures = [], 0
     OUT.mkdir(parents=True, exist_ok=True)
     stamp = f"{datetime.now():%Y%m%d-%H%M%S}" + ("-stoerer" if args.stoerer else "")
+    if args.stoerer_karte is not None:
+        stamp += f"-{args.stoerer_karte}"
     report = OUT / f"{args.deck.stem}-{stamp}.md"
     datafile = OUT / f"{args.deck.stem}-{stamp}.json"
     statusfile = OUT / f"{args.deck.stem}-{stamp}-Status.json"
@@ -138,7 +152,7 @@ def main(argv=None):
         others = starters - {route["steps"][0]["code"]} - set(route.get("hand") or [])
         try:
             results = test_route(route, book_json, deck, args.tries, args.rollouts, rng, frozenset(others),
-                                 args.stoerer)
+                                 args.stoerer, args.stoerer_karte)
         except Exception as error:   # a broken route must not stop the run
             failures += 1
             results = [{"hand": [], "position": 0, "finished": False, "stopped_at": route["steps"][0],
@@ -147,7 +161,7 @@ def main(argv=None):
             print(f"Route {route['name']}: Engine-Fehler: {error}", flush=True)
         done = sum(r["finished"] for r in results)
         summary.append({"route": route["name"], "file": route["file"], "finished": done, "tries": len(results),
-                        "stoerer": args.stoerer, "results": results})
+                        "stoerer": args.stoerer, "stoerer_karte": args.stoerer_karte, "results": results})
         print(f"{route['name']}: {done}/{len(results)} bis zum Ende", flush=True)
         lines += [f"## {route['name']} ({route['file']})", "",
                   f"Bis zum Ende gespielt: **{done} von {len(results)}**" +

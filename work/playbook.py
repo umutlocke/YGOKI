@@ -12,6 +12,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 import json
 import os
+from pathlib import Path
 import random
 
 from kartenrollen import text_role
@@ -214,6 +215,13 @@ def card_sense(view, code):
     targets = handtrap and ("target 1 face-up monster your opponent controls" in text
                             or "target 1 effect monster your opponent controls" in text)
     monster = bool(card is not None and card.type & TYPE_MONSTER)
+    if MATCHUP:   # Runde 10: Rollenwissen aus den strukturierten Kartenkarten als zweite Quelle
+        entry = _load_matchup()["cards"].get(str(code)) or {}
+        role = str(entry.get("rolle", ""))
+        handtrap = handtrap or role == "Handtrap"
+        if role == "Handtrap":
+            responder = responder or any("negate" in (effect.get("wirkung", "") or "").lower()
+                                         for effect in entry.get("effekte", []))
     _SENSE[code] = (handtrap, responder, targets, monster)
     return _SENSE[code]
 
@@ -286,6 +294,68 @@ def _last_link_controller(view):
     return links[-1] if links else None
 
 
+# Runde 10: standardmäßig aus. YGOKI_MATCHUP=1 aktiviert die gemessenen Choke-Points und die robusteste Route.
+MATCHUP = os.environ.get("YGOKI_MATCHUP", "0") == "1"
+# Nur wenn der Gegner Stoerer-Profil bekannt ist (routen_test --stoerer oder YGOKI_ROBUST_ROUTES=1);
+# sonst darf die Präferenz keine passive Route verdrängen.
+ROBUST_ROUTES = os.environ.get("YGOKI_ROBUST_ROUTES", "0") == "1"
+_MATCHUP_DATA = None
+
+
+def _load_matchup():
+    """Lazy: fehlende Messdateien dürfen einen normalen Lauf nie stoppen."""
+    global _MATCHUP_DATA
+    if _MATCHUP_DATA is not None:
+        return _MATCHUP_DATA
+    base = Path(__file__).resolve().parent
+    data = {"choke": {}, "routes": {}, "cards": {}}
+    try:
+        knowledge = json.loads((base / "kartenwissen" / "Deckverstaendnis.json").read_text(encoding="utf-8"))
+        data["choke"] = knowledge.get("choke_by_code", {})
+    except (OSError, ValueError):
+        pass
+    try:
+        robust = json.loads((base / "matchup" / "route_robustheit.json").read_text(encoding="utf-8"))
+        data["routes"] = robust.get("routes", {})
+    except (OSError, ValueError):
+        pass
+    try:
+        cards = json.loads((base / "kartenwissen" / "Kartenkarten.json").read_text(encoding="utf-8"))
+        data["cards"] = cards.get("karten", {})
+    except (OSError, ValueError):
+        pass
+    _MATCHUP_DATA = data
+    return data
+
+
+def _choke_score(code):
+    if not MATCHUP or not code:
+        return 0.0
+    try:
+        return float((_load_matchup()["choke"].get(str(code)) or {}).get("score", 0.0))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _route_robustness(name):
+    if not MATCHUP or not ROBUST_ROUTES or not name:
+        return 0.0
+    try:
+        return float((_load_matchup()["routes"].get(name) or {}).get("score", 0.0))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _last_chain_code(view):
+    """Code der zuletzt aktivierten Kette, soweit die öffentliche Ansicht sie zeigt."""
+    try:
+        field = view.field() if hasattr(view, "field") else view.field_state()
+        chain = getattr(field, "chain", []) or []
+        return int(getattr(chain[-1], "code", 0) or 0) if chain else 0
+    except Exception:   # noqa: BLE001 - a failed query must never stop a duel
+        return 0
+
+
 def _select_hint(view):
     raw = getattr(view, "_duel", None) and view._duel._select_hint.get(view.team)
     if not raw or len(raw) < 4:
@@ -352,6 +422,8 @@ class PlaybookPolicy(RandomPolicy):
                 if step["when"] == "end" and not end_phase:
                     continue
                 score = self.book.route_bonus * (1 + 0.5 * position) + 0.3 * route["priority"] - 0.05 * offset
+                if MATCHUP:
+                    score += 2.0 * _route_robustness(route["name"])
                 options.append((score, route, position, step))
         return options
 
@@ -694,6 +766,7 @@ class PlaybookPolicy(RandomPolicy):
             if not p.chains:
                 return p.respond(None)
             theirs = view.turn_player != view.team
+            choke = _choke_score(_last_chain_code(view)) if MATCHUP and theirs else 0.0
             if theirs:   # im gegnerischen Zug zählt die gelernte Kettenquote, nicht die Ausspiel-Priorität
                 ranked = sorted(range(len(p.chains)), key=lambda i: -book.chain_opp.get(p.chains[i].code, 0.6))
             else:
@@ -738,6 +811,8 @@ class PlaybookPolicy(RandomPolicy):
                         continue          # "During the Main Phase" (Nibiru, Fuwalos): in Battle/End wertlos
                     elif not handtrap and last is None:
                         chance *= 0.15 if end_phase else 0.4   # no reason to fire into an empty chain
+                if handtrap and MATCHUP and choke >= 0.60:
+                    chance = max(chance, 0.95)   # gemessener Engpass: Störkarte nicht für die erste Gelegenheit aufsparen
                 if self.repeats[("chain", code, view.turn)] < 2 and rng.random() < chance:
                     return self._chain(p, index, view, theirs, end_phase)
             return p.respond(None)
@@ -751,6 +826,8 @@ class PlaybookPolicy(RandomPolicy):
                 yes = True
             elif handtrap and responder and _last_link_controller(view) in (None, view.team):
                 yes = False
+            elif MATCHUP and handtrap and _choke_score(_last_chain_code(view)) >= 0.60:
+                yes = True
             else:
                 yes = rng.random() < book.yes
             if yes and self._opt_blocked(code, getattr(p, "description", 0)):
