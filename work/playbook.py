@@ -38,8 +38,10 @@ STEP_GROUP = {"N": "N", "S": "S", "A": "E", "K": "E", "Z": "Z", "M": "M"}
 GROUPS_IDLE = {"summon": "N", "special": "S", "activate": "E", "sset": "Z", "mset": "M"}
 ACTIONS_PER_TURN = 18
 REPEATS_PER_TURN = 3
-# P3-Messschalter: Die Effekt-Sperre lässt sich für dieselben Seeds abschalten.
-EFFECT_RULES = os.environ.get("YGOKI_P3_EFFEKT", "1") != "0"
+# P5/P6: Die Engine-Beschreibung ist nicht je Effekt eindeutig (Borreload Fatalflare Dragon und Miracle
+# Ejector liefern für mehrere getrennte Effekte dieselbe ID 221). Die Sperre ist deshalb standardmäßig aus
+# und bleibt nur für Messungen mit YGOKI_P3_EFFEKT=1 einschaltbar.
+EFFECT_RULES = os.environ.get("YGOKI_P3_EFFEKT", "0") == "1"
 _HARD_OPT = {}
 
 
@@ -618,20 +620,29 @@ class PlaybookPolicy(RandomPolicy):
             return 0
         return found[0] if found else 0
 
-    def _opt_key(self, code, description):
-        """Lock key for a hard once-per-turn clause. Card activation and effect activation are separate."""
-        description = int(description or 0)
-        return ("Effekt", code, description) if description > 0 else ("Karte", code)
+    def _opt_key(self, code, description, card_activation=False):
+        """Lock key for a hard once-per-turn clause.
 
-    def _opt_blocked(self, code, description):
+        Description 0 is only a card activation when the caller knows it is one. An effect prompt without an
+        ID is unknown (None): assigning it to the card would block a different, still legal effect.
+        """
+        description = int(description or 0)
+        if card_activation and description == 0:
+            return ("Karte", code)
+        if description > 0:
+            return ("Effekt", code, description)
+        return None
+
+    def _opt_blocked(self, code, description, card_activation=False):
         if not EFFECT_RULES:
             return False
-        key = self._opt_key(code, description)
-        return key[0] in _hard_opt(code) and key in self.opt_used
+        key = self._opt_key(code, description, card_activation)
+        return key is not None and key[0] in _hard_opt(code) and key in self.opt_used
 
-    def _mark_opt(self, code, description):
-        if EFFECT_RULES:
-            self.opt_used.add(self._opt_key(code, description))
+    def _mark_opt(self, code, description, card_activation=False):
+        key = self._opt_key(code, description, card_activation)
+        if EFFECT_RULES and key is not None:
+            self.opt_used.add(key)
 
     def _idle_allowed(self, name, code, view):
         """Card-text rules: hand traps are never summoned or set, and used in your own turn only as an answer."""
@@ -692,7 +703,9 @@ class PlaybookPolicy(RandomPolicy):
                     key = (name, card.code, getattr(card, "description", 0))
                     if self.repeats[key] >= REPEATS_PER_TURN or not self._idle_allowed(name, card.code, view):
                         continue
-                    if name == "activate" and self._opt_blocked(card.code, key[2]):
+                    card_activation = name == "activate" and not (
+                        getattr(view.cards.get(card.code), "type", 0) & TYPE_MONSTER)
+                    if name == "activate" and self._opt_blocked(card.code, key[2], card_activation):
                         continue
                     score = book.bias[name] + self.weight(card.code) + bonus.get(card.code, 0.0) + rng.gauss(0, 0.05)
                     score += route_bonus.get((GROUPS_IDLE.get(name, ""), card.code), 0.0)
@@ -716,7 +729,7 @@ class PlaybookPolicy(RandomPolicy):
                                             "sset": "Z"}[name], code))
                     if name == "activate":
                         self.activated[code] += 1
-                        self._mark_opt(code, key[2])
+                        self._mark_opt(code, key[2], card_activation)
                     return p.respond(action, index)
             self._log_turn(view)
             if p.can_battle_phase and view.turn > 1:
