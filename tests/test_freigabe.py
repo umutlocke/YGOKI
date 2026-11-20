@@ -143,3 +143,30 @@ def test_abschlusspruefung_lehrt_keine_kombos():
     assert not called
     assert ki_lernen.Trainer.exam_combos(trainer, False, [1], 2) == {"found": 1}
     assert called == [([1], 2)]
+
+
+class _Pool:
+    def __init__(self, invalid=0):
+        self.invalid = invalid
+
+    def map(self, function, tasks, chunksize=2):
+        rows = [{"valid": True, "winner": 0, "first": task[3]} for task in tasks]
+        if self.invalid:
+            rows[0] = {"valid": False, "winner": None, "first": tasks[0][3]}
+        return rows
+
+
+def test_rauschboden_zusammenfassung_ist_auswertbar():
+    trainer = SimpleNamespace(args=SimpleNamespace(seed=1, exam_blocks=20), gauntlet=[],
+                              start_book={"weights": {"1": 0.0}}, record={"exams": []})
+    noise = ki_lernen.Trainer.noise_floor(trainer, _Pool(), {"weights": {"1": 0.0}}, 2, 3)
+    assert noise["clear"] is True
+    assert noise["invalid"] == 0
+    assert len(noise["probes_detail"]) == 2
+    assert noise["mean"] == 7.0          # ohne Gauntlet ist die Note auf 7 begrenzt
+
+    bad = ki_lernen.Trainer.noise_floor(trainer, _Pool(invalid=1), {"weights": {"1": 0.0}}, 2, 3)
+    assert bad["clear"] is False
+    assert bad["invalid"] == 2
+    assert bad["mean"] <= 5.0
+
