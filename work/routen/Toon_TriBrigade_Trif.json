@@ -118,7 +118,7 @@
     {
      "code": 26847978,
      "do": "E",
-     "note": "Ferrijit beschwört Comic Cat von der Hand (deren Effekte sind negiert)",
+     "note": "Ferrijit beschwört Comic Cat von der Hand",
      "pick": [
       72921536
      ]
@@ -173,7 +173,7 @@
      ]
     }
    ],
-   "korrektur": "20.11.2026: Kitt verbannt Nervall (1) → Yummy★Snatchy (Link-1), Kitt + Snatchy → Mouser; Rabbit legt Toon World (Option 0), Legen zählt als Aktivierung; Evil Box über Toon Bookmark, weil der Motor die dritte Toon-World-Suche im selben Zug nicht mehr zulässt. Offen: Ferrijit negiert die Effekte des von ihr beschworenen Comic Cat; die Tail-Stufe 14 ist damit regeltechnisch nicht erreichbar (2/8 statt 9/10)."
+   "korrektur": "20.11.2026 (R14b): Trifs Originalliste (45 Main) reproduziert mit der unveränderten main-Route 9/10 (10 Hände, Seed 7); mit dieser Route 10/10. Rabbit-Option 0, Platzierungsschritt und Evil Box über Toon Bookmark bleiben daher. Kitt bannt Nervall (1) → Yummy★Snatchy, Kitt + Snatchy → Mouser. Das Messdeck ist jetzt Trifs Originalliste."
   },
   {
    "name": "Toon Tri-Brigade · Perfect Toon World (Toon-Teil, Einstieg)",
