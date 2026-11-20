@@ -11,10 +11,12 @@ import pytest
 
 from kettendaten import KettenStapel, effect_for_description, effect_text, load_cards
 
+FIXTURES = Path(__file__).parent / "fixtures"
+
 
 def test_striker_dragon_zeigt_den_aktivierten_sucheffekt_und_kein_ziel():
     """Der reale Striker-Dragon-Fall: description 0 ist die Link-Suche, nicht Material."""
-    cards = load_cards()
+    cards = load_cards(FIXTURES / "kartenkarten-striker.json")
     description = 73539069 << 20  # aux.Stringid(73539069, 0)
 
     text = effect_text(73539069, cards, description)

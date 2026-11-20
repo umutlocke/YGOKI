@@ -1,0 +1,71 @@
+{
+ "hinweis": "CI-Fixture: nur der für den Striker-Dragon-Kettentest benötigte Kartenkarten-Eintrag.",
+ "karten": {
+  "73539069": {
+   "code": 73539069,
+   "name": "Striker Dragon",
+   "effekte": [
+    {
+     "art": "continuous",
+     "block": "",
+     "bedingung": "",
+     "vorab": "",
+     "kosten": [],
+     "ziel": false,
+     "wirkung": "1 Level 4 or lower Dragon monster",
+     "zone": [],
+     "timing": "",
+     "folge": [],
+     "opt": "",
+     "opt_ebene": ""
+    },
+    {
+     "art": "trigger",
+     "block": "",
+     "bedingung": "If this card is Link Summoned",
+     "vorab": "",
+     "kosten": [],
+     "ziel": false,
+     "wirkung": "You can add 1 \"Boot Sector Launch\" from your Deck to your hand.",
+     "zone": [],
+     "timing": "verpasst das Timing nicht („If“)",
+     "folge": [],
+     "opt": "hart",
+     "opt_ebene": ""
+    },
+    {
+     "art": "ignition",
+     "block": "",
+     "bedingung": "",
+     "vorab": "You can target 1 face-up monster you control and 1 \"Rokket\" monster in your GY",
+     "kosten": [],
+     "ziel": true,
+     "wirkung": "destroy that monster on the field, and if you do, add that other monster from the GY to your hand.",
+     "zone": [
+      "Feld"
+     ],
+     "timing": "",
+     "folge": [
+      "and if you do: der zweite Teil hängt vom ersten ab"
+     ],
+     "opt": "hart",
+     "opt_ebene": ""
+    },
+    {
+     "art": "limit",
+     "block": "",
+     "bedingung": "",
+     "vorab": "",
+     "kosten": [],
+     "ziel": false,
+     "wirkung": "You can only use each effect of \"Striker Dragon\" once per turn.",
+     "zone": [],
+     "timing": "",
+     "folge": [],
+     "opt": "",
+     "opt_ebene": ""
+    }
+   ]
+  }
+ }
+}
