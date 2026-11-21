@@ -60,6 +60,34 @@ def test_resume_erkennt_angeforderten_aber_fehlenden_coach(tmp_path, monkeypatch
     assert "--ohne-qwen" not in args           # der Coach war angefordert, nur nicht erreichbar
 
 
+def _turnier_args(tmp_path, monkeypatch, state):
+    folder = tmp_path / "YCS-4-lauf"
+    folder.mkdir()
+    monkeypatch.setattr(training_jobs, "TOURNAMENTS", tmp_path)
+    (folder / "Feld.json").write_text("{}", encoding="utf-8")
+    (folder / "Zwischenstand.json").write_text(json.dumps(state), encoding="utf-8")
+    monkeypatch.setattr(training_jobs, "status", lambda folder: {"running": False})
+    captured = {}
+    monkeypatch.setattr(training_jobs, "_launch", lambda args, folder, **kwargs: captured.update(args=args) or {})
+    training_jobs.tournament_resume(folder)
+    return captured["args"]
+
+
+def test_turnier_resume_nutzt_seed_feld_und_zwischenstand(tmp_path, monkeypatch):
+    args = _turnier_args(tmp_path, monkeypatch,
+                         {"seed": 4242, "record": {"players": 4, "state": "unterbrochen", "model": None}})
+    assert args[args.index("--seed") + 1] == "4242"
+    assert args[args.index("--players") + 1] == "4"
+    assert args[args.index("--field") + 1].endswith("Feld.json")
+    assert "--resume" in args
+    assert "--ohne-qwen" in args      # ohne gespeichertes Modell kein Coach-Versuch beim Fortsetzen
+
+
+def test_turnier_resume_lehnt_beendete_laeufe_ab(tmp_path, monkeypatch):
+    with pytest.raises(ValueError):
+        _turnier_args(tmp_path, monkeypatch, {"seed": 1, "record": {"players": 4, "state": "beendet"}})
+
+
 def test_start_speichert_die_qwen_wahl(tmp_path, monkeypatch):
     deck = tmp_path / "Deck.ydk"
     deck.write_text("", encoding="utf-8")

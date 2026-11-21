@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter, defaultdict
-from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, TimeoutError as FuturesTimeoutError, wait
 from concurrent.futures.process import BrokenProcessPool
 from csv import DictWriter
 from datetime import datetime
@@ -124,15 +124,34 @@ def _init_worker(paths):
     _DECKS = [item.deck for item in inspected]
 
 
+def seeded_rps_seats(policies, rps_seed):
+    """Zwei Sitze, deren Stein-Schere-Papier aus `rps_seed` kommt.
+
+    `Seat.rps()` in ygo_agent nutzt das globale, ungeseedete `random`; damit wäre ein Turnier trotz gleichem Seed
+    nicht reproduzierbar. Hier zieht jeder Sitz seine Würfe aus einem eigenen, aus dem Turnier-Seed abgeleiteten
+    Zufallsstrom."""
+    from ygo_agent.arena.seats import PolicySeat
+
+    class RpsSeat(PolicySeat):
+        def __init__(self, name, policy, rng):
+            super().__init__(name, policy)
+            self.rps_rng = rng
+
+        def rps(self):
+            return self.rps_rng.randint(1, 3)
+
+    return tuple(RpsSeat(name, policy, random.Random(f"{rps_seed}:{name}"))
+                 for name, policy in zip(("A", "B"), policies))
+
+
 def play_match(task):
-    """task = (book_a, book_b, deck_a, deck_b, seed). Returns the Bo3 result from A's point of view."""
+    """task = (book_a, book_b, deck_a, deck_b, seed, rps_seed). Returns the Bo3 result from A's point of view."""
     from windows_duel import check_result
     from ygo_agent.arena.duel import DuelConfig
     from ygo_agent.arena.runner import run_match
-    from ygo_agent.arena.seats import PolicySeat
-    book_a, book_b, deck_a, deck_b, seed = task
-    seats = (PolicySeat("A", PlaybookPolicy(Playbook.from_json(book_a), seed * 2 + 1)),
-             PolicySeat("B", PlaybookPolicy(Playbook.from_json(book_b), seed * 2 + 2)))
+    book_a, book_b, deck_a, deck_b, seed, rps_seed = task
+    seats = seeded_rps_seats((PlaybookPolicy(Playbook.from_json(book_a), seed * 2 + 1),
+                              PlaybookPolicy(Playbook.from_json(book_b), seed * 2 + 2)), rps_seed)
     try:
         match = run_match(_ENGINE, DuelConfig(rules="mr5", max_retries=0), (_DECKS[deck_a], _DECKS[deck_b]),
                           seats, best_of=3, seed=seed)
@@ -143,7 +162,8 @@ def play_match(task):
     except Exception as error:  # a broken duel ends the match as a draw and is reported by the Judge
         return {"valid": False, "winner": None, "games": 0, "error": f"{type(error).__name__}: {error}"[:300]}
     wins = match.wins
-    return {"valid": True, "winner": match.winner, "games": len(match.games), "score": f"{wins[0]}-{wins[1]}"}
+    return {"valid": True, "winner": match.winner, "games": len(match.games), "score": f"{wins[0]}-{wins[1]}",
+            "first": [game.first for game in match.games]}
 
 
 def crash_result(error):
@@ -326,7 +346,7 @@ class WorkerPool:
         marker = str(self.marker_dir) if self.marker_dir else None
         try:
             return executor.submit(self.job, (marker, -1, [task])).result(timeout=ISOLATED_SECONDS)[0], False
-        except TimeoutError:
+        except (TimeoutError, FuturesTimeoutError):   # unter Python < 3.11 zwei verschiedene Klassen
             self.hangs += 1
             for process in list(getattr(executor, "_processes", {}).values()):
                 try:
@@ -548,7 +568,8 @@ class Tournament:
 
     def play(self, pool, pairs, phase):
         tasks = [(self.players[a]["book"], self.players[b]["book"], self.players[a]["deck"],
-                  self.players[b]["deck"], self.rng.getrandbits(62)) for a, b in pairs]
+                  self.players[b]["deck"], self.rng.getrandbits(62),
+                  f"{self.args.seed}:{phase}:{table}") for table, (a, b) in enumerate(pairs)]
         results = pool.map(tasks)
         for (a, b), task, result in zip(pairs, tasks, results):
             self.record["matches"] += 1

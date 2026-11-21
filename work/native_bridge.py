@@ -52,6 +52,8 @@ def dispatch(editor, action, data):
     if action == "ycs_start":
         field = [(editor.deck_path(item["source"], item["name"]), item["share"]) for item in data["field"]]
         return training_jobs.tournament_start(field, data)
+    if action == "turnier_resume":
+        return training_jobs.tournament_resume(data["folder"])
     if action == "ycs_runs":
         return training_jobs.runs(training_jobs.TOURNAMENTS)
     if action == "solver_start":

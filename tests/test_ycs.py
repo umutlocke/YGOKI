@@ -1,10 +1,20 @@
 import json
 import os
 import random
+import subprocess
 from argparse import Namespace
+from collections import defaultdict
+from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 import ycs
+
+APP_PYTHON = Path("C:/Users/umutc/Desktop/YGO KI APP/work/upstream/python-win32/python.exe")
+DECKS = [Path("work/decks/ElfMagnaPP.ydk"), Path("work/decks/WinterRaven_WhiteForest_new.ydk")]
+ENGINE_READY = (APP_PYTHON.is_file() and Path("work/upstream/ygo-agent/ygo_agent").is_dir()
+                and all(path.is_file() for path in DECKS))
 
 
 def player(pid, points=0, opponents=(), bye=False):
@@ -37,6 +47,106 @@ def test_rematch_wird_vermieden():
     players = [player(1, 3, [2]), player(2, 3, [1]), player(3), player(4)]
     pairs, _ = ycs.pair_round(players, random.Random(5))
     assert all(set(pair) != {0, 1} for pair in pairs)
+
+
+class StubPool:
+    def __init__(self):
+        self.tasks = []
+
+    def map(self, tasks):
+        self.tasks = list(tasks)
+        return [{"valid": True, "winner": 0, "games": 2, "score": "2-0", "first": [0, 0]} for _ in tasks]
+
+
+def stub_tournament(seed):
+    players = [{"id": index + 1, "deck": index % 2, "book": {"weights": {}}, "points": 0, "wins": 0,
+                "losses": 0, "draws": 0, "opponents": [], "bye": False} for index in range(8)]
+    return SimpleNamespace(rng=random.Random(seed), players=players,
+                           record={"matches": 0, "duels": 0, "invalid": 0, "findings": []},
+                           names=["A", "B"], args=Namespace(seed=seed), matchups=defaultdict(lambda: [0, 0, 0]))
+
+
+def test_gleicher_seed_gleiche_paarungen_und_rps_stroeme():
+    runs = []
+    for _ in range(2):
+        tournament = stub_tournament(7)
+        pool = StubPool()
+        pairs, _ = ycs.pair_round(tournament.players, tournament.rng)
+        ycs.Tournament.play(tournament, pool, pairs, "Runde 1")
+        runs.append((pairs, [task[5] for task in pool.tasks]))
+    assert runs[0][0] == runs[1][0]
+    assert runs[0][1] == runs[1][1]
+    assert all(seed.startswith("7:Runde 1:") for seed in runs[0][1])
+    assert len(set(runs[0][1])) == len(runs[0][1])   # jeder Tisch bekommt einen eigenen RPS-Strom
+
+
+def test_rps_stroeme_haengen_nicht_am_rng_verlauf():
+    """Beim Fortsetzen ist der RNG-Stand ein anderer; die RPS-Würfe müssen trotzdem dieselben bleiben."""
+    pairs = [(0, 1), (2, 3)]
+    streams = []
+    for salt in (0, 1):
+        tournament = stub_tournament(7)
+        for _ in range(salt):
+            tournament.rng.random()
+        pool = StubPool()
+        ycs.Tournament.play(tournament, pool, pairs, "Runde 2")
+        streams.append([task[5] for task in pool.tasks])
+    assert streams[0] == streams[1] == ["7:Runde 2:0", "7:Runde 2:1"]
+
+
+ENGINE_SCRIPT = r'''
+import json
+import random
+import sys
+from argparse import Namespace
+from pathlib import Path
+
+sys.path.insert(0, str(Path("work").resolve()))
+import ycs
+from playbook import Playbook
+
+decks = [Path("work/decks/ElfMagnaPP.ydk"), Path("work/decks/WinterRaven_WhiteForest_new.ydk")]
+ycs._init_worker([str(path) for path in decks])
+books = [Playbook.neutral(sorted(set(deck.main + deck.extra))).to_json() for deck in ycs._DECKS]
+tasks = [(books[0], books[1], 0, 1, 1000 + index, f"4242:Runde 1:{index}") for index in range(3)]
+random.seed(1)
+first = [ycs.play_match(task) for task in tasks]
+random.seed(2)
+second = [ycs.play_match(task) for task in tasks]
+assert first == second, (first, second)
+assert all(result["valid"] and result["first"] for result in first)
+print("RPS", [result["first"] for result in first])
+
+field = Path(sys.argv[1])
+runs = []
+for number in (1, 2):
+    folder = Path(sys.argv[2]) / f"lauf{number}"
+    args = Namespace(field=str(field), players=4, rounds=2, top_cut=0, spread=0.3, workers=1, seed=4242,
+                     ohne_qwen=True, run_dir=str(folder), resume=False)
+    ycs.Tournament(args).run()
+    runs.append(folder)
+a = json.loads((runs[0] / "Ergebnis.json").read_text(encoding="utf-8"))
+b = json.loads((runs[1] / "Ergebnis.json").read_text(encoding="utf-8"))
+assert a["standings"] == b["standings"], (a["standings"], b["standings"])
+assert a["state"] == b["state"] == "beendet"
+za = json.loads((runs[0] / "Zwischenstand.json").read_text(encoding="utf-8"))["players"]
+zb = json.loads((runs[1] / "Zwischenstand.json").read_text(encoding="utf-8"))["players"]
+assert [(p["points"], p["opponents"], p["wins"], p["losses"]) for p in za] == \
+       [(p["points"], p["opponents"], p["wins"], p["losses"]) for p in zb]
+print("Tabelle", [(row["platz"], row["punkte"], row["bilanz"]) for row in a["standings"]])
+'''
+
+
+@pytest.mark.skipif(not ENGINE_READY, reason="32-Bit-Laufzeit, Engine oder Decks fehlen")
+def test_gleicher_seed_ergibt_identisches_turnier(tmp_path):
+    field = tmp_path / "Feld.json"
+    field.write_text(json.dumps({"decks": [{"deck": str(DECKS[0].resolve()), "share": 50},
+                                           {"deck": str(DECKS[1].resolve()), "share": 50}]}), encoding="utf-8")
+    result = subprocess.run([str(APP_PYTHON), "-B", "-X", "utf8", "-c", ENGINE_SCRIPT, str(field),
+                             str(tmp_path)], capture_output=True, text=True, encoding="utf-8", errors="replace",
+                            timeout=300)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Tabelle" in result.stdout and "RPS" in result.stdout
 
 
 def crash_batch(payload):

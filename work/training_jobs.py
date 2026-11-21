@@ -215,6 +215,26 @@ def tournament_start(field, data):
     return _launch(args, folder)
 
 
+def tournament_resume(folder):
+    """Setzt ein unterbrochenes Turnier mit demselben Seed und demselben Feld fort."""
+    folder = _safe_run(folder)
+    if status(folder)["running"]:
+        raise ValueError("Dieses Turnier läuft bereits.")
+    state = _read(folder / "Zwischenstand.json")
+    if not state or (state.get("record") or {}).get("state") == "beendet":
+        raise ValueError("Für dieses Turnier gibt es keinen unterbrochenen Zwischenstand.")
+    field = folder / "Feld.json"
+    if not field.is_file():
+        raise ValueError("Feld.json fehlt im Turnierordner.")
+    record = state["record"]
+    args = [str(PYTHON), "-B", "-X", "utf8", str(WORK / "ycs.py"), "--field", str(field),
+            "--players", str(int(record["players"])), "--seed", str(int(state["seed"])),
+            "--run-dir", str(folder), "--resume"]
+    if not record.get("model"):
+        args.append("--ohne-qwen")
+    return _launch(args, folder)
+
+
 def trained(deck_path):
     """Best available playbook rating for this exact deck list: {"rating", "released"} or None."""
     from hashlib import sha256

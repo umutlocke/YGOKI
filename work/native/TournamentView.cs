@@ -49,6 +49,7 @@ namespace YgoKi
             Combo("YcsCut").SelectionChanged += delegate { TournamentPlan(); };
             OnClickAsync("YcsStart", StartTournament);
             OnClickAsync("YcsQueue", QueueFieldAndTournament);
+            OnClickAsync("YcsResume", ResumeTournament);
             OnClickAsync("YcsStop", async () =>
             {
                 if (ycsFolder == null) return;
@@ -171,6 +172,15 @@ namespace YgoKi
             await LoadTournaments();
         }
 
+        private async Task ResumeTournament()
+        {
+            if (ycsFolder == null) return;
+            var started = Json.Object(await bridge.Call("turnier_resume", Json.Fields("folder", ycsFolder)));
+            if (started.Text("folder") != null) ycsFolder = started.Text("folder");
+            Status("Turnier wird ab dem letzten Zwischenstand fortgesetzt.");
+            await LoadTournaments();
+        }
+
         private async Task LoadTournaments()
         {
             var runs = ((object[])await bridge.Call("ycs_runs")).Select(item => new TrainingRun(Json.Object(item))).ToList();
@@ -195,7 +205,7 @@ namespace YgoKi
                 Text("YcsHeadline").Text = "Noch kein Turnier";
                 Text("YcsProgress").Text = "Stell links das Meta-Feld zusammen und starte das Turnier.";
                 Find<ListBox>("YcsLog").ItemsSource = null;
-                foreach (string name in new[] { "YcsStop", "YcsReport", "YcsFolder" }) Button(name).IsEnabled = false;
+                foreach (string name in new[] { "YcsResume", "YcsStop", "YcsReport", "YcsFolder" }) Button(name).IsEnabled = false;
                 return;
             }
             bool running = run.Get("running") is bool && (bool)run.Get("running");
@@ -210,6 +220,7 @@ namespace YgoKi
             Text("YcsProgress").Text = progress;
             var log = run.Get("log") as object[];
             Find<ListBox>("YcsLog").ItemsSource = log == null ? null : log.Cast<string>().ToList();
+            Button("YcsResume").IsEnabled = !running && (run.Text("state") ?? "") == "unterbrochen";
             Button("YcsStop").IsEnabled = running && !stopping;
             Button("YcsReport").IsEnabled = run.Text("report") != null;
             Button("YcsFolder").IsEnabled = run.Text("folder") != null;
